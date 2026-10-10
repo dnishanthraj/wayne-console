@@ -2271,6 +2271,54 @@
                   : { pitch: 0, bearing: 0, duration: 900 });
   }
 
+  /* --- the drone's tour: district to district, low and slow, a title over each --- */
+  var TOUR = ['Old Gotham', 'Diamond District', 'Fashion District', 'City Hall District', 'Chinatown', 'Tricorner',
+              'Upper West Side', 'University District', 'Robinson Park', 'Upper East Side', 'The Bowery', 'Crime Alley',
+              'Amusement Mile', 'Otisburg', 'The Narrows', 'Bristol'];
+  var touring = null;
+  function stopTour() {
+    if (!touring) return;
+    clearTimeout(touring.timer);
+    touring = null;
+    root.classList.remove('is-touring');
+    $('.gm-tour').hidden = true;
+    $('[data-act="tour"]').classList.remove('is-on');
+    map.stop();
+  }
+  function tour() {
+    if (touring) return stopTour();
+    var stops = TOUR.map(function (n) {
+      return (gazetteer.places || []).filter(function (p) { return p.name === n && p.kind === 'district'; })[0];
+    }).filter(Boolean);
+    if (!stops.length) return;
+    touring = { i: 0, timer: null };
+    root.classList.add('is-touring');
+    $('[data-act="tour"]').classList.add('is-on');
+    relief(true);
+    function card(p) {
+      var box = $('.gm-tour'), bio = ((gazetteer.areas || {})[p.name] || '').split(/(?<=[.!?])\s/)[0];
+      box.hidden = true;
+      void box.offsetWidth;                       // the title comes in again for every district
+      box.querySelector('.gm-tour__name').textContent = p.name;
+      box.querySelector('.gm-tour__line').textContent = bio;
+      box.hidden = false;
+    }
+    function next() {
+      if (!touring) return;
+      var p = stops[touring.i % stops.length], k = touring.i++;
+      var bearing = (k * 57) % 360 - 180;
+      map.flyTo({ center: ll(p.x, p.y), zoom: 14.4, pitch: 62, bearing: bearing, duration: 4800, essential: true });
+      touring.timer = setTimeout(function () {
+        if (!touring) return;
+        card(p);
+        // A slow turn round it, the city sliding past, then on.
+        map.easeTo({ bearing: bearing + 40, zoom: 14.9, duration: 8000, easing: function (t) { return t; }, essential: true });
+        touring.timer = setTimeout(next, 8200);
+      }, 4900);
+    }
+    next();
+  }
+
   function fit() {
     // The whole island, tilted: the city as a model on the table.
     var camera = map.cameraForBounds([ll(11, 133), ll(90, 14)], { padding: 30 });
@@ -2300,6 +2348,12 @@
     $('[data-act="fit"]').addEventListener('click', fit);
     $('[data-act="3d"]').addEventListener('click', function () { setThreeD(!threeD); });
     $('[data-act="drop"]').addEventListener('click', function () { setDropping(!dropping); });
+    $('[data-act="tour"]').addEventListener('click', function (e) { e.stopPropagation(); tour(); });
+    // Any hand on the map ends the tour where it is.
+    ['mousedown', 'wheel', 'touchstart'].forEach(function (kind) {
+      map.getCanvas().addEventListener(kind, function () { stopTour(); }, { passive: true });
+    });
+    window.addEventListener('keydown', function () { if (touring) stopTour(); });
     $('[data-act="close"]').addEventListener('click', GothamMap.close);
     $('.gm-card [data-act="message"]').addEventListener('click', function () { if (selected) opts.message(selected); });
     $('.gm-card [data-act="call"]').addEventListener('click', function () { if (selected) opts.call(selected); });
@@ -2525,6 +2579,7 @@
     },
     close: function () {
       if (!root) return;
+      stopTour();
       root.hidden = true;
       setDropping(false);
       if (hover) hover.hidden = true;

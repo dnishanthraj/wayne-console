@@ -2320,3 +2320,17 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 
 /* The top bar's tools in two groups — the world (map, Codex), then the lines (mail, messages) — a hairline between. */
 .bar__sep { width: 1px; height: 18px; background: var(--hairline-2); margin: 0 4px; flex: none; }
+
+/* The drone's tour: the district's name over the city as it flies in, and a line of what it is. */
+.gm-tour { position: absolute; left: 50%; top: 66px; transform: translateX(-50%); z-index: 860; text-align: center;
+  pointer-events: none; max-width: min(660px, calc(100% - var(--gm-side) - 60px)); padding: 16px 34px 18px;
+  background: radial-gradient(ellipse at center, rgba(4, 8, 14, 0.78) 0%, rgba(4, 8, 14, 0.55) 45%, rgba(4, 8, 14, 0) 78%);
+  animation: gm-tour-in 1.2s var(--ease) both; }
+.gm-tour[hidden] { display: none; }
+.gm-tour__name { margin: 0; font-family: var(--mono); font-size: 22px; letter-spacing: 0.42em; text-transform: uppercase;
+  color: var(--text); text-shadow: 0 0 18px rgba(79, 168, 224, 0.55), 0 0 4px #02050a; }
+.gm-tour__line { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); font-style: italic;
+  text-shadow: 0 0 6px #02050a, 0 0 2px #02050a; }
+@keyframes gm-tour-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.gm.is-touring .gm-card, .gm.is-touring .gm-info:not(.is-docked) { display: none; }
+[data-act="tour"].is-on { color: var(--primary); border-color: var(--primary-dim); }
