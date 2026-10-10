@@ -212,6 +212,39 @@
       b.addEventListener('click', function () { folder = b.dataset.folder; openId = null; load(); });
     });
     $('.mx-close').addEventListener('click', close);
+    // The columns by their edges, as he likes them — remembered.
+    var body = $('.mx-body');
+    try {
+      var kept = JSON.parse(localStorage.getItem('mx-columns') || 'null');
+      if (kept) { body.style.setProperty('--mx-folders', kept.folders + 'px'); body.style.setProperty('--mx-list', kept.list + 'px'); }
+    } catch (e) { /* no stored widths */ }
+    root.querySelectorAll('.mx-grip').forEach(function (grip) {
+      var start = null;
+      grip.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        grip.setPointerCapture(e.pointerId);
+        start = { x: e.clientX, folders: $('.mx-folders').offsetWidth, list: $('.mx-list').offsetWidth };
+        grip.classList.add('is-dragging');
+        root.classList.add('is-resizing');
+      });
+      grip.addEventListener('pointermove', function (e) {
+        if (!start) return;
+        var dx = e.clientX - start.x;
+        if (grip.dataset.col === 'folders') body.style.setProperty('--mx-folders', Math.max(110, Math.min(300, start.folders + dx)) + 'px');
+        else body.style.setProperty('--mx-list', Math.max(220, Math.min(640, start.list + dx)) + 'px');
+      });
+      function done() {
+        if (!start) return;
+        start = null;
+        grip.classList.remove('is-dragging');
+        root.classList.remove('is-resizing');
+        try {
+          localStorage.setItem('mx-columns', JSON.stringify({ folders: $('.mx-folders').offsetWidth, list: $('.mx-list').offsetWidth }));
+        } catch (e) { /* private window */ }
+      }
+      grip.addEventListener('pointerup', done);
+      grip.addEventListener('pointercancel', done);
+    });
     root.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
   }
 

@@ -60,12 +60,13 @@
     </div>
     <div class="bar__title" id="bar-title"></div>
     <div class="bar__status">
-      <button class="bar__btn" id="codex-open" type="button" data-tip="Codex — people, rogues, places (C)" aria-label="Codex">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h7M9 11.5h5"/></svg>
-      </button>
       <button class="bar__btn" id="map-open" type="button" data-tip="Map of Gotham (M)" aria-label="Map of Gotham">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
       </button>
+      <button class="bar__btn" id="codex-open" type="button" data-tip="Codex — people, rogues, places (C)" aria-label="Codex">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h7M9 11.5h5"/></svg>
+      </button>
+      <span class="bar__sep" aria-hidden="true"></span>
       <button class="bar__btn bar__inbox" id="mail-open" type="button" data-tip="Mail (E)" aria-label="Mail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>
         <span class="bar__count" id="mail-count" hidden></span>
@@ -203,6 +204,8 @@
           </nav>
           <ol class="mx-list"></ol>
           <article class="mx-read"></article>
+          <div class="mx-grip" data-col="folders" data-tip="Drag to resize" aria-hidden="true"></div>
+          <div class="mx-grip" data-col="list" data-tip="Drag to resize" aria-hidden="true"></div>
         </div>
       </div>
 

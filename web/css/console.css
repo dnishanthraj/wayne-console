@@ -2231,18 +2231,31 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 
 /* Mail: folders down the side, the folder's mail, the one he's reading. */
 .mx-head__space { flex: 1; }
-.mx-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px minmax(260px, 360px) 1fr; }
-.mx-folders { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid var(--hairline); }
-.mx-folder { display: flex; justify-content: space-between; align-items: center; padding: 9px 10px; background: none; border: 0;
-  border-left: 2px solid transparent; color: var(--text-dim); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em;
-  text-transform: uppercase; cursor: var(--cursor-pointer); text-align: left; }
+.mx-body { --mx-folders: 170px; --mx-list: 340px; flex: 1; min-height: 0; display: grid; position: relative;
+  grid-template-columns: var(--mx-folders) var(--mx-list) 1fr; }
+.mx-folders { display: flex; flex-direction: column; gap: 0; padding: 10px 0; border-right: 1px solid var(--hairline); min-width: 0; }
+/* Each folder a full-width row: the highlight runs the column, edge to edge. */
+.mx-folder { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 11px 16px 11px 14px;
+  background: none; border: 0; border-left: 2px solid transparent; border-radius: 0; color: var(--text-dim);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; cursor: var(--cursor-pointer);
+  text-align: left; outline: none; }
 .mx-folder:hover { color: var(--text); background: var(--hairline); }
+.mx-folder:focus-visible { box-shadow: inset 0 0 0 1px var(--primary-dim); }
 .mx-folder.is-on { color: var(--primary); border-left-color: var(--primary); background: rgba(79, 168, 224, 0.06); }
+/* The columns resize by their edges. */
+.mx-grip { position: absolute; top: 0; bottom: 0; width: 7px; margin-left: -3px; z-index: 3; cursor: col-resize; touch-action: none; }
+.mx-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px; background: transparent;
+  transition: background 0.2s var(--ease); }
+.mx-grip:hover::after, .mx-grip.is-dragging::after { background: var(--primary-dim); }
+.mx-grip[data-col="folders"] { left: var(--mx-folders); }
+.mx-grip[data-col="list"] { left: calc(var(--mx-folders) + var(--mx-list)); }
+.mx.is-resizing, .mx.is-resizing * { cursor: col-resize !important; user-select: none; }
 .mx-folder b { font-weight: 500; color: var(--text); letter-spacing: 0.04em; }
 .mx-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; border-right: 1px solid var(--hairline); }
 .mx-list__empty { padding: 18px 16px; color: var(--text-faint); font-size: 12.5px; }
 .mx-item { display: flex; flex-direction: column; gap: 3px; padding: 11px 14px; border-bottom: 1px solid var(--hairline);
-  border-left: 2px solid transparent; cursor: var(--cursor-pointer); }
+  border-left: 2px solid transparent; cursor: var(--cursor-pointer); outline: none; }
+.mx-item:focus-visible { box-shadow: inset 0 0 0 1px var(--primary-dim); }
 .mx-item:hover { background: var(--hairline); }
 .mx-item.is-on { background: rgba(79, 168, 224, 0.07); border-left-color: var(--primary); }
 .mx-item__top { display: flex; justify-content: space-between; gap: 10px; }
@@ -2286,7 +2299,8 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 /* The night report reads like the Batcomputer prints it: mono, tight. */
 .mx-read[data-kind="report"] .mx-read__body { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; max-width: none; }
 .mx-read[data-kind="report"] .mx-read__body h3 { font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--primary); }
-@media (max-width: 900px) { .mx-body { grid-template-columns: 120px 1fr; } .mx-read { grid-column: 1 / -1; border-top: 1px solid var(--hairline); } }
+@media (max-width: 900px) { .mx-body { grid-template-columns: 120px 1fr; } .mx-read { grid-column: 1 / -1; border-top: 1px solid var(--hairline); }
+  .mx-grip { display: none; } }
 
 .toast__mail { display: grid; place-items: center; color: var(--primary); background: var(--surface-2); padding: 7px; }
 .toast__mail svg { width: 100%; height: 100%; display: block; }
@@ -2303,3 +2317,6 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .gm-info__back svg { width: 13px; height: 13px; }
 .gm-info__back[hidden] { display: none; }
 .thread-menu__plain::before { display: none; }
+
+/* The top bar's tools in two groups — the world (map, Codex), then the lines (mail, messages) — a hairline between. */
+.bar__sep { width: 1px; height: 18px; background: var(--hairline-2); margin: 0 4px; flex: none; }
