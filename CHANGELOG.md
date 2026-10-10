@@ -39,6 +39,15 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 - **Calls.** One phone per room: whoever's with someone on the call is on
   their speaker (and leaves with them), shown on their seat; the overlay has a
   voice strip and your own words as you speak.
+- **Their day, as it happened.** Each of the family keeps a diary the console
+  writes as things change — set off, got there, on patrol and with whom, who
+  left and where to, cases taken, joined and how they ended, calls with you.
+  What they're told reads from it, so they know what they were just doing, who
+  was with them, and where that person went.
+- **Going to one another.** Name one of the family and whoever you're talking
+  to sees them on the family app — what they're doing, how far off. Ask them to
+  go to them, however you put it, and it's theirs to take, question or turn
+  down; if they go, they're on that one's case with them, or at their side.
 - **Also:** mute a chat or a contact's calls; archive any group chat; Alfred
   and Barbara see the whole console; Selina's rare jobs; a drone's tour of the
   city; GCN, GBS, the convention centre, Dixon Docks, a county fairground, a
@@ -52,6 +61,18 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 - Activities said in place of a patrol happen at home (no Mario Kart on the
   docks); "not specified" is never an activity; a pair is in one place whoever
   asks; nobody types in two chats at once.
+- Tim, out with Dick when Dick peeled off to a call, said "just me" and made up
+  the docks: nothing he'd been told said where Dick had gone. A day plan
+  sketched at midnight no longer rewrites the evening already had (it holds
+  from when it was made), and patrol notes read as sentences.
+- Turning up late is never worse than GCPD alone: odds and endings for a call
+  that was over before anyone got there are GCPD's, the card says so, and the
+  ones who can't make it in time are marked late rather than shown at 2%.
+- Someone on another's speaker leaves with them even when they're the last
+  on; comms never spin off private asides; nobody is moved off a scene they're
+  in the middle of, from the map or anywhere else; finished calls stay faded
+  for the whole night (breakouts and comebacks too); right-clicking a pin opens
+  it; the crime card fills the side panel and the incident log has the room.
 
 - **Plans, kept.** Say "everyone — the Silver Comet, Saturday at 7?" in a group
   chat, a text or on a call and it's read as a plan (what, where, when, who);

@@ -179,6 +179,8 @@ def together(presence, t=None):
         """a says they're with b: is b with a?"""
         if b not in everyone or b == a:
             return False
+        if situation(a)[0].get("follow") == b or situation(b)[0].get("follow") == a:
+            return True             # one went to be with the other: wherever that is, they're there together
         block, company, firm = situation(b)
         if a in company:
             return True             # they both say so
@@ -227,6 +229,118 @@ def describe_until(until, now=None):
     return f"until about {time.strftime('%-I%p', time.localtime(until)).lower()}"
 
 
+# Words a plan's "doing" can start with that read straight after "you're": "on patrol",
+# "at the clock tower", "asleep". A noun ("dinner", "late night snacks") doesn't.
+_STATE_WORDS = {"on", "in", "at", "out", "off", "asleep", "awake", "home", "with", "up", "back", "away", "still",
+                "just", "about", "busy", "free", "between", "around", "over", "inside", "outside", "stuck",
+                "halfway", "deep", "done", "tied", "hiding", "laid", "holed"}
+# -ing words that aren't doing anything: "Nightwing patrol", "morning run".
+_NOT_DOING = {"nightwing", "batwing", "morning", "evening", "something", "nothing", "anything", "everything", "king",
+              "thing", "wing", "ring", "spring", "string", "building", "wedding", "pudding", "ceiling", "lightning"}
+
+
+_NAMES = {"nightwing", "robin", "batgirl", "batwing", "batman", "bruce", "gotham", "blüdhaven", "wayne", "red", "i"}
+
+
+def _lowered(d):
+    """The front of a phrase lower-cased for the middle of a sentence — not a name's: 'Nightwing patrol' stays."""
+    first = d.split()[0]
+    if first.lower() in _NAMES or any(ch.isupper() for ch in first[1:]):
+        return d
+    return d[0].lower() + d[1:]
+
+
+def _doing_phrase(doing):
+    """What they're doing, as it goes after "you're" or "they're" — 'patrol' is 'on patrol' — or '' if it can't."""
+    d = (doing or "").strip().rstrip(".")
+    if not d:
+        return ""
+    first = d.split()[0].lower()
+    if first in ("patrol", "patrolling") and len(d.split()) == 1:
+        return "on patrol"
+    if (first.endswith("ing") and first not in _NOT_DOING) or first in _STATE_WORDS:
+        return _lowered(d)
+    return ""
+
+
+def _you_are(doing):
+    """'you're watching the docks', 'you're on patrol' — or, for a plan's noun, 'you've got late night snacks …'."""
+    phrase = _doing_phrase(doing)
+    if phrase:
+        return f"you're {phrase}"
+    d = (doing or "").strip().rstrip(".")
+    return f"you've got {_lowered(d)}" if d else "you're free"
+
+
+def how_far(d):
+    """A distance on the map (a unit's about 150 m), as someone would put it to whoever's at the other end."""
+    metres = d * 150
+    if metres < 150:
+        return "right by you"
+    if metres < 500:
+        return "a couple of streets from you"
+    if metres < 1000:
+        return f"about {int(round(metres, -2))} m from you"
+    km = metres / 1000
+    return f"about {km:.0f} km from you" if km >= 10 else f"about {km:.1f} km from you"
+
+
+def glance(contact, t=None, here=None):
+    """
+    Where one of them is and what they're doing, as the family's app shows it to
+    someone standing at `here` (x, y): "on the way to the shots fired at Central
+    Business District, about a minute out — right by you". The case they're on,
+    if they're on one — the board shows that, even for the ones who keep their dot
+    to themselves. '' if there's nothing to see.
+    """
+    from ..contacts import directory
+    from . import cases
+    t = t or time.time()
+    book = directory()
+    them = _registry.get(contact.id) or of(contact)
+    shows_dot = getattr(contact, "shares_location", True)
+    case = cases.active(contact.id)
+    bits = []
+    if case and case.get("status") != "closed":
+        mine = (case.get("members") or {}).get(contact.id) or {}
+        what = f"the {case['kind'].lower()} at {case['place']}"
+        if mine.get("status") == "on scene":
+            bits.append(f"on scene at {what}, working it")
+        else:
+            due = mine.get("joined", case.get("opened_at", t)) + mine.get("travel", case.get("travel", 5)) * 60
+            left = max(1, round((due - t) / 60))
+            bits.append(f"on the way to {what}, about {left} min out")
+        mates = [book.get(c).name if book.get(c) else "Bruce" for c in cases.team(case) if c != contact.id]
+        if mates:
+            bits.append("with " + " and ".join(mates) + " on it")
+    elif not shows_dot:
+        return ""
+    else:
+        where, company = them.whereabouts(t)
+        block, _company, _firm = them._situation(t)
+        doing = (block.get("doing") or "").strip()
+        trip = them.trip(where, them.spot(where, t), t) if where else None
+        label = them.label(where)
+        if trip:
+            left = max(1, round((trip["end"] - t) / 60))
+            bits.append(f"on the way to {label}" + (f", {trip['by']}" if trip.get("by") else "")
+                        + f", about {left} min out" + (f" (for: {doing})" if doing else ""))
+        elif doing:
+            phrase = _doing_phrase(doing) or _lowered(doing)
+            bits.append(phrase + (f" — {label}" if label and label.split(",")[0].lower() not in doing.lower() else ""))
+        elif label:
+            bits.append(f"at {label}")
+        mates = [book.get(c).name for c in sharing(company) if book.get(c)]
+        if mates:
+            bits.append("with " + " and ".join(mates))
+        if them.now(t)["status"] == OFFLINE:
+            bits.append("phone off")
+    spot = them.position(t) if shows_dot else ((case["x"], case["y"]) if case else None)
+    if here and spot:
+        bits[-1] += f" — {how_far(math.dist(here, spot))}"
+    return ", ".join(bits)
+
+
 class Presence:
     def __init__(self, contact):
         self.contact = contact
@@ -270,7 +384,10 @@ class Presence:
             return kept
         local = time.localtime(t)
         hour = local.tm_hour + local.tm_min / 60
-        plans = self._state.get("plans") or {}
+        made = self._state.get("planned_at") or {}
+        # A day sketched at midnight doesn't reach back over the evening already had:
+        # before the plan was made, what happened was what the routine had them doing.
+        plans = {key: blocks for key, blocks in (self._state.get("plans") or {}).items() if t >= made.get(key, 0)}
         for began in (t, t - 86400):            # a night may have begun yesterday
             key = time.strftime("%Y-%m-%d", time.localtime(began))
             for block in plans.get(key) or []:
@@ -286,7 +403,7 @@ class Presence:
             habit = week.block(self.contact, t)
             if habit:
                 return habit
-        for index, block in enumerate(self.contact.routine):
+        for index, block in enumerate(getattr(self.contact, "routine", ()) or ()):
             for began in (t, t - 86400):        # a night may have begun yesterday
                 day = time.localtime(began)
                 key = time.strftime("%Y-%m-%d", day)
@@ -337,6 +454,9 @@ class Presence:
             plans = dict(self._state.get("plans") or {})
             plans[key] = blocks
             self._state["plans"] = dict(sorted(plans.items())[-2:])
+            # When it was made: it holds from then on, never over what had already happened.
+            made = {**(self._state.get("planned_at") or {}), key: t or time.time()}
+            self._state["planned_at"] = {k: v for k, v in made.items() if k in self._state["plans"]}
             self.save()
 
     def _whim(self, t):
@@ -880,7 +1000,9 @@ class Presence:
         status, not their day: mid-call, Alfred is still in the garden.
         """
         from ..contacts import directory
+        from . import diary
         t = t or time.time()
+        diary.observe(self, t)                  # what's just happened goes down before they're asked about it
         state = self.now(t)
         block, _, firm = self._situation(t)
         doing = (block.get("doing") or "").strip()
@@ -906,7 +1028,7 @@ class Presence:
                     f"out — for: {doing}. It hasn't started; they aren't there yet.")
         elif doing:
             how_long = describe_until(block.get("until", 0), t) if firm else ""
-            line = (f"Right now you're {doing}"
+            line = (f"Right now {_you_are(doing)}"
                     + (f", at {place}" if place and place.split(" (")[0].lower() not in doing.lower() else "")
                     + (f", {how_long}" if how_long else "") + ".")
         else:
@@ -914,6 +1036,16 @@ class Presence:
         if names:
             company_line = "You're meeting" if trip else "You're with"
             line += f" {company_line} {' and '.join(names)}."
+        # Whoever was with them till a moment ago, and where that one's gone: Tim was on the
+        # roof when Dick said he'd take the shots fired two streets over — he'd know.
+        here = self.position(t)
+        for cid, at in diary.parted(self.contact.id, t):
+            other = book.get(cid)
+            if other is None or cid in company:
+                continue
+            seen = glance(other, t, here)
+            if seen:
+                line += f" {other.name} was with you till {time.strftime('%H:%M', time.localtime(at))}; now {seen}."
         if on_the_way and not doing:
             line += " On their way to you, not there yet: " + ", ".join(
                 f"{n} (about {m} minute{'s' if m != 1 else ''} out)" for n, m in on_the_way) + "."
@@ -923,6 +1055,12 @@ class Presence:
             # Where on the patrol, exactly — the roof, the run — so "where are you?" gets the truth.
             line += (f" Just now you're {'on the move across the roofs, heading for' if walking['leg'] else 'watching from a roof over'} "
                      f"{walking['near'] or 'the streets of ' + where}.")
+            # What the ground is like — Blüdhaven's downtown is bank towers, not a dock — so what they
+            # say they can see down there is what's there.
+            sector = patrols.sector_named(where)
+            about = (places.gazetteer().get("areas") or {}).get(sector["district"] if sector else "", "")
+            if about:
+                line += f" The streets you're covering: {about.split('. ')[0].rstrip('.')}."
             why = patrols.lead(self.contact.id, t)
             if why:
                 line += (f" You're working this ground tonight because {why} {'is' if why[:1].isupper() else 'are'} on the "
@@ -938,6 +1076,11 @@ class Presence:
             line += " Your phone wasn't in your hand; he's reached you anyway."
         elif state["status"] == BUSY and doing and not on_the_way:
             line += " You're in the middle of it."
+        # Their own last few hours, as they went — "what were you just doing?" has an answer.
+        lately = diary.summary(self.contact.id, t)
+        if lately:
+            line += (" What you've actually done these last few hours, as it happened — that's all of it, nothing "
+                     f"else happened; tell it your way, but don't add places you weren't or things you didn't do: {lately}.")
         return (line + said).strip()
 
     def _en_route(self, trip, place, doing, t):

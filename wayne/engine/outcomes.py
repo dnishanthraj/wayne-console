@@ -256,14 +256,15 @@ def chance(case, gone_wrong=False, backup=False, late=False):
     p = 0.5 + (team_fit(members, case["kind"]) - difficulty(case)) * 1.3
     # Thirty of Bane's men are thirty men: Tim alone goes under, Cass and Dick hold the door.
     p -= 0.45 * outnumbered(case) * (1.15 - _holds_a_line(members))
-    # GCPD are there too: what they'd manage alone is a floor under the family's odds, not nothing.
+    # GCPD are there too: what they'd manage alone is a floor under the family's odds, not nothing —
+    # however it goes for the family, it never goes worse than if nobody had come.
     floor = baseline(case)
     p = max(p, floor) + (1 - max(p, floor)) * floor * 0.25
     if gone_wrong:
         p -= 0.05 if backup else 0.18          # it went bad; help coming made the difference
     if late:
         p -= 0.1                               # by the time they got there it was half over
-    return max(0.05, min(0.95, p))
+    return max(floor, 0.05, min(0.95, p))
 
 
 GRADES = ("success", "partial", "failure")
@@ -314,12 +315,17 @@ def decide(case, now=None):
     suspect = case.get("suspect") or ""
     who = suspect or "whoever did it"
     if late and sort in ("street", "petty"):
-        # Over before anyone got there: geography decides some of these.
-        return _ending("too late", "safe" if sort == "petty" else "hurt", "escaped", sort,
-                       f"by the time they got there it was over — {who} long gone", 0.0)
+        # Over before anyone got there: it went however it went for GCPD, who were there —
+        # turning up late changes nothing, for better or worse.
+        theirs = gcpd(case)
+        took = theirs["culprit"] == "caught"
+        return _ending("too late", theirs["lives"], theirs["culprit"], sort,
+                       f"by the time they got there it was over — GCPD had {suspect or 'them'} in cuffs" if took
+                       else f"by the time they got there it was over — {who} long gone", baseline(case),
+                       caught=suspect if took else "")
     p = chance(case, gone_wrong, backup=len(members) > 1, late=late)
     if late:
-        p = max(0.05, p - 0.2)                 # the standoff, the fire, the abduction: hours lost
+        p = max(baseline(case), p - 0.2)       # the standoff, the fire, the abduction: hours lost
     r = _roll(case, "end")
     good = r < p
     middling = not good and r < p + (1 - p) * 0.55
@@ -387,13 +393,17 @@ def baseline(case):
 
 
 def gcpd(report):
-    """How a call nobody from the family worked ended — GCPD's arrest, or not — seeded by the report."""
+    """
+    How a call ended on GCPD's own — nobody from the family on it, or nobody there in
+    time to change it: their arrest, or not, and the people. Seeded by the report.
+    """
     p = baseline(report)
     sort = family(report["kind"])
     took = _roll(report, "gcpd") < p
     lives = "safe" if took or sort in ("petty", "hunt") else ("lost" if _roll(report, "gcpd-dead") < 0.25 else "hurt")
-    g = grade(lives, "caught" if took else "escaped", sort)
-    return {"ok": g == "success", "grade": g, "how": "arrest" if took else "no arrest"}
+    culprit = "caught" if took else "escaped"
+    g = grade(lives, culprit, sort)
+    return {"ok": g == "success", "grade": g, "how": "arrest" if took else "no arrest", "lives": lives, "culprit": culprit}
 
 
 def catches(case, who=None):
@@ -401,7 +411,8 @@ def catches(case, who=None):
     from . import cases
     team = cases.team(case) or ([who] if who else [])
     p = 0.5 + (team_fit(team, case["kind"]) - difficulty(case)) * 1.3
-    return _roll(case, f"catch:{','.join(sorted(team))}") < max(0.08, min(0.92, p))
+    # GCPD's cars are in the chase too: never worse than they'd do alone.
+    return _roll(case, f"catch:{','.join(sorted(team))}") < max(baseline(case), 0.08, min(0.92, p))
 
 
 def _chase_ending(case, members):
@@ -421,12 +432,16 @@ def _chase_ending(case, members):
                        f"they ran {who} down on foot" if case["kind"] == "Foot chase"
                        else f"they cut the car off and {who} was pulled out of it and handed to GCPD", 1.0,
                        caught=case.get("suspect") or "", hurt=hurt)
-    late = not case.get("chase")
-    # A getaway's whole point is the catching: gone is a failure, however quiet.
-    out = _ending("too late" if late else "got away", "safe", "escaped", "hunt",
-                  f"by the time they were anywhere near it {who} was long gone" if late
-                  else f"they were on it, and {who} still got away", 0.0)
-    return out
+    if not case.get("chase"):
+        # Nobody got ahead of it: it was GCPD's cars or nothing, as if nobody had gone.
+        theirs = gcpd(case)
+        took = theirs["culprit"] == "caught"
+        return _ending("too late", "safe", theirs["culprit"], "hunt",
+                       f"nobody got near it — GCPD's cars boxed {who} in" if took
+                       else f"by the time they were anywhere near it {who} was long gone", baseline(case),
+                       caught=(case.get("suspect") or "") if took else "")
+    # They were on it: a getaway's whole point is the catching — gone is a failure, however quiet.
+    return _ending("got away", "safe", "escaped", "hunt", f"they were on it, and {who} still got away", 0.0)
 
 
 def estimate(case, now=None, projected=False):
@@ -455,16 +470,16 @@ def estimate(case, now=None, projected=False):
     trial = {**case, "team": team}
     if case["kind"] in incidents.MOVING:
         if not case.get("chase"):
-            return 0.04                          # nobody's got ahead of it yet
-        p = max(0.08, min(0.92, 0.5 + (team_fit(team, case["kind"]) - difficulty(trial)) * 1.3))
+            return baseline(case)                # nobody's got ahead of it: GCPD's cars, as if nobody went
+        p = max(baseline(case), 0.08, min(0.92, 0.5 + (team_fit(team, case["kind"]) - difficulty(trial)) * 1.3))
     else:
         late = too_late(case)
         if late and sort in ("street", "petty"):
-            return 0.02                          # it'll be over before anyone's there
+            return baseline(case)                # over before anyone's there: GCPD's, as if nobody went
         shown_wrong = case.get("status") == "on scene" and cases.phase(case, now)[0] == "gone wrong"
         p = chance(trial, gone_wrong=shown_wrong, backup=len(team) > 1, late=late)
         if late:
-            p = max(0.05, p - 0.2)
+            p = max(baseline(case), p - 0.2)
     if not projected:
         # Worked a while, it shows which way it's going: drawn toward how it'll actually end.
         landed = min((members[m].get("joined", now) + members[m].get("travel", 9) * 60) for m in team if m in members) \

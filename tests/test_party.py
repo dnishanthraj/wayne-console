@@ -18,7 +18,9 @@ class FakeMember:
     """A contact that replies with a scripted line and records what it heard."""
 
     def __init__(self, cid, name, full_name, replies=None):
-        self.contact = SimpleNamespace(id=cid, name=name, full_name=full_name)
+        # Enough of a contact for where they are to be worked out — who's in the room with whom.
+        self.contact = SimpleNamespace(id=cid, name=name, full_name=full_name, routine=(), texting_pace={},
+                                       shares_status=True, shares_location=True, home="Wayne Manor")
         self.history = SimpleNamespace(messages=[])
         self.replies = list(replies or ["Mm."])
         self.call, self.heard, self.asked = None, [], []

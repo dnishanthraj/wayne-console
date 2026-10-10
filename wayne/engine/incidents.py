@@ -280,24 +280,49 @@ def _comebacks(t, cased):
     return out
 
 
-def ended(t=None, hours=3.0):
+def night_began(t=None):
     """
-    Tonight's calls that are over — cleared by GCPD, or worked by the family and
-    closed — as they stood at the end: for the map, faded, till they've been
-    over a while. Newest first, each with `done_at`.
+    Since when what's over still shows on the map, faded: the night it is — from six
+    in the evening till dawn — or, by day, the last three hours.
     """
     t = t or time.time()
+    lt = time.localtime(t)
+    six = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 18, 0, 0, 0, 0, -1))
+    if lt.tm_hour >= 18:
+        return six
+    if lt.tm_hour < 6:
+        return six - 86400
+    return t - 3 * 3600
+
+
+def ended(t=None, hours=None):
+    """
+    Tonight's calls that are over — cleared by GCPD, or worked by the family and
+    closed, a breakout's manhunt called off, a rogue's comeback done — as they
+    stood at the end: for the map, faded, for the rest of the night (or the last
+    `hours`). Newest first, each with `done_at`.
+    """
+    t = t or time.time()
+    since = t - hours * 3600 if hours is not None else night_began(t)
     spots, weights, weighted = _tables()
     written = dispatches()
     cased = _cases_now()
     out = []
-    for slot in range(int((t - hours * 3600) // SLOT) - LONGEST * 60 // SLOT, int(t // SLOT) + 1):
+    for slot in range(int(since // SLOT) - LONGEST * 60 // SLOT, int(t // SLOT) + 1):
         for report in _slot(slot, spots, weights, weighted, written):
-            if not t - hours * 3600 <= report["ends"] < t:
+            if not since <= report["ends"] < t:
                 continue
             final = _finish(report, report["ends"] - 1, cased)
             if final is not None:
                 out.append({**final, "status": "resolved", "done_at": report["ends"]})
+    for report in _breakouts(t, over=since):
+        out.append({**report, "status": "resolved", "done_at": report["ends"]})
+    from . import arcs
+    for c in arcs.came(since, t):
+        final = _finish({**c, "_backup": True}, c["ends"] - 1, cased)
+        if final is not None:
+            out.append({**final, "crew": c.get("crew", 1), "comeback": c.get("after", ""), "status": "resolved",
+                        "done_at": c["ends"]})
     return sorted(out, key=lambda r: -r["done_at"])
 
 
@@ -550,11 +575,12 @@ def intercept(report, here, who="nightwing", now=None):
 BREAKOUT_HOURS = 3
 
 
-def _breakouts(t):
+def _breakouts(t, over=None):
     """
     Someone just got out of Arkham or Blackgate: rare, and the worst thing on the
     scanner while it lasts — a few hours of guards hurt, sirens on the causeway,
-    and a manhunt anyone can join.
+    and a manhunt anyone can join. `over`: instead, the ones whose manhunt was
+    called off between then and t, for the map's faded list.
     """
     from . import codex
     out = []
@@ -562,7 +588,12 @@ def _breakouts(t):
         state = codex.where(rogue, t)
         how = state.get("how") or ""
         since = state.get("since") or 0
-        if state.get("status") != "at large" or not how.startswith("broke out of") or not 0 <= t - since < BREAKOUT_HOURS * 3600:
+        if not how.startswith("broke out of"):
+            continue
+        if over is not None:
+            if not over <= since + BREAKOUT_HOURS * 3600 < t:
+                continue
+        elif state.get("status") != "at large" or not 0 <= t - since < BREAKOUT_HOURS * 3600:
             continue
         held = places.resolve(how.replace("broke out of", "").strip())
         if not held:
@@ -570,7 +601,7 @@ def _breakouts(t):
         report = {"id": f"esc-{rogue['name'].lower().replace(' ', '-')}-{int(since)}", "kind": "Breakout", "severity": 4,
                   "place": held["name"], "area": held["area"], "x": held["x"], "y": held["y"], "at": int(since),
                   "ends": int(since + BREAKOUT_HOURS * 3600), "suspect": rogue["name"],
-                  "status": _status((t - since) / (BREAKOUT_HOURS * 3600), backup=True)}
+                  "status": _status(min(1.0, (t - since) / (BREAKOUT_HOURS * 3600)), backup=True)}
         report["toll"], _ = _toll(report)
         out.append(report)
     return out

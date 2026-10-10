@@ -278,7 +278,7 @@ def test_where_they_are_comes_from_their_plan_or_home(private_data, monkeypatch)
     assert plan[0]["where"] == "Crime Alley rooftops" and plan[0]["with"] == ["nightwing"]
     whereabouts = presence.of(tim)
     assert whereabouts.whereabouts() == ("Wayne Manor", [])
-    whereabouts.set_plan(plan)
+    whereabouts.set_plan(plan, t=_morning())
     _free("nightwing")
     shown = whereabouts.public()
     # Patrolling Crime Alley's roofs: covering the sector, somewhere over it right now.
@@ -296,32 +296,41 @@ def _free(contact_id):
     return other
 
 
+def _morning():
+    """Just after midnight today: a plan made then has held all day — one made now only holds from now."""
+    lt = time.localtime()
+    return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 30, 0, 0, -1))
+
+
 def _all_day(doing, where, status="busy", company=()):
     return [{"from": 0.0, "to": 23.99, "doing": doing, "status": status, "where": where,
              "with": list(company), "drift": 0}]
 
 
-def test_together_only_when_it_holds_for_both(private_data):
+def test_together_only_when_it_holds_for_both(private_data, monkeypatch):
     """
     Barbara's plan saying "with Cass" put nobody with anybody: Cass was on the
     other side of the city, and the map, the card and what Barbara said all
     disagreed. Together now holds for both, or for neither.
     """
     from wayne.contacts import directory
+    # Mid-afternoon: just after midnight an all-day plan has only just begun, and Tim's still driving to it.
+    afternoon = _morning() + 15 * 3600
+    monkeypatch.setattr(time, "time", lambda: afternoon)
     tim = SimpleNamespace(id="robin", name="Tim", full_name="Tim Drake", routine=(), shares_status=True,
                           shares_location=True, home="Wayne Manor", texting_pace={})
     mine = presence.of(tim)
-    mine.set_plan(_all_day("dinner", "The Bowery", company=["nightwing"]))
+    mine.set_plan(_all_day("dinner", "The Bowery", company=["nightwing"]), t=_morning())
     dick = presence.of(directory().get("nightwing"))
 
-    dick.set_plan(_all_day("asleep", "Home, Blüdhaven", status="offline"))
+    dick.set_plan(_all_day("asleep", "Home, Blüdhaven", status="offline"), t=_morning())
     assert mine.whereabouts() == ("The Bowery", []) and dick.whereabouts()[1] == []
     assert "with" not in mine.note()
 
-    dick.set_plan(_all_day("errands", "Blüdhaven"))         # the other side of the river
+    dick.set_plan(_all_day("errands", "Blüdhaven"), t=_morning())         # the other side of the river
     assert mine.whereabouts()[1] == [] and dick.whereabouts()[1] == []
 
-    dick.set_plan(_all_day("a drink", "Crime Alley"))       # round the corner: the same evening
+    dick.set_plan(_all_day("a drink", "Crime Alley"), t=_morning())       # round the corner: the same evening
     assert mine.whereabouts() == ("The Bowery", ["nightwing"])
     assert dick.whereabouts() == ("The Bowery", ["robin"])
     assert "You're with Tim" in dick.note() and "You're with Dick" in mine.note()
@@ -606,3 +615,47 @@ def test_assigning_a_case_sends_them_on_their_way_by_road(private_data, monkeypa
     assert presence.of(tim).whereabouts()[0] == "GCPD Central"           # heading there, so the map shows the trip
     asyncio.run(console.assign_case("r2", "redhood", tell=False))
     assert presence.of(jason).get("seen")["how"] == "on a case"           # he can't see Jason — but he knows this
+
+
+def test_dick_hanging_up_takes_tim_off_his_speaker_and_ends_the_call_if_thats_everyone(private_data):
+    """Tim on Dick's speaker, nobody else on: Dick goes, Tim goes with him — not left alone on a line he never had."""
+    import wayne.frontends.web as web
+    from wayne.engine.party import Call
+
+    class Line:
+        def __init__(self, cid, name):
+            self.contact = SimpleNamespace(id=cid, name=name, full_name=name)
+            self.heard, self.call = [], None
+
+        def mark_call_start(self):
+            pass
+
+        def call_messages(self):
+            return []
+
+        def keep_heard(self):
+            pass
+
+    dick, tim = Line("nightwing", "Dick"), Line("robin", "Tim")
+    call = Call()
+    call.join(dick)
+    call.join(tim)
+    call.speakerphone["robin"] = "nightwing"
+    console = web.Console.__new__(web.Console)
+    console._tasks, console.call, console.current_id = set(), call, "nightwing"
+    console._wrap_up = lambda member, present: None
+    hung_up = []
+
+    async def broadcast(event):
+        return None
+
+    async def disconnect():
+        hung_up.append(True)
+    console.broadcast, console.disconnect = broadcast, disconnect
+
+    async def run():
+        call.leave(dick)                      # he's hung up
+        await console._room_goes_with("nightwing")
+        await asyncio.sleep(0.01)
+    asyncio.run(run())
+    assert not call.members and hung_up

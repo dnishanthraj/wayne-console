@@ -59,8 +59,11 @@ def test_gcpd_alone_has_odds_of_its_own():
 
 
 def test_a_snatch_is_over_before_anyone_far_off_gets_there():
-    late = outcomes.decide(_case("Phone snatch", 1, travel=25))
-    assert late["how"] == "too late" and not late["ok"]
+    snatch = _case("Phone snatch", 1, travel=25)
+    late = outcomes.decide(snatch)
+    # Over before they got there: it went however it went for GCPD — late changes nothing, for better or worse.
+    assert late["how"] == "too late" and late["grade"] == outcomes.gcpd(snatch)["grade"]
+    assert outcomes.estimate(snatch, projected=True) == outcomes.baseline(snatch)
     assert outcomes.decide(_case("Body found", 3, travel=40))["how"] != "too late"        # a body waits
 
 

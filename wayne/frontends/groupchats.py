@@ -213,6 +213,8 @@ class GroupChats:
         about what someone said, or what they wouldn't say in front of the others.
         Rare, and counted against the same budget as any unprompted text.
         """
+        if (group.meta() or {}).get("comms"):
+            return              # comms is the field's channel: what's said there stays there, not in his DMs
         bruce_spoke = any(m["from"] == "me" for m in unread)
         if random.random() >= (0.08 if bruce_spoke else 0.03) or not self._may_reach_out(time.time()):
             return

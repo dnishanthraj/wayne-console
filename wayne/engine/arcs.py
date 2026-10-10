@@ -122,6 +122,12 @@ def coming(t=None):
     return [dict(c) for c in _load().get("coming") or [] if c["at"] <= t < c["ends"]]
 
 
+def came(since, t=None):
+    """The comebacks that ran their course between `since` and t — for the map's faded list."""
+    t = t or time.time()
+    return [dict(c) for c in _load().get("coming") or [] if since <= c["ends"] < t]
+
+
 def lines(t=None):
     """The rogues on a run, in a line each — for the papers and for whoever's asked."""
     t = t or time.time()

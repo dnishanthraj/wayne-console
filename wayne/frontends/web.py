@@ -744,6 +744,12 @@ class Console(GroupChats):
         grapevine.note_call(member, list(self.directory), member.call_index(), present)
         presence.of(member.contact).touch()
         said = member.call_messages()
+        began = getattr(member, "call_started_at", 0) or 0
+        if any(m["role"] == "user" for m in said) and began:
+            from ..engine import diary
+            others = [self.directory.get(c).name for c in (present or ()) if c != member.contact.id and self.directory.get(c)]
+            diary.write(member.contact.id, "call", f"on the phone with Bruce{', ' + ' and '.join(others) + ' on too' if others else ''}"
+                        f" ({time.strftime('%H:%M', time.localtime(began))}–{time.strftime('%H:%M')})")
         if any(m["role"] == "user" for m in said):
             self._spawn(self._afterthought(member, said, "call"))
 
@@ -1056,8 +1062,8 @@ class Console(GroupChats):
             member = next((m for m in self.call.members if m.contact.id == cid), None)
             if member is None:
                 continue
-            if len(self.call.members) <= 1:
-                break
+            # Even the last of them: Tim was never on a line of his own — Dick gone, he's gone, and if
+            # that was everyone, the call's over (below).
             self.call.leave(member)
             self.call.event(f"{member.contact.name} went with them — they were on their speaker")
             self._wrap_up(member, {cid} | set(self._members()))
@@ -1067,7 +1073,8 @@ class Console(GroupChats):
         if roomed:
             await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
         if self.call and not self.call.members:
-            await self.disconnect()
+            # Spawned, not awaited: a drop calls this holding the turn lock, which hanging up takes too.
+            self._spawn(self.disconnect())
 
     async def call_many(self, ids):
         """
@@ -1286,6 +1293,8 @@ class Console(GroupChats):
                 reply = ""
             if turn["take"]:
                 self._spawn(self._take_by_name(contact, turn["take"]))
+            if turn.get("join"):
+                self._spawn(self._join_by_name(contact, turn["join"]))
             asked = ASKS_REACTION.search(batch[-1]["text"] or "")
             if asked and not turn["react"]:
                 # Asked to react, they sent the emoji as a text: it's the reaction he asked for.
@@ -1439,6 +1448,10 @@ class Console(GroupChats):
                     lifted = await self.give_lift(session.contact.id)
                     if lifted.get("error"):
                         log.info("%s: no lift — %s", session.contact.id, lifted["error"])
+                joining = found.get("joining")
+                if isinstance(joining, str) and joining.strip().lower().strip(" .") not in presence.NOTHING:
+                    # "On my way to Dick", said in so many words and no marker: they still go.
+                    await self._join_by_name(session.contact, joining, by="self")
             await self._presence_changed(session.contact)
         except Exception as exc:
             log.warning("%s afterthought failed: %s", session.contact.id, str(exc)[:160])
@@ -1518,9 +1531,11 @@ class Console(GroupChats):
                           group_task=getattr(session, "_group_task", None),
                           meant=getattr(session, "_meant_group", None),
                           take=getattr(session, "_take_case", None),
+                          join=getattr(session, "_join", None),
                           react=getattr(session, "_text_react", None),
                           quote=getattr(session, "_text_quote", None))
             session._deferred = session._take_case = session._text_react = session._text_quote = None
+            session._join = None
         return result
 
     async def _text_into_call(self, contact_id, body):
@@ -1594,6 +1609,7 @@ class Console(GroupChats):
                 # themselves gets seen now and then: a sighting on the scanner.
                 where, _ = presence.of(contact).whereabouts(now)
                 presence.of(contact).seen_at(where, "a sighting on the scanner", now)
+        await asyncio.to_thread(self._observe_all, now)
         await self._write_status_lines()
         await self._keep_up()
         await self._write_day_plans()
@@ -1612,6 +1628,15 @@ class Console(GroupChats):
         await self._group_tick(now)
         await self._case_tick(now)
         await self._comms_tick(now)
+
+    def _observe_all(self, now):
+        """Each of them: whatever's changed since the last pulse goes in their diary (see engine.diary)."""
+        from ..engine import diary
+        for contact in self.directory:
+            try:
+                diary.observe(presence.of(contact), now)
+            except Exception as exc:
+                log.warning("diary %s: %s", contact.id, str(exc)[:160])
 
     async def _write_status_lines(self):
         """
@@ -1687,6 +1712,67 @@ class Console(GroupChats):
         if report:
             await self.assign_case(report["id"], contact.id, by="him", tell=False)
 
+    async def _join_by_name(self, contact, named, by="him"):
+        """
+        '[join: Dick]' — they go to one of the family and stay with them. Dick on a
+        case: they're on it too, heading for the scene and counted in the odds when
+        they get there. Dick out on the roofs or at home: to wherever he is, the
+        fastest way they've got, and with him after — where he goes, they go. Bruce:
+        to where he is. Nobody walks off a scene they're in the middle of to do it.
+        Returns what it did, or None.
+        """
+        from ..engine import batman, cases, diary, incidents
+        said = (named or "").strip().strip(" .\"'")
+        if said.lower() in ("", "name", "their name", "them", "him", "her"):
+            return None
+        mine = cases.active(contact.id)
+        if mine and ((mine.get("members") or {}).get(contact.id) or {}).get("status") == "on scene":
+            log.info("%s can't join %s: in the middle of %s", contact.id, said, mine["id"])
+            return None
+        whereabouts = presence.of(contact)
+        if said.lower() in ("bruce", "batman", "b", "me", "you"):
+            theirs = cases.active("bruce")
+            if theirs and theirs["status"] != "closed":
+                return await self.assign_case(theirs["id"], contact.id, by=by, tell=False)
+            there = batman.position()
+            if there is None:
+                return None
+            name = incidents._nearest_place(*there)[0] or batman.state()["where"]
+            target, label = None, "Bruce"
+        else:
+            target = self.directory.find(said)
+            if target is None or target.id == contact.id:
+                return None
+            theirs = cases.active(target.id)
+            if theirs and theirs["status"] != "closed":
+                if mine and mine["id"] == theirs["id"]:
+                    return mine                              # already on it with them
+                return await self.assign_case(theirs["id"], contact.id, by=by, tell=False)
+            if not getattr(target, "shares_location", True):
+                return None                                  # nowhere to go: they keep where they are to themselves
+            if (whereabouts.get("activity") or {}).get("follow") == target.id:
+                return None                                  # on their way already
+            there = presence.of(target).position()
+            if there is None:
+                return None
+            name, label = presence.of(target).whereabouts()[0], target.name
+        if mine:
+            cases.leave(mine["id"], contact.id)              # off the last one: Bruce asked for them elsewhere
+        here = whereabouts.position() or there
+        trip = await asyncio.to_thread(travel.fastest, contact.id, here, there, name, None, False)
+        minutes = max(1, int((trip["end"] - time.time()) / 60))
+        if target is not None:
+            # With them from now on: where they go — the next roof, home, a case — this one goes too.
+            whereabouts.set_activity(f"with {label}", presence.BUSY, max(90, minutes + 60), where=name,
+                                     company=[target.id], follow=target.id)
+        else:
+            whereabouts.set_activity(f"with {label}", presence.BUSY, max(60, minutes + 45), where=name, xy=there)
+        whereabouts.set_trip(name, {**trip, "left": time.time()})
+        diary.write(contact.id, "joining", f"went to join {label}" + (" — Bruce asked" if by == "him" else ""))
+        log.info("%s joining %s (%s, %d min)", contact.id, label, by, minutes)
+        await self._presence_changed(contact)
+        return {"joining": label, "minutes": minutes}
+
     async def assign_case(self, report_id, contact_id, by="him", tell=True):
         """
         Put someone on a report: they head there — the further away, the longer
@@ -1714,6 +1800,9 @@ class Console(GroupChats):
                 return {"declined": True}
         current = cases.active(contact_id)
         if current and current["id"] != report_id:
+            if ((current.get("members") or {}).get(contact_id) or {}).get("status") == "on scene":
+                log.info("%s stays on %s: in the middle of it", contact_id, current["id"])
+                return None                             # in the thick of one: it's finished first
             cases.leave(current["id"], contact_id)      # off the last one, on to this
         # From exactly where they are, the fastest way they have in the suit — the roofs,
         # the bike, Randy flying, the Batwing if it's near — and the map shows them on
@@ -1737,6 +1826,11 @@ class Console(GroupChats):
         if not contact.shares_status:
             whereabouts.seen_at(report["place"], "on a case")
         log.info("%s on case %s (%s at %s, %s)", contact_id, report_id, report["kind"], report["place"], by)
+        from ..engine import diary
+        others = [self.directory.get(m).name if self.directory.get(m) else "Bruce" for m in cases.team(case) if m != contact_id]
+        diary.write(contact_id, "case", (f"joined {' and '.join(others)} on" if others
+                                         else "took" if by == "self" else "was put on")
+                    + f" the {report['kind'].lower()} at {report['place']}" + (" — Bruce asked" if by == "him" else ""))
         await self._presence_changed(contact)
         await self.broadcast({"type": "cases"})
         if tell and contact_id not in self._members():
@@ -1756,6 +1850,11 @@ class Console(GroupChats):
         getaway he cuts off where he can get ahead of it.
         """
         from ..engine import batman, cases
+        if batman.committed():
+            return None                                 # in the middle of one: it's finished first
+        mine = cases.active("bruce")
+        if mine and mine["id"] != report["id"]:
+            batman.leave_case_for()                     # on his way to one, he's changed his mind
         here = batman.position() or (0.0, 30.0)
         goal, cut = self._heading_for(report, here, "bruce")
         trip = await asyncio.to_thread(batman.go, report["place"], goal[0], goal[1], report["id"])
@@ -1802,6 +1901,10 @@ class Console(GroupChats):
                              + (" — you were already there, in it" if there else " — you were on your way"))
                     self._spawn(self._later(random.uniform(10, 50), self._send_unprompted(contact, about, "case_pulled")))
         log.info("%s pulled off case %s", contact_id, report_id)
+        if contact_id != "bruce":
+            from ..engine import diary
+            diary.write(contact_id, "case", f"Bruce pulled them off the {case['kind'].lower()} at {case['place']}"
+                        + (" — they were already in it" if there else " on the way there"))
         await self.broadcast({"type": "cases"})
         return cases.for_report(report_id) or {"gone": True}
 
@@ -2306,10 +2409,14 @@ class Console(GroupChats):
             if back:
                 log.info("%s will be back: %s at %s", back["suspect"], back["kind"], back["place"])
             now = time.time()
+            from ..engine import diary
             for member in cases.team(closed):
                 contact = self.directory.get(member)
                 if contact is None:
                     continue
+                diary.write(member, "case", f"the {closed['kind'].lower()} at {closed['place']} ended: {result['line']}"
+                            + f" ({result.get('grade', 'over')})"
+                            + (f"; came out of it with {result['hurt'][member]}" if member in result["hurt"] else ""))
                 whereabouts = presence.of(contact)
                 whereabouts.clear_activity()
                 if member in result["hurt"]:
@@ -2840,6 +2947,10 @@ class Console(GroupChats):
             if taking:
                 member._take_case = None
                 self._spawn(self._take_by_name(member.contact, taking))
+            going = getattr(member, "_join", None)
+            if going:
+                member._join = None
+                self._spawn(self._join_by_name(member.contact, going))
 
     def _asked_to_add(self, text):
         """
@@ -3207,7 +3318,7 @@ async def map_incidents():
         reports.append(with_case(r))
     # Tonight's that are over stay on the map a while, faded: cleared by GCPD, or the family's, closed.
     shown = {r["id"] for r in reports}
-    for r in incidents.ended(now, hours=3):
+    for r in incidents.ended(now):
         if r["id"] in shown:
             continue
         item = with_case(r)
@@ -3233,8 +3344,24 @@ async def case_board():
 @app.post("/api/cases/assign")
 async def assign_case(request: Request):
     """He puts someone on a report, from the map."""
+    from ..engine import batman, cases
     body = await request.json()
-    result = await console.assign_case(str(body.get("report", "")), str(body.get("contact", "")), by="him")
+    report_id, contact_id = str(body.get("report", "")), str(body.get("contact", ""))
+    # Busy is busy: on one already, they're pulled off it first — the map won't offer them, and nor will this.
+    if contact_id == "bruce":
+        why = batman.committed()
+        if why:
+            return JSONResponse({"error": why}, status_code=409)
+    else:
+        current = cases.active(contact_id)
+        if current and current["id"] != report_id and current["status"] != "closed":
+            found = console.directory.get(contact_id)
+            there = ((current.get("members") or {}).get(contact_id) or {}).get("status") == "on scene"
+            return JSONResponse({"error": f"{found.name if found else contact_id} is "
+                                          f"{'in the middle of' if there else 'on the way to'} the "
+                                          f"{current['kind'].lower()} at {current['place']} — pull them off it first"},
+                                status_code=409)
+    result = await console.assign_case(report_id, contact_id, by="him")
     if not result:
         return JSONResponse({"error": "can't assign that"}, status_code=400)
     return JSONResponse(result if ("texted" in result or "declined" in result) else {"case": result})
@@ -3284,7 +3411,10 @@ async def report_odds(report_id: str):
         busy = {m for c in cases.everything() if c["status"] != "closed" for m in cases.team(c)}
         out = {"current": outcomes.estimate(base, now) if cases.team(base) else None,
                "projected": outcomes.estimate(base, now, projected=True) if cases.team(base) else None,
-               "gcpd": outcomes.baseline(base), "threat": outcomes.threat(base), "with": {}}
+               "gcpd": outcomes.baseline(base), "threat": outcomes.threat(base), "with": {},
+               # Whoever's on it got there after it was over: it's gone however GCPD's night went.
+               "late": bool(cases.team(base) and outcomes.too_late(base)
+                            and outcomes.family(report["kind"]) in ("street", "petty"))}
         goal = (report["x"], report["y"])
         free = [m for m in cases.FIELD if m not in busy and console.directory.get(m)]
         if "bruce" not in busy and not batman.committed():
@@ -3303,10 +3433,15 @@ async def report_odds(report_id: str):
             eta = max(0.5, (route["end"] - now) / 60)
             trial = {**base, "team": cases.team(base) + [member],
                      "members": {**(base.get("members") or {}), member: {"joined": now, "travel": eta, "status": "assigned"}}}
-            if report.get("moving") and report.get("route"):
+            moving = bool(report.get("moving") and report.get("route"))
+            if moving:
                 trial["chase"] = {"start": 0} if incidents.intercept(report, here, member, now) else None
+            # Too late to change it: the getaway's gone past anywhere they could cut it off, the mugging's
+            # over before they're there — it'll go however it goes for GCPD.
+            late = (not trial.get("chase")) if moving else (
+                outcomes.too_late(trial) and outcomes.family(report["kind"]) in ("street", "petty"))
             out["with"][member] = {"odds": outcomes.estimate(trial, now, projected=True), "eta": round(eta, 1),
-                                   "by": route.get("by", "")}
+                                   "by": route.get("by", ""), "late": bool(late)}
         return out
     found = await asyncio.to_thread(work)
     if found is None:

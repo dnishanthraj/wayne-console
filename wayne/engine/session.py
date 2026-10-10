@@ -24,6 +24,7 @@ only way that actually works mid-stream:
                    matters; the whole-text check is skipped when streaming.
 """
 import concurrent.futures
+import math
 import random
 import re
 import time
@@ -283,6 +284,8 @@ _GROUP_TASK = re.compile(r"\[\s*group\s*:\s*([^|\]—–]+?)\s*(?:\||—|–|\s-
 _REPLY_CHOICE = re.compile(r"\[\s*(later|no reply)\s*\]", re.I)
 # Taking a report off the scanner: "[take: Diamond District]".
 _TAKE = re.compile(r"\[\s*take\s*:\s*([^\]]+)\]", re.I)
+# Going to one of the family and staying with them — onto their case, if they're on one: "[join: Dick]".
+_JOIN = re.compile(r"\[\s*join\s*:\s*([^\]]+)\]", re.I)
 # The message a reply quotes, as a phone does: "[reply: Tim]" in a group,
 # "[reply: the car thing]" for one of his texts.
 _QUOTE = re.compile(r"\[\s*(?:reply|re|replying)(?:\s+to)?\s*:\s*([^\]]{1,80})\]", re.I)
@@ -296,7 +299,7 @@ _EMOJI_NAMES = {"heart": "❤️", "love": "❤️", "thumbs up": "👍", "thumb
 # repeated her last text word for word.
 _TRANSCRIPT_NOTE = re.compile(r"\(\s*(?:by|via)\s+(?:text|call|phone)\s*\)\s*|\(\s*texted\s*\)\s*", re.I)
 # Any marker of the console's still in the text once the known ones are read — never shown.
-_LEFTOVER_MARKER = re.compile(r"\[\s*(react|reply|group|take|add|dm|leave|remove|later|no reply|hang ?up)\b[^\]]*\]",
+_LEFTOVER_MARKER = re.compile(r"\[\s*(react|reply|group|take|join|add|dm|leave|remove|later|no reply|hang ?up)\b[^\]]*\]",
                               re.I)
 _HALF_MARKER = re.compile(r"\[\s*(react|repl|group|take|add|dm|leave|remove|later|no|hang)\b[^\]]*$", re.I)
 
@@ -576,6 +579,12 @@ class ContactSession:
                 self._take_case = taking.group(1).strip()
                 buffer = _TAKE.sub("", buffer)
             elif "[take" in buffer.lower() and "]" not in buffer[buffer.lower().rfind("[take"):]:
+                continue        # half a marker so far
+            going = _JOIN.search(buffer)
+            if going:
+                self._join = going.group(1).strip()
+                buffer = _JOIN.sub("", buffer)
+            elif "[join" in buffer.lower() and "]" not in buffer[buffer.lower().rfind("[join"):]:
                 continue        # half a marker so far
             tapback = _TEXT_REACT.search(buffer)
             if tapback:
@@ -1431,7 +1440,7 @@ class ContactSession:
             return ""
         # Cut off mid-marker by the length limit — "[dm: you're late. gordon better be" — it's
         # half a thought: never posted in the chat, and never sent anywhere else.
-        text = re.sub(r"\[\s*(dm|add|remove|react|reply|leave|rsvp)\b[^\]]*$", "", text, flags=re.I).rstrip()
+        text = re.sub(r"\[\s*(dm|add|remove|react|reply|leave|rsvp|take|join)\b[^\]]*$", "", text, flags=re.I).rstrip()
         quoting = _QUOTE.search(text)
         text = _QUOTE.sub("", text)
         # What they do to the group, not what they say in it.
@@ -1767,7 +1776,7 @@ class ContactSession:
         self._reply_choice, self._deferred, self._group_task = None, None, None
         self._meant_group = None
         self._text_react = self._text_quote = None
-        self._take_case = None
+        self._take_case = self._join = None
         length, self._turn_cap = None, None
         if via is None:
             # A call: this turn's length, from their own spread (see
@@ -1920,6 +1929,7 @@ class ContactSession:
         # "don't mention patrols" warning sat beside "your case is yours to talk about".
         guarded = bool(self.call and not groupchat.outside(self.contact.id)
                        and any(groupchat.outside(m.contact.id) for m in self.call.members if m is not self))
+        listed = False          # everyone's whereabouts already in front of them
         if getattr(self.contact, "sees_whereabouts", False):
             # Alfred in the cave, Barbara at her screens: everything the console shows him, they can see —
             # all of it when the talk turns that way, a line the rest of the time (every turn carrying the
@@ -1929,12 +1939,18 @@ class ContactSession:
             elif (self._WHEREABOUTS.search(prompt or "") or self._CRIMEY.search(prompt or "")
                   or self._BOARDISH.search(prompt or "")):
                 tracker = self._batcomputer(prompt)
+                listed = True
             else:
                 tracker = self._batcomputer_glance()
         else:
             tracker = "" if guarded or from_contact else self._tracker(prompt)
+            listed = bool(tracker)
         if tracker:
             awareness.append(tracker)
+        # One of the family named — "is Dick with you?", "go help Dick": where that one is, and how to go to them.
+        named = "" if guarded or from_contact else self._named_family(prompt, listed=listed)
+        if named:
+            awareness.append(named)
         work = "" if guarded or from_contact else self._casework(prompt, brief=head is None)
         if not guarded and not from_contact and (self._MISSION_TALK.search(prompt or "") or (self.call and self.call.is_group)):
             from ..contacts import directory
@@ -2114,6 +2130,74 @@ class ContactSession:
                 "whoever he asked about, the way you would — not a roll call: " + "; ".join(lines)
                 + (f". Not on it: {', '.join(dark)}." if dark else ".")
                 + (f" {scanner}" if scanner else "") + (f" {board}" if board else ""))
+
+    # Him, as somewhere to go: "come to me", "meet me here", "get over here", "back me up".
+    _TO_HIM = re.compile(r"(?i)\b(come|meet|join|get|head|swing|drop|back|find|catch up)\b[^.?!]{0,24}"
+                         r"\b(me|here|my (place|location|position)|where i am)\b")
+
+    def _named_family(self, prompt, listed=False):
+        """
+        One of the family named in what he said — "is Dick with you?", "go help
+        Dick", "find Dick", "where'd Cass go" — for someone with the family's app:
+        where that one is and what they're doing, as the app has it, and how far
+        from here; and for the ones who'd go, how to say they're going to them —
+        onto the case they're on, if they're on one. However he put it is the
+        model's to read, as a person would; this is only what it would need.
+        `listed`: the tracker gave everyone's line already; only the going is added.
+        """
+        from ..contacts import directory
+        from . import batman, cases
+        watches = getattr(self.contact, "sees_whereabouts", False)
+        has_app = watches or (getattr(self.contact, "group", "") or "").lower() in ("family", "wayne manor")
+        if not has_app or not prompt:
+            return ""
+        book = directory()
+
+        def names_in(text):
+            return [c for c in book if c.id != self.contact.id and c.id in cases.FIELD
+                    and any(re.search(rf"(?i)\b{re.escape(n)}\b", text) for n in {c.name, c.full_name, c.id})][:3]
+        named = names_in(prompt)
+        if not named and re.search(r"(?i)\b(him|her|them|he|she|they|his)\b", prompt):
+            # "Where'd Dick go?" — "Help him out.": who "him" is, from what he said just before.
+            before = next((m["content"] for m in reversed(self.history.messages)
+                           if m["role"] == "user" and not m.get("marker")), "")
+            named = names_in(before[-400:])
+        to_him = self.contact.id in cases.FIELD and bool(self._TO_HIM.search(prompt))
+        if not named and not to_him:
+            return ""
+        me = presence.of(self.contact)
+        here = me.position()
+        lines = []
+        for other in named:
+            if listed:
+                continue
+            seen = presence.glance(other, here=here)
+            lines.append(f"{other.name}, on the family app: {seen}." if seen else
+                         f"{other.name} isn't on the family app — where they are is theirs to keep.")
+        if to_him and not listed:
+            spot = batman.position()
+            lines.append(batman.note() + (f" — {presence.how_far(math.dist(here, spot))}" if here and spot else "") + ".")
+        if self.contact.id not in cases.FIELD:
+            return " ".join(lines)
+        mine = cases.active(self.contact.id)
+        stuck = mine and ((mine.get("members") or {}).get(self.contact.id) or {}).get("status") == "on scene"
+        targets = [(o.name, cases.active(o.id)) for o in named
+                   if cases.active(o.id) or getattr(o, "shares_location", True)]
+        if to_him:
+            targets.append(("Bruce", cases.active("bruce")))
+        targets = [(n, c) for n, c in targets if not (c and mine and c["id"] == mine["id"])]   # already on it together
+        if stuck and targets:
+            lines.append(f"You're in the middle of the {mine['kind'].lower()} at {mine['place']} — you can't walk away "
+                         "from it till it's done, whoever asks; say so if he wants you somewhere else.")
+        elif targets:
+            for name, case in targets:
+                lines.append(
+                    f"If he wants you with {name} — to help, back them up, find them, meet up, however he puts it — it's "
+                    "yours to take, question or turn down. If you'll go, say so your way and end what you say with "
+                    f"[join: {name}]" + (f" — they're on the {case['kind'].lower()} at {case['place']}, so that puts you "
+                                         "on it with them" if case else " — you'll head to them and stay with them")
+                    + ". If you won't or can't, say so, or ask what for.")
+        return " ".join(lines)
 
     _PEOPLE_Q = re.compile(r"(?i)\b(going to be|gonna be|was \w+ like|were \w+ like|do you think|"
                            r"should (i|we)|would you|are you|you think|remember when)\b")

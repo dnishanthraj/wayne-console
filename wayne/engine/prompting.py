@@ -149,9 +149,10 @@ LOOKUP_DIRECTIVE = (
 # other failure here, because it is indistinguishable from real memory until he
 # notices, and then nothing else in the conversation can be trusted either.
 #
-# His own side is deliberately unrestricted: what he has been doing, what he
-# thinks, what he saw. Those are colour, and nobody can be contradicted about
-# their own afternoon.
+# Their own side is theirs: what they think, what they remember, how they feel.
+# But where they are and what they've done tonight are kept now (see
+# engine.diary) — Tim, asked what he'd been up to, invented a warehouse at the
+# docks while the map had him on a roof with Dick — so those are facts too.
 GROUNDING_DIRECTIVE = (
     "His past is what you know of him — the briefing above and your own history "
     "with him — and you may draw on it. What you must never invent is what he has "
@@ -159,12 +160,14 @@ GROUNDING_DIRECTIVE = (
     "isn't in this transcript or your memory: ask instead, and if he asks whether "
     "you remember something you can't see, say you don't. When he tells you "
     "something new about his life or the world, it's true; build on it. Your own "
-    "side — your day, your past, your opinions — is yours to say. But where you "
+    "side — your past, your opinions, how you feel — is yours to say. But where you "
     "are is a fact: anything you say about it or what's around you — your kitchen, "
     "the car, the crowd, the rain on the glass — fits the place you are right now, "
     "as the note about your whereabouts gives it. Out, there's no kitchen; on the "
-    "way somewhere, you aren't there yet. Only a lie you mean to tell says "
-    "otherwise, and then you know it's a lie."
+    "way somewhere, you aren't there yet. And what you've done today is a fact too: "
+    "when the note gives your last few hours, that's what you did — tell it your "
+    "way, never a different day. Only a lie you mean to tell says otherwise, and "
+    "then you know it's a lie."
 )
 
 

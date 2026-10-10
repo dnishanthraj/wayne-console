@@ -2219,6 +2219,7 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .gm-info__odds[data-level="poor"] .gm-odds__bar i { background: var(--alert); }
 .gm-assign__odds { font-style: normal; font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.06em;
   color: var(--text-faint); margin-left: 2px; }
+.gm-assign__odds.is-late { text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.7; }
 
 /* The side panel is the crime system's: drag its edge for more of it. */
 .gm-side__grip { position: absolute; top: 0; bottom: 0; right: calc(var(--gm-side) - 3px); width: 7px; z-index: 850;
@@ -2310,6 +2311,17 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   border-left: 2px solid var(--accent); background: var(--surface); animation: none; }
 .gm-info.is-docked .gm-info__x { display: none; }
 .gm.has-detail .gm-side > [data-pane] { display: none !important; }
+/* Docked, the card is the panel: it runs all the way down, the sections breathe, and the incident log
+   has the room the list had — no box of its own to scroll, the panel scrolls if it's long. */
+.gm.has-detail .gm-side { display: flex; flex-direction: column; }
+.gm-info.is-docked { flex: 1 0 auto; display: flex; flex-direction: column; padding: 14px 16px 26px; }
+.gm-info.is-docked .gm-info__bio { line-height: 1.6; }
+.gm-info.is-docked .gm-info__odds, .gm-info.is-docked .gm-info__progress { margin-top: 18px; }
+.gm-info.is-docked .gm-info__label { margin: 22px 0 9px; }
+.gm-info.is-docked .gm-info__log { flex: 1 0 auto; max-height: none; overflow: visible; margin-top: 4px; }
+.gm-info.is-docked .gm-log { gap: 13px; }
+.gm-info.is-docked .gm-log__entry { grid-template-columns: 40px 1fr; column-gap: 10px; font-size: 12px; line-height: 1.55; }
+.gm-info.is-docked .gm-log__entry b { margin-bottom: 2px; }
 .gm-info__back { display: flex; align-items: center; gap: 6px; margin: -2px 0 10px -4px; padding: 4px 6px; background: none;
   border: 0; color: var(--text-faint); font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
   cursor: var(--cursor-pointer); }

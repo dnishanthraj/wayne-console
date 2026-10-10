@@ -1447,11 +1447,14 @@
       if (report.crew >= 3) chips.push('<span class="gm-chip">' + report.crew + ' of them</span>');
       if (report.gang && !report.suspect) chips.push('<span class="gm-chip">' + report.gang + '</span>');
       if (report.moving) chips.push('<span class="gm-chip" data-k="moving">On the move</span>');
-      var best = null;
-      Object.keys(o['with'] || {}).forEach(function (id) {
+      // The best of who's free — among those who'd get there in time to make a difference.
+      var best = null, free = Object.keys(o['with'] || {});
+      free.forEach(function (id) {
         var w = o['with'][id];
+        if (w.late) return;
         if (!best || w.odds > best.odds) best = { id: id, odds: w.odds, eta: w.eta };
       });
+      var alone = o.gcpd || 0;
       // As it stands counts only whoever's there; before anyone is, it's the odds on paper.
       var shown = o.current !== null && o.current !== undefined ? o.current : null;
       var paper = o.projected !== null && o.projected !== undefined ? o.projected : null;
@@ -1460,16 +1463,20 @@
       box.innerHTML = (chips.length ? '<div class="gm-chips">' + chips.join('') + '</div>' : '') +
         '<div class="gm-odds"><div class="gm-odds__num"></div><div class="gm-odds__text"><b></b><small></small></div></div>' +
         '<div class="gm-odds__bar"><i></i></div>';
-      var p = shown !== null ? shown : paper !== null ? paper : (best ? best.odds : (o.gcpd || 0));
+      // Nobody on it yet: it's GCPD's, as it stands — what sending someone would make it is underneath.
+      var p = shown !== null ? shown : paper !== null ? paper : alone;
       box.dataset.level = p >= 0.6 ? 'good' : p >= 0.35 ? 'fair' : 'poor';
       box.querySelector('.gm-odds__num').textContent = Math.round(p * 100) + '%';
       box.querySelector('b').textContent = verdict(p);
-      box.querySelector('small').textContent = shown !== null
+      box.querySelector('small').textContent = shown !== null && o.late
+        ? 'over before anyone got there — it\u2019s gone however GCPD\u2019s night went'
+        : shown !== null
         ? 'as it stands, with who\u2019s there' + (paper !== null && Math.abs(paper - shown) >= 0.05
                                                    ? ' · ' + Math.round(paper * 100) + '% once everyone\u2019s there' : '')
         : paper !== null ? 'projected — once they\u2019re there'
-        : best ? 'GCPD alone ' + Math.round((o.gcpd || 0) * 100) + '% — best with ' + bestName + ', ' +
-                 Math.max(1, Math.round(best.eta)) + ' min out' : 'GCPD alone · nobody free to send';
+        : best && best.odds > alone + 0.01 ? 'GCPD alone, as it stands · ' + Math.round(best.odds * 100) + '% with ' +
+                 bestName + ', ' + Math.max(1, Math.round(best.eta)) + ' min out'
+        : free.length ? 'GCPD alone · nobody can get there in time to change it' : 'GCPD alone · nobody free to send';
       box.querySelector('i').style.width = Math.round(p * 100) + '%';
       box.hidden = false;
       // Each of the free ones: what sending them would make it.
@@ -1479,11 +1486,12 @@
         if (old) old.remove();
         if (!w) return;
         var em = document.createElement('em');
-        em.className = 'gm-assign__odds';
-        em.textContent = Math.round(w.odds * 100) + '%';
+        em.className = 'gm-assign__odds' + (w.late ? ' is-late' : '');
+        em.textContent = w.late ? 'late' : Math.round(w.odds * 100) + '%';
         b.appendChild(em);
-        b.setAttribute('data-tip', (b.getAttribute('data-tip') || '') + ' · ~' + Math.round(w.odds * 100) + '% with them, ' +
-                                   Math.max(1, Math.round(w.eta)) + ' min out' + (w.by ? ' ' + w.by : ''));
+        var tip = (b.getAttribute('data-tip') || '').replace(/ · (~\d+% with them|too late to change it), .*$/, '');
+        b.setAttribute('data-tip', tip + (w.late ? ' · too late to change it, ' : ' · ~' + Math.round(w.odds * 100) +
+                                   '% with them, ') + Math.max(1, Math.round(w.eta)) + ' min out' + (w.by ? ' ' + w.by : ''));
       });
     }).catch(function () {});
   }
@@ -1685,7 +1693,7 @@
         map.getSource('incidents').setData({ type: 'FeatureCollection', features: reports.map(function (r) {
           var props = Object.assign({}, r);
           delete props._way; delete props.route;
-          if (r.done) props.fade = Math.max(0.15, 1 - (Date.now() / 1000 - (r.done_at || 0)) / (3 * 3600));
+          if (r.done) props.fade = Math.max(0.15, 1 - (Date.now() / 1000 - (r.done_at || 0)) / (6 * 3600));   // fainter through the night
           if (r.assignee && contacts[r.assignee]) props.acc = contacts[r.assignee].accent;
           return { type: 'Feature', geometry: { type: 'Point', coordinates: ll(r.x, r.y) }, properties: props };
         }) });
@@ -1716,8 +1724,8 @@
     });
     var mine = jet.waiting_for === 'bruce';
     showInfo('The Batwing', 'Bruce\u2019s jet · ' + jet.status + (aboard.length ? ' · ' + aboard.join(' and ') + ' aboard' : ''),
-             'Faster than anything else in Gotham\u2019s sky. Flown from the cave when nobody\u2019s at the controls; two can ride, ' +
-             'one job at a time. Whoever needs it near enough gets it — call it, and it\u2019s yours till you go.',
+             'Faster than anything else in Gotham\u2019s sky, and yours alone to fly — one more can ride with you. Call it ' +
+             'and it comes to you; after a drop it sweeps the city as a drone till dawn, and comes back when you call.',
              '', spriteUrl(sprite(40, batwingSprite(false))), '#e8c86a');
     jetOpen = true;
     var go = $('.gm-info__go');
@@ -1934,7 +1942,7 @@
     }).map(function (r) {
       var props = Object.assign({}, r);
       delete props._way; delete props.route;
-      if (r.done) props.fade = Math.max(0.15, 1 - (t - (r.done_at || 0)) / (3 * 3600));
+      if (r.done) props.fade = Math.max(0.15, 1 - (t - (r.done_at || 0)) / (6 * 3600));
       if (r.assignee && contacts[r.assignee]) props.acc = contacts[r.assignee].accent;
       var at = r._way && r.moving ? onJourney(r._way, t).at : ll(r.x, r.y);
       return { type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: props };
@@ -2056,6 +2064,8 @@
       .setLngLat(ll(pin.x, pin.y)).addTo(map);
     marker._pin = pin;
     el.addEventListener('click', function (e) { e.stopPropagation(); editPin(pin, marker); });
+    // Right-click on a pin is this pin, not a new one dropped on top of it.
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); e.stopPropagation(); editPin(pin, marker); });
     marker.on('dragend', function () {
       var at = unit(marker.getLngLat());
       pin.x = +at.x.toFixed(2); pin.y = +at.y.toFixed(2);

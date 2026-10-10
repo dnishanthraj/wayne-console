@@ -122,14 +122,8 @@ def apply(session, found):
         state.set_activity(doing, status, minutes,
                            where="" if where.strip().lower().strip(" .") in _NOTHING else where,
                            company=_people(found.get("with"), session.contact))
-    joining = found.get("joining")
-    if isinstance(joining, str) and joining.strip().lower().strip(" .") not in _NOTHING:
-        from ..contacts import directory
-        other = directory().find(joining.strip())
-        if other is not None and other.id != session.contact.id and getattr(other, "shares_location", True):
-            where, _ = presence.of(other).whereabouts()
-            state.set_activity(f"on the way to meet {other.name}", presence.BUSY, 90, where=where or "",
-                               company=[other.id], follow=other.id)
+    # "joining" — off to one of the family — is the console's to carry out (Console._join_by_name):
+    # onto their case if they're on one, to them by the fastest way if not.
     reach = found.get("contact")
     if isinstance(reach, dict) and isinstance(reach.get("about"), str) and reach["about"].strip():
         minutes = _number(reach.get("in_minutes"), None)
@@ -286,6 +280,21 @@ def day_plan(contact, when=None, others="", people=()):
     end_of_day = time.mktime(time.localtime(when)[:3] + (23, 59, 0, 0, 0, -1))
     promised = "; ".join(f"{p['what']}" + (f" at {p['where']}" if p["where"] else "") + f", {plans.when(p['at'], when)}"
                          for p in plans.kept(contact.id, when, ahead=end_of_day - when + 60) if p["at"] <= end_of_day)
+    # Sketched late — after a restart, at midnight — the day's half gone and they're in the middle
+    # of something: the plan carries on from that, not from breakfast. (What came before stands
+    # either way: a plan only holds from when it was made — see Presence._routine.)
+    local = time.localtime(when)
+    midway = ""
+    if local.tm_hour >= 10 or local.tm_hour < 5:
+        here = presence.of(contact)
+        block, _company, _firm = here._situation(when)
+        where, company = here.whereabouts(when)
+        doing = (block.get("doing") or "").strip()
+        mates = [p.name for p in people if p.id in company]
+        midway = (f" It's {time.strftime('%H:%M', local)} already, so part of the day has gone — sketch it from now on; "
+                  "what's past doesn't need blocks. Right now you're "
+                  + (doing or "not doing anything in particular") + (f", at {here.label(where)}" if where else "")
+                  + (f", with {' and '.join(mates)}" if mates else "") + " — carry on from that.")
     instruction = (
         f"It's {day}" + (f" — {season}" if season else "")
         + (". The weekend: no classes, and no office unless you'd go in anyway" if weekend else "")
@@ -293,7 +302,7 @@ def day_plan(contact, when=None, others="", people=()):
         + (f". Today, out of habit: {habits} — keep them unless you'd really skip one today" if habits else "")
         + (f". Your circle beyond the family, people you might see or hear from: {friends}" if friends else "")
         + (f". You've told Bruce you'll be at {promised} — keep it" if promised else "")
-        + ". Sketch your day today and tonight as loose blocks of time, the way your "
+        + "." + midway + " Sketch your day today and tonight as loose blocks of time, the way your "
         "life actually runs — sleep, work, patrol if you'd go out tonight, and two or three "
         "things that are yours today: errands, people, plans, a whim. The masks come out after "
         "dark: by day you live your own life, not the work. Times are approximate and "
