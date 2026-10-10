@@ -2335,7 +2335,7 @@ class Console(GroupChats):
         """
         from ..engine import inbox, incidents
         now = time.time()
-        for made in (inbox.write_night_report(now), inbox.write_briefing(now)):
+        for made in (inbox.write_night_report(now), inbox.write_briefing(now), inbox.write_market_close(now)):
             if made:
                 await self.broadcast({"type": "mail", "message": made, "unread": inbox.unread()})
         for r in incidents.at(now):

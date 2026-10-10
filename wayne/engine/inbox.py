@@ -237,6 +237,23 @@ def write_briefing(now=None):
                    kind="briefing", key=f"briefing:{day.isoformat()}", at=min(now, seven) if now >= seven else now)
 
 
+def write_market_close(now=None):
+    """The market's close, from Investor Relations, on a trading day after half past four."""
+    from . import markets
+    now = now or time.time()
+    day = datetime.date.fromtimestamp(now)
+    local = time.localtime(now)
+    if not markets.trading(day) or (local.tm_hour, local.tm_min) < (16, 35):
+        return None
+    key = f"market:{day.isoformat()}"
+    if key in (_load().get("keys") or []):
+        return None
+    subject, body = markets.report(day)
+    at = time.mktime((day.year, day.month, day.day, 16, 35, 0, 0, 0, -1))
+    return deliver("Wayne Enterprises Investor Relations", subject, body, at=at, kind="markets", key=key,
+                   name="WE Investor Relations", address="ir@wayne-enterprises.com")
+
+
 # --- written by the model ------------------------------------------------------------
 
 def _draw(*parts):

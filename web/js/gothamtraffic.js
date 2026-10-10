@@ -392,13 +392,22 @@
       var a = ll(leg.pts[0][0], leg.pts[0][1]), b = ll(leg.pts[1][0], leg.pts[1][1]);
       p = towards(a, b, (s - leg.start) / Math.max(1, leg.end - leg.start));
       r = heading(a, b);
+    } else if (JET.drone && JET.drone.pts && JET.drone.pts.length > 1) {
+      // On its own after dropping him: a slow sweep round the roughest districts, lap after lap.
+      var loop = JET.drone.pts.map(function (q) { return ll(q[0], q[1]); }), d = [0];
+      for (var i = 1; i < loop.length; i++) d.push(d[i - 1] + Math.hypot(loop[i][0] - loop[i - 1][0], loop[i][1] - loop[i - 1][1]));
+      var lap = d[d.length - 1] || 1, gone = ((s - JET.drone.since) / 60 * JET.drone.speed * K) % lap, j = 1;
+      while (j < d.length - 1 && d[j] < gone) j++;
+      var seg = (d[j] - d[j - 1]) || 1;
+      p = towards(loop[j - 1], loop[j], (gone - d[j - 1]) / seg);
+      r = heading(loop[j - 1], loop[j]);
     } else if (!JET.parked) {
       p = ll(JET.x, JET.y); r = JET.r || 0;
     } else {
       return;                                   // in the hangar under the Manor
     }
-    var job = leg ? { pickup: ' · coming down for a pickup', carry: ' · carrying ' + (leg.riders || []).length,
-                      home: ' · heading home', pass: '' }[leg.kind] || '' : ' · waiting';
+    var job = leg ? { coming: ' · flying itself to you', flying: ' · you at the controls', home: ' · heading home' }[leg.kind] || ''
+                  : JET.drone ? ' · sweeping the city' : ' · waiting';
     out.push(point([p[0] + 0.8 * K, p[1] - 0.8 * K], { m: 'batwing-shadow', r: r }));
     out.push(point(p, { m: 'batwing', r: r, n: 'The Batwing' + job }));
   }

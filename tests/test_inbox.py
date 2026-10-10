@@ -48,3 +48,18 @@ def test_a_capture_brings_word_from_gordon_on_the_secure_line(monkeypatch):
                  "place": "Waterloo Docks", "what": "mauling", "severity": 3, "chase": False})
     made = inbox.write_one("m", {})
     assert made and made["kind"] == "gordon" and made["folder"] == "secure" and "cell" in made["body"]
+
+
+def test_the_market_closes_the_same_way_every_time_and_mails_once_on_a_trading_day():
+    import datetime
+
+    from wayne.engine import markets
+    friday = datetime.date(2026, 10, 9)
+    assert markets.board(friday) == markets.board(friday)
+    assert markets.close("WYNE", datetime.date(2026, 10, 10)) == markets.close("WYNE", friday)   # shut at the weekend
+    subject, body = markets.report(friday)
+    assert subject.startswith("Close: WYNE") and "| **WYNE** |" in body
+    at = time.mktime((2026, 10, 9, 17, 0, 0, 0, 0, -1))
+    made = inbox.write_market_close(at)
+    assert made and made["kind"] == "markets" and inbox.write_market_close(at + 60) is None
+    assert inbox.write_market_close(time.mktime((2026, 10, 10, 17, 0, 0, 0, 0, -1))) is None    # Saturday: no close

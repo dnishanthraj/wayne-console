@@ -1108,14 +1108,15 @@
   }
   // Where about the scene they are: a dash to somewhere new, a while there, sometimes a
   // turn around it, sometimes standing stock still — the same for the same moment.
+  // Small and slow: a few steps this way, a while still, a few steps back — never a dash.
   function sceneOffset(id, t) {
-    var seg = 7, k = Math.floor(t / seg), f = (t - k * seg) / seg;
+    var seg = 16, k = Math.floor(t / seg), f = (t - k * seg) / seg;
     function spot(n) {
-      for (var back = 0; back < 4 && hash01(id + '!' + (n - back)) < 0.32; back++) { /* standing still: as before */ }
-      var m = n - back, a = hash01(id + ':' + m) * Math.PI * 2, r = (0.12 + 0.3 * hash01(id + '#' + m)) * K;
+      for (var back = 0; back < 5 && hash01(id + '!' + (n - back)) < 0.45; back++) { /* standing still: as before */ }
+      var m = n - back, a = hash01(id + ':' + m) * Math.PI * 2, r = (0.04 + 0.1 * hash01(id + '#' + m)) * K;
       return [Math.cos(a) * r, Math.sin(a) * r];
     }
-    var from = spot(k - 1), to = spot(k), move = Math.min(1, f / 0.35), e = move < 0.5 ? 2 * move * move : 1 - Math.pow(-2 * move + 2, 2) / 2;
+    var from = spot(k - 1), to = spot(k), move = Math.min(1, f / 0.6), e = move < 0.5 ? 2 * move * move : 1 - Math.pow(-2 * move + 2, 2) / 2;
     return [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e];
   }
 

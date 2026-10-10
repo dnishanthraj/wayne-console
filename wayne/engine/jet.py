@@ -9,6 +9,10 @@ There's room for one more: he can give one of the family a lift. They stay
 where they are, he comes down for them, and drops them where they need to be —
 they rappel down and get on with it — and he flies on, or stays with the jet.
 
+Once he's out of it, it doesn't wait about: it flies itself as a drone, a slow
+sweep over the roughest districts around where he left it — eyes on the city
+for the cave — till he calls it or the night's over and it goes home.
+
 Where it is, is worked out from what it's been asked to do and the clock, so
 the map, the family and the case board agree. Kept in DATA_DIR/_jet.json.
 """
@@ -26,7 +30,7 @@ PICKUP = 1.0            # minutes to come down, get a line to someone, and climb
 DROP = 0.5              # and to drop someone onto a roof
 SEATS = 2               # him, and one more
 HOME = "Wayne Manor"    # the hangar's under it
-IDLE = 12 * 60          # how long it hangs where he got out before it takes itself home (seconds)
+DRONE = 8.0             # map units a minute on its own: slow and high, watching
 AREA = 35.0             # how far off it can be and still be worth calling for a trip, ~5 km
 WAITS = 15 * 60         # called to him, how long it waits overhead for his next move (seconds)
 PILOT = "bruce"
@@ -61,7 +65,52 @@ def _flight(a, b, start, kind, riders=()):
 
 
 def _legs(t):
-    return [leg for leg in _load().get("legs") or [] if leg["end"] > t - 3 * 3600]
+    return [leg for leg in _load().get("legs") or [] if leg["end"] > t - 12 * 3600]
+
+
+def _dawn(after):
+    """Half past five the morning after `after`: when a drone night ends and it goes home."""
+    lt = time.localtime(after)
+    dawn = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 5, 30, 0, 0, 0, -1))
+    return dawn if dawn > after + 600 else dawn + 86400
+
+
+def _circuit(start):
+    """Its sweep from where he left it: the roughest districts round about, in a loop, back to the start."""
+    from . import places
+    near = [d for d in places.gazetteer().get("districts", []) if math.dist(d["at"], start) < 26 and d.get("crime", 0) > 0.3]
+    near = sorted(near, key=lambda d: -d.get("crime", 0))[:4]
+    if len(near) < 2:
+        return [list(start)] + [[round(start[0] + 4 * math.cos(a), 2), round(start[1] + 4 * math.sin(a), 2)]
+                                for a in (0.0, 2.1, 4.2)] + [list(start)]
+    near.sort(key=lambda d: math.atan2(d["at"][1] - start[1], d["at"][0] - start[0]))
+    return [list(start)] + [[d["at"][0], d["at"][1]] for d in near] + [list(start)]
+
+
+def _along(pts, travelled):
+    """Where on a loop someone is, `travelled` units round it — and the heading."""
+    legs = [math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+    lap = sum(legs) or 1.0
+    left = travelled % lap
+    for i, leg in enumerate(legs):
+        if left <= leg:
+            f = left / leg if leg else 0
+            (ax, ay), (bx, by) = pts[i], pts[i + 1]
+            return ax + (bx - ax) * f, ay + (by - ay) * f, math.degrees(math.atan2(bx - ax, ay - by)) % 360
+        left -= leg
+    return pts[-1][0], pts[-1][1], 0.0
+
+
+def _drone(t):
+    """Its sweep, if it's on one at t: {"pts", "since"} — after he got out, till dawn or he calls it."""
+    data = _load()
+    legs = [leg for leg in data.get("legs") or [] if leg["end"] <= t]
+    if not legs or legs[-1]["kind"] != "flying":
+        return None
+    last = legs[-1]
+    if t >= _dawn(last["end"]) or (data.get("waiting") or {}).get("until", 0) > t:
+        return None
+    return {"pts": _circuit(tuple(last["pts"][-1])), "since": last["end"]}
 
 
 def where(t=None):
@@ -77,12 +126,16 @@ def where(t=None):
     if waiting.get("until", 0) > t:
         x, y = waiting["at"]
         return x, y, 0.0, None              # overhead where he called it, till he moves
+    sweep = _drone(t)
+    if sweep:
+        x, y, heading = _along(sweep["pts"], (t - sweep["since"]) / 60 * DRONE)
+        return x, y, heading, None          # eyes on the city for the cave, till he wants it
     done = [leg for leg in legs if leg["end"] <= t]
-    if done:
+    if done and done[-1]["kind"] != "flying":
         x, y = done[-1]["pts"][-1]
-        return x, y, 0.0, None              # wherever it last stopped: home, or hanging where he got out
+        return x, y, 0.0, None              # where it last set down — home, or overhead where he called it
     hx, hy = home()
-    return hx, hy, 0.0, None
+    return hx, hy, 0.0, None                # in the hangar (a night's sweep ends there at dawn)
 
 
 def waiting_for(t=None):
@@ -116,10 +169,6 @@ def offer(a, b, t=None, who=PILOT):
     return {"pickup": pickup, "lift": lift, "arrive": lift + (math.dist(a, b) / SPEED + DROP) * 60}
 
 
-def _home_after(at, t):
-    return _flight(at, home(), t + IDLE, "home")
-
-
 def book(rider, a, b, t=None):
     """
     He flies it from a to b: it flies itself to him first if it isn't there, he
@@ -138,7 +187,7 @@ def book(rider, a, b, t=None):
         legs = [_flight((x, y), a, t, "coming")] if math.dist((x, y), a) > 0.3 else []
         fly = _flight(a, b, deal["lift"], "flying", [PILOT])
         fly["end"] = deal["arrive"]
-        data["legs"] = kept + legs + [fly, _home_after(b, deal["arrive"])]
+        data["legs"] = kept + legs + [fly]
         _save(data)
     return {"pts": fly["pts"], "start": deal["lift"], "end": deal["arrive"], "by": "on the Batwing",
             "pickup": deal["pickup"]}
@@ -176,7 +225,7 @@ def lift(passenger, bruce_at, them_at, drop_at, t=None, then=None):
             onward = _flight(drop_at, then, across["end"], "flying", [PILOT])
             onward["end"] += DROP * 60
             flown.append(onward)
-        data["legs"] = kept + legs + flown + [_home_after(flown[-1]["pts"][-1], flown[-1]["end"])]
+        data["legs"] = kept + legs + flown
         _save(data)
     # His trip through every roof — theirs, their drop, his own — each stop kept in time on the map.
     spans = [math.dist(*to_them["pts"]) / SPEED + PICKUP, math.dist(*across["pts"]) / SPEED + DROP]
@@ -238,18 +287,20 @@ def state(t=None):
     hx, hy = home()
     parked = leg is None and math.dist((x, y), (hx, hy)) < 0.2
     nxt = next((lg for lg in legs if lg["start"] > t), None)
-    leaving = next((lg for lg in legs if lg["kind"] == "home" and lg["start"] > t), None)
     if leg is None and nxt and nxt["kind"] == "flying" and nxt["start"] - t <= PICKUP * 60 + 5:
         status, riders, parked = "coming down for a pickup", nxt["riders"], False
     elif leg is None and waiting_for(t):
         status = "waiting overhead for you"
     elif leg is None and parked:
         status = "in the hangar"
+    elif leg is None and _drone(t):
+        status = "sweeping the city as a drone"
     elif leg is None:
-        status = "hanging where you got out" + (
-            f" — home in {max(1, round((leaving['start'] - t) / 60))} min" if leaving else "")
+        status = "waiting where you left it"
     else:
         status = {"coming": "flying itself to you", "flying": "you at the controls",
                   "home": "taking itself home"}[leg["kind"]]
+    sweep = _drone(t) if leg is None else None
     return {"x": round(x, 2), "y": round(y, 2), "r": round(heading), "legs": legs, "riders": riders,
-            "status": status, "parked": parked, "waiting_for": waiting_for(t)}
+            "status": status, "parked": parked, "waiting_for": waiting_for(t),
+            **({"drone": {**sweep, "speed": DRONE}} if sweep else {})}

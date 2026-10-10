@@ -41,8 +41,8 @@ def test_only_he_flies_the_batwing_and_he_can_give_one_of_them_a_lift():
     assert theirs["start"] > t and theirs["pts"][0] == list(tim_at)        # Tim waits where he is till it's there
     assert theirs["end"] == his["end"] and his["pts"][-1] == list(drop)     # dropped off together; he stays with it
     assert jet.lift("orphan", near, tim_at, drop, t + 30) is None           # one flight at a time
-    assert jet.state(his["end"] + 60)["status"].startswith("hanging where you got out")
-    assert jet.state(his["end"] + jet.IDLE + 600)["parked"]                 # and home on its own
+    assert jet.state(his["end"] + 60)["status"] == "sweeping the city as a drone"      # eyes on the city, not idle
+    assert jet.state(jet._dawn(his["end"]) + 60)["parked"]                              # and home by dawn
 
 
 def test_he_goes_as_batman_to_a_case_and_at_night_and_as_bruce_by_day(monkeypatch):

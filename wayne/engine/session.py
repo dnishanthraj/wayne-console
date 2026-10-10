@@ -1900,6 +1900,9 @@ class ContactSession:
         for line in ([] if from_contact else [gazette.note(self.contact, prompt), gazette.who(prompt)]):
             if line:
                 awareness.append(line)
+        if self.contact.id == "lucius" and not from_contact:
+            from . import markets
+            awareness.append("The market, as you'd know it: " + markets.note())       # it's his job to
         # The places he names, as the city knows them.
         city = "" if from_contact else places.note(prompt, contact=self.contact)
         if city:
