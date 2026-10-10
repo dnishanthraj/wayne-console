@@ -256,6 +256,9 @@ def chance(case, gone_wrong=False, backup=False, late=False):
     p = 0.5 + (team_fit(members, case["kind"]) - difficulty(case)) * 1.3
     # Thirty of Bane's men are thirty men: Tim alone goes under, Cass and Dick hold the door.
     p -= 0.45 * outnumbered(case) * (1.15 - _holds_a_line(members))
+    # GCPD are there too: what they'd manage alone is a floor under the family's odds, not nothing.
+    floor = baseline(case)
+    p = max(p, floor) + (1 - max(p, floor)) * floor * 0.25
     if gone_wrong:
         p -= 0.05 if backup else 0.18          # it went bad; help coming made the difference
     if late:
@@ -263,11 +266,43 @@ def chance(case, gone_wrong=False, backup=False, late=False):
     return max(0.05, min(0.95, p))
 
 
+GRADES = ("success", "partial", "failure")
+
+
+def grade(lives, culprit, sort):
+    """
+    How it's scored, lives first — Batman's way: everyone safe and the one
+    behind it caught is a success; people saved but them gone, or them caught
+    with people hurt, is partial; anyone they were there to save dying is a
+    failure, whoever's in a cell for it. A hunt has nobody left to save: it's
+    the culprit or nothing.
+    """
+    if lives == "lost":
+        return "failure"
+    if sort == "hunt":
+        return "success" if culprit in ("caught", "dead") else "failure"
+    if lives == "safe" and culprit in ("caught", "dead", "none"):
+        return "success"
+    if lives == "safe" or culprit in ("caught", "dead"):
+        return "partial"
+    return "failure"
+
+
+def _ending(how, lives, culprit, sort, line, p, caught="", hurt=None):
+    g = grade(lives, culprit, sort)
+    return {"ok": g == "success", "grade": g, "lives": lives, "culprit": culprit, "how": how, "caught": caught,
+            "hurt": hurt or {}, "line": line, "chance": round(p, 2)}
+
+
 def decide(case, now=None):
     """
-    The ending: {"ok": bool, "how": one of caught / saved / solved / contained /
-    got away / lost / cold / worse / killed, "caught": the rogue brought in or "",
+    The ending, on two counts — the people (safe, hurt, lost) and whoever was
+    behind it (caught, escaped, dead) — and graded from them (see grade):
+    {"ok": a success, "grade", "lives", "culprit", "how": the word for it
+    (caught / saved / solved / contained / recovered / got away / too late /
+    cold / lost / worse / killed / costly), "caught": the rogue brought in or "",
     "hurt": {member: injury}, "line": what happened, for whoever writes it up}.
+    Seeded by the case: the same ending however often it's asked.
     """
     from . import cases, incidents
     members = cases.team(case)
@@ -275,57 +310,90 @@ def decide(case, now=None):
     if case["kind"] in incidents.MOVING:
         return _chase_ending(case, members)
     gone_wrong = cases.goes_wrong(case)
-    joined_late = len(members) > 1
     late = too_late(case)
     suspect = case.get("suspect") or ""
     who = suspect or "whoever did it"
     if late and sort in ("street", "petty"):
         # Over before anyone got there: geography decides some of these.
-        return {"ok": False, "how": "too late", "caught": "", "hurt": {}, "chance": 0.0,
-                "line": f"by the time they got there it was over — {who} long gone"}
-    p = chance(case, gone_wrong, backup=joined_late, late=late)
+        return _ending("too late", "safe" if sort == "petty" else "hurt", "escaped", sort,
+                       f"by the time they got there it was over — {who} long gone", 0.0)
+    p = chance(case, gone_wrong, backup=len(members) > 1, late=late)
     if late:
-        p -= 0.2                               # the standoff, the fire, the abduction: hours lost
-        p = max(0.05, p)
+        p = max(0.05, p - 0.2)                 # the standoff, the fire, the abduction: hours lost
     r = _roll(case, "end")
     good = r < p
     middling = not good and r < p + (1 - p) * 0.55
-    if good and suspect == "Catwoman":
-        # Selina: the diamonds back in their case by morning — and her, nowhere. Even "caught", she isn't, for long.
-        held = _roll(case, "cat") < 0.12
-        return {"ok": True, "how": "caught" if held else "recovered", "caught": "", "hurt": {}, "chance": round(p, 2),
-                "line": ("they had her cuffed on the roof — and she was out of them before the squad car came" if held
-                         else "what she took was back where it belonged by morning; she was long gone")}
-    if good:
-        how = {"hostage": "saved", "hunt": "solved", "disaster": "contained"}.get(sort, "caught")
-        caught = bool(suspect) and (sort not in ("hostage", "disaster") or _roll(case, "caught") < 0.75)
-        if sort in ("street", "petty") and not suspect:
-            caught = True
-        line = {"saved": "everyone got out alive" + (f", and {who} was taken down" if caught else f" — {who} got away"),
-                "solved": f"it was worked out — {who} identified" + (" and brought in" if caught else ", still out there"),
-                "contained": "it was contained before it got worse" + (f"; {who} was brought in" if caught else ""),
-                "caught": f"{who} was caught and handed to GCPD"}[how]
-        if "redhood" in members and sort == "street" and not suspect and _roll(case, "jason") < 0.3:
-            how, line = "killed", "the man responsible didn't survive Jason — GCPD found what was left"
-    elif middling:
-        how, caught = ("got away", False) if sort != "hunt" else ("cold", False)
-        line = {"got away": f"nobody else was hurt, but {who} got away",
-                "cold": f"it went nowhere — no one for it yet, {who} still out there"}[how]
-    else:
-        caught = False
-        how = {"hostage": "lost", "hunt": "cold", "disaster": "worse"}.get(sort, "worse" if sort == "street" else "got away")
-        line = {"lost": "it went wrong — someone they were there to save didn't make it, and " + who + " got away",
-                "cold": f"it went cold — no one for it, {who} gone",
-                "worse": f"it went bad — more people hurt before it was over, and {who} got away",
-                "got away": f"{who} got away"}[how]
     hurt = {}
     if not good and sort in ("street", "hostage", "disaster") and _roll(case, "hurt") < 0.4:
         crew = [m for m in members if m != "bruce"] or members
         if crew:
-            m = crew[int(_roll(case, "who") * len(crew))]
-            hurt[m] = INJURIES[int(_roll(case, "injury") * len(INJURIES))]
-    return {"ok": good, "how": how, "caught": suspect if (good and caught and suspect) else "", "hurt": hurt,
-            "line": line, "chance": round(p, 2)}
+            hurt[crew[int(_roll(case, "who") * len(crew))]] = INJURIES[int(_roll(case, "injury") * len(INJURIES))]
+    if suspect == "Catwoman":
+        # Selina: the diamonds back in their case by morning, and her nowhere — even "caught", she isn't, for long.
+        if good:
+            held = _roll(case, "cat") < 0.12
+            return _ending("caught" if held else "recovered", "safe", "escaped", sort,
+                           "they had her cuffed on the roof — and she was out of them before the squad car came" if held
+                           else "what she took was back where it belonged by morning; she was long gone", p)
+        return _ending("got away", "safe", "escaped", sort, "she was gone over the roofs with it", p, hurt=hurt)
+    if good:
+        how = {"hostage": "saved", "hunt": "solved", "disaster": "contained"}.get(sort, "caught")
+        took = bool(suspect) and (sort not in ("hostage", "disaster") or _roll(case, "caught") < 0.75)
+        if sort in ("street", "petty") and not suspect:
+            took = True                        # nobody named: the ones who did it, arrested
+        culprit = "caught" if took else ("none" if sort == "disaster" and not suspect else "escaped")
+        lives = "safe"
+        if sort in ("hostage", "street") and case.get("severity", 2) >= 3 and _roll(case, "costly") < (1 - p) * 0.35:
+            # Got them — and not everyone came out of it.
+            lives = "lost"
+            how = "costly"
+        line = {"saved": "everyone got out alive" + (f", and {who} was taken down" if took else f" — but {who} got away"),
+                "solved": f"it was worked out — {who} identified" + (" and brought in" if took else ", still out there"),
+                "contained": "it was contained before it got worse" + (f"; {who} was brought in" if took else ""),
+                "caught": f"{who} was caught and handed to GCPD",
+                "costly": f"they got {who} — but someone they were there for didn't make it"}[how]
+        if "redhood" in members and sort == "street" and not suspect and _roll(case, "jason") < 0.3:
+            how, culprit, line = "killed", "dead", "the man responsible didn't survive Jason — GCPD found what was left"
+        return _ending(how, lives, culprit, sort, line, p, caught=suspect if (took and suspect) else "", hurt=hurt)
+    if middling:
+        if sort == "hunt":
+            return _ending("cold", "safe", "escaped", sort, f"it went nowhere — no one for it yet, {who} still out there",
+                           p, hurt=hurt)
+        return _ending("got away", "safe", "escaped", sort, f"nobody else was hurt, but {who} got away", p, hurt=hurt)
+    how = {"hostage": "lost", "hunt": "cold", "disaster": "worse"}.get(sort, "worse" if sort == "street" else "got away")
+    lives = {"lost": "lost", "worse": "lost" if _roll(case, "dead") < 0.35 else "hurt", "cold": "safe",
+             "got away": "safe"}[how]
+    line = {"lost": f"it went wrong — someone they were there to save didn't make it, and {who} got away",
+            "cold": f"it went cold — no one for it, {who} gone",
+            "worse": f"it went bad — more people {'died' if lives == 'lost' else 'hurt'} before it was over, and {who} got away",
+            "got away": f"{who} got away"}[how]
+    return _ending(how, lives, "escaped", sort, line, p, hurt=hurt)
+
+
+def baseline(case):
+    """
+    The odds with nobody from the family on it — GCPD on their own: a mugging's
+    often cleared, a hostage-taking rarely ends well, the Joker never. 0.03–0.8.
+    """
+    sort = family(case["kind"])
+    sev = case.get("severity", 2)
+    p = {"petty": 0.62, "street": 0.5 - 0.08 * max(0, sev - 2), "hunt": 0.35, "hostage": 0.28, "disaster": 0.45}[sort]
+    d = DIFFICULTY.get(case.get("suspect") or "")
+    if d is not None:
+        p = min(p, max(0.03, 0.42 - 0.45 * d))
+    crew = case.get("crew") or 1
+    p -= 0.04 * max(0, crew - 3) ** 0.7               # two officers, and a crowd
+    return round(max(0.03, min(0.8, p)), 3)
+
+
+def gcpd(report):
+    """How a call nobody from the family worked ended — GCPD's arrest, or not — seeded by the report."""
+    p = baseline(report)
+    sort = family(report["kind"])
+    took = _roll(report, "gcpd") < p
+    lives = "safe" if took or sort in ("petty", "hunt") else ("lost" if _roll(report, "gcpd-dead") < 0.25 else "hurt")
+    g = grade(lives, "caught" if took else "escaped", sort)
+    return {"ok": g == "success", "grade": g, "how": "arrest" if took else "no arrest"}
 
 
 def catches(case, who=None):
@@ -341,21 +409,24 @@ def _chase_ending(case, members):
     who = case.get("suspect") or "whoever it was"
     caught = (case.get("chase") or {}).get("caught")
     if caught and case.get("suspect") == "Catwoman":
-        return {"ok": True, "how": "recovered", "caught": "", "hurt": {}, "chance": 1.0,
-                "line": "they ran her down across the roofs and got the bag back — she went off the edge laughing"}
+        return _ending("recovered", "safe", "escaped", "street",
+                       "they ran her down across the roofs and got the bag back — she went off the edge laughing", 1.0)
     if caught:
         hurt = {}
         if case["kind"] != "Foot chase" and _roll(case, "crash") < 0.25:
             crew = [m for m in members if m != "bruce"]
             if crew:
                 hurt[crew[int(_roll(case, "who") * len(crew))]] = INJURIES[int(_roll(case, "injury") * len(INJURIES))]
-        return {"ok": True, "how": "caught", "caught": case.get("suspect") or "", "hurt": hurt, "chance": 1.0,
-                "line": (f"they ran {who} down on foot" if case["kind"] == "Foot chase"
-                         else f"they cut the car off and {who} was pulled out of it and handed to GCPD")}
+        return _ending("caught", "safe", "caught", "street",
+                       f"they ran {who} down on foot" if case["kind"] == "Foot chase"
+                       else f"they cut the car off and {who} was pulled out of it and handed to GCPD", 1.0,
+                       caught=case.get("suspect") or "", hurt=hurt)
     late = not case.get("chase")
-    return {"ok": False, "how": "too late" if late else "got away", "caught": "", "hurt": {}, "chance": 0.0,
-            "line": (f"by the time they were anywhere near it {who} was long gone" if late
-                     else f"they were on it, and {who} still got away")}
+    # A getaway's whole point is the catching: gone is a failure, however quiet.
+    out = _ending("too late" if late else "got away", "safe", "escaped", "hunt",
+                  f"by the time they were anywhere near it {who} was long gone" if late
+                  else f"they were on it, and {who} still got away", 0.0)
+    return out
 
 
 def estimate(case, now=None, projected=False):

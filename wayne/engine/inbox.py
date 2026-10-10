@@ -164,7 +164,9 @@ def night_report(day=None, now=None):
         lines.append("None worked.")
     for c in sorted(worked, key=lambda c: c.get("opened_at", 0)):
         who = ", ".join(names.get(m, m) for m in cases.team(c)) or "—"
-        how = (c.get("result") or {}).get("how") or ("still open" if c["status"] != "closed" else "closed")
+        res = c.get("result") or {}
+        how = (f"{res.get('grade', '')} — {res.get('how', '')}".strip(" —") if res
+               else "still open" if c["status"] != "closed" else "closed")
         when = time.strftime("%H:%M", time.localtime(c.get("opened_at", start)))
         lines.append(f"- **{when} · {c['kind']}** — {c['place']} ({c['area']})  ")
         lines.append(f"  Team: {who}. Outcome: **{how}**." + (f" Behind it: {c['suspect']}." if c.get("suspect") else "")
@@ -194,8 +196,10 @@ def night_report(day=None, now=None):
             covered.setdefault(names.get(cid, cid), []).append(on["sector"].split(",")[0])
     lines += ["", "## Patrols"] + ([f"- **{who}**: {', '.join(dict.fromkeys(areas))}." for who, areas in covered.items()]
                                    or ["Nobody out."])
-    good = sum(1 for c in worked if (c.get("result") or {}).get("ok"))
+    good = sum(1 for c in worked if (c.get("result") or {}).get("grade") == "success")
+    partial = sum(1 for c in worked if (c.get("result") or {}).get("grade") == "partial")
     subject = (f"Night report — {len(worked)} case{'s' if len(worked) != 1 else ''}, {good} closed well"
+               + (f", {partial} partly" if partial else "")
                + (f", {len(hurt)} hurt" if hurt else ""))
     return subject, "\n".join(lines)
 

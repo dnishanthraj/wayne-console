@@ -653,7 +653,8 @@
         // grey where GCPD cleared it — fading out over a few hours, then gone.
         { id: 'incident-done', type: 'circle', source: 'incidents', filter: ['==', ['get', 'done'], true],
           paint: { 'circle-radius': z([10.6, 3, 14, 5.5, 17, 7]),
-                   'circle-color': ['case', ['==', ['get', 'ok'], true], '#5fd38d', ['==', ['get', 'ok'], false], '#ff6b6b', '#8aa0b4'],
+                   'circle-color': ['match', ['coalesce', ['get', 'grade'], ''], 'success', '#5fd38d', 'partial', '#e8c86a',
+                                    'failure', '#ff6b6b', '#8aa0b4'],
                    'circle-opacity': ['*', 0.55, ['coalesce', ['get', 'fade'], 1]],
                    'circle-stroke-color': C.void, 'circle-stroke-width': 1.2,
                    'circle-stroke-opacity': ['*', 0.8, ['coalesce', ['get', 'fade'], 1]], 'circle-pitch-alignment': 'map' } },
@@ -1458,7 +1459,7 @@
       box.innerHTML = (chips.length ? '<div class="gm-chips">' + chips.join('') + '</div>' : '') +
         '<div class="gm-odds"><div class="gm-odds__num"></div><div class="gm-odds__text"><b></b><small></small></div></div>' +
         '<div class="gm-odds__bar"><i></i></div>';
-      var p = shown !== null ? shown : paper !== null ? paper : (best ? best.odds : 0);
+      var p = shown !== null ? shown : paper !== null ? paper : (best ? best.odds : (o.gcpd || 0));
       box.dataset.level = p >= 0.6 ? 'good' : p >= 0.35 ? 'fair' : 'poor';
       box.querySelector('.gm-odds__num').textContent = Math.round(p * 100) + '%';
       box.querySelector('b').textContent = verdict(p);
@@ -1466,7 +1467,8 @@
         ? 'as it stands, with who\u2019s there' + (paper !== null && Math.abs(paper - shown) >= 0.05
                                                    ? ' · ' + Math.round(paper * 100) + '% once everyone\u2019s there' : '')
         : paper !== null ? 'projected — once they\u2019re there'
-        : best ? 'nobody on it — best with ' + bestName + ', ' + Math.max(1, Math.round(best.eta)) + ' min out' : 'nobody free to send';
+        : best ? 'GCPD alone ' + Math.round((o.gcpd || 0) * 100) + '% — best with ' + bestName + ', ' +
+                 Math.max(1, Math.round(best.eta)) + ' min out' : 'GCPD alone · nobody free to send';
       box.querySelector('i').style.width = Math.round(p * 100) + '%';
       box.hidden = false;
       // Each of the free ones: what sending them would make it.
@@ -1759,7 +1761,11 @@
     var ended = r.case === 'closed' ? (r.result || 'closed') : '';
     var names = crew.length > 2 ? crew[0].name + ' +' + (crew.length - 1) : crew.map(function (c) { return c.name; }).join(' + ');
     status.textContent = who ? names + ' · ' + (ended || r.case) : r.status;
-    status.dataset.s = !who ? r.status.replace(/ /g, '-') : !ended ? 'case' : r.ok ? 'won' : /^(got away|cold|too late)$/.test(r.result) ? 'lost-trail' : 'failed';
+    status.dataset.s = !who ? (r.done ? (r.grade === 'success' ? 'won' : r.grade === 'partial' ? 'partial' : 'failed')
+                                       : r.status.replace(/ /g, '-'))
+                     : !ended ? 'case' : r.grade === 'success' || (!r.grade && r.ok) ? 'won' : r.grade === 'partial' ? 'partial' : 'failed';
+    if (ended && r.grade) status.textContent = names + ' · ' + r.grade + (r.result ? ' — ' + r.result : '');
+    if (!who && r.done && r.result) status.textContent = 'GCPD · ' + r.result;
     if (withWho && crew.length) {
       // Everyone on it, overlapping like a hand of cards, the lead on top.
       var faces = document.createElement('span');

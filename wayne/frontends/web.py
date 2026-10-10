@@ -3084,7 +3084,7 @@ async def map_incidents():
             return r
         out = {**r, "assignee": case["assignee"], "team": cases.team(case), "case": case["status"],
                "outcome": case.get("outcome", ""), "result": (case.get("result") or {}).get("how", ""),
-               "ok": (case.get("result") or {}).get("ok"),
+               "ok": (case.get("result") or {}).get("ok"), "grade": (case.get("result") or {}).get("grade", ""),
                **({"done": True, "done_at": case.get("closed_at", now)} if case["status"] == "closed" else {})}
         if case["status"] != "closed":
             # How far along it is, and each of them: on scene, or how far out.
@@ -3107,6 +3107,11 @@ async def map_incidents():
         if item.get("case") and item["case"] != "closed":
             # GCPD have cleared off, but the family are still on it: it isn't over till they are.
             reports.append({**item, "status": "contained"})
+        elif not item.get("case"):
+            # Nobody from the family on it: how GCPD did on their own.
+            from ..engine import outcomes
+            ended = outcomes.gcpd(r)
+            reports.append({**item, "done": True, "ok": ended["ok"], "grade": ended["grade"], "result": ended["how"]})
         else:
             reports.append({**item, "done": True})
     return JSONResponse({"incidents": reports, "jet": jet.state()})
@@ -3172,7 +3177,7 @@ async def report_odds(report_id: str):
         busy = {m for c in cases.everything() if c["status"] != "closed" for m in cases.team(c)}
         out = {"current": outcomes.estimate(base, now) if cases.team(base) else None,
                "projected": outcomes.estimate(base, now, projected=True) if cases.team(base) else None,
-               "threat": outcomes.threat(base), "with": {}}
+               "gcpd": outcomes.baseline(base), "threat": outcomes.threat(base), "with": {}}
         goal = (report["x"], report["y"])
         free = [m for m in cases.FIELD if m not in busy and console.directory.get(m)]
         if "bruce" not in busy and not batman.committed():

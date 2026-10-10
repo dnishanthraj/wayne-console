@@ -147,7 +147,8 @@ _HEARD = {"caught": "suspects in custody — witnesses describe masked figures",
           "got away": "the suspects escaped despite reports of masked figures giving chase",
           "too late": "the suspects were long gone before anyone arrived", "cold": "no arrests, no leads",
           "lost": "a victim didn't survive", "worse": "more people were hurt before it ended",
-          "killed": "a suspect was found dead at the scene — police are tight-lipped"}
+          "killed": "a suspect was found dead at the scene — police are tight-lipped",
+          "costly": "a suspect in custody — but not everyone came out of it alive"}
 
 
 def _how_they_ended(now):

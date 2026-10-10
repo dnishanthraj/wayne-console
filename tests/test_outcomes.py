@@ -36,8 +36,26 @@ def test_an_ending_is_the_same_however_often_its_asked_and_names_who_was_caught(
     case = _case("Mauling", 3, "Killer Croc", ("orphan", "redhood"))
     first = outcomes.decide(case)
     assert first == outcomes.decide(dict(case))
-    assert first["how"] in ("caught", "got away", "worse")
-    assert (first["caught"] == "Killer Croc") == (first["ok"] and first["how"] == "caught")
+    assert first["how"] in ("caught", "costly", "got away", "worse")
+    assert (first["caught"] == "Killer Croc") == (first["culprit"] == "caught")
+    assert first["grade"] in outcomes.GRADES and first["ok"] == (first["grade"] == "success")
+
+
+def test_lives_come_first_in_how_it_is_graded():
+    assert outcomes.grade("safe", "caught", "street") == "success"
+    assert outcomes.grade("safe", "escaped", "hostage") == "partial"        # everyone out, the Joker gone
+    assert outcomes.grade("lost", "caught", "hostage") == "failure"         # him in a cell, a child dead
+    assert outcomes.grade("hurt", "caught", "street") == "partial"
+    assert outcomes.grade("safe", "escaped", "hunt") == "failure"           # nobody left to save: it's the killer or nothing
+    assert outcomes.grade("safe", "none", "disaster") == "success"
+
+
+def test_gcpd_alone_has_odds_of_its_own():
+    mugging = {"id": "g1", "kind": "Mugging", "severity": 1, "suspect": "", "crew": 1}
+    joker = {"id": "g2", "kind": "Hostage situation", "severity": 4, "suspect": "The Joker", "crew": 12}
+    assert outcomes.baseline(mugging) > 0.5 > outcomes.baseline(joker)
+    assert outcomes.baseline(joker) <= 0.05
+    assert outcomes.gcpd(mugging)["how"] in ("arrest", "no arrest")
 
 
 def test_a_snatch_is_over_before_anyone_far_off_gets_there():

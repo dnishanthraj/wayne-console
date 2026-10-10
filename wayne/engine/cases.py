@@ -214,7 +214,8 @@ def close(case_id, outcome, result=None):
         if result and result.get("story"):
             case["story"] = result["story"][:700]
         if result:
-            case["result"] = {k: result[k] for k in ("ok", "how", "caught", "hurt") if k in result}
+            case["result"] = {k: result[k] for k in ("ok", "grade", "lives", "culprit", "how", "caught", "hurt")
+                              if k in result}
         case["log"].append({"at": now, "text": "closed"})
         _save(cases)
     if result is not None:

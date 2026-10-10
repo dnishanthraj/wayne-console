@@ -1734,6 +1734,7 @@ html[data-seats="5"] .seat__name, html[data-seats="6"] .seat__name, html[data-se
 .gm-list__status[data-s="contained"], .gm-list__status[data-s="resolved"] { color: #58c08a; border-color: rgba(88, 192, 138, 0.3); }
 .gm-list__status[data-s="case"] { color: var(--text); border-color: rgba(143, 211, 255, 0.35); }
 .gm-list__status[data-s="won"] { color: #58c08a; border-color: rgba(88, 192, 138, 0.4); }
+.gm-list__status[data-s="partial"] { color: #e8c86a; border-color: rgba(232, 200, 106, 0.42); }
 .gm-list__status[data-s="lost-trail"] { color: #e0a43a; border-color: rgba(224, 164, 58, 0.4); }
 .gm-list__status[data-s="failed"] { color: #ff6b5f; border-color: rgba(255, 107, 95, 0.45); }
 .gm-list__faces { display: flex; flex-direction: row-reverse; justify-content: flex-start; }
