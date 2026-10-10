@@ -1598,6 +1598,9 @@ class ContactSession:
         elif why == "case_declined":
             ask = (f"He's just put you on a case: {about}. You're not taking it — tonight, or from him, or "
                    "at all; tell him so your way, or don't answer: if you'd leave it, reply with exactly SKIP.")
+        elif why == "case_watch":
+            ask = (f"{about}. A word to him if you'd give one — what the feeds show, GCPD's position, a warning, "
+                   "dry concern — as you would, in a line or two. If you'd let him get on with it, reply with exactly SKIP.")
         elif why == "case_pulled":
             ask = (f"He's just pulled you off a case: {about}. Say something about it if you would — fine by you, "
                    "a question why, a complaint if you were in the middle of it — your way, a word or two. If "
@@ -1661,7 +1664,7 @@ class ContactSession:
         lines = [guards.cap_length(line, 3) for line in text.splitlines() if line.strip()][:4]
         text = "\n".join(lines)
         if why in ("second_thought", "chase", "worry", "case_taken", "case_closed", "tapback", "case_declined",
-                   "case_pulled") \
+                   "case_pulled", "case_watch") \
                 and re.match(r"\W*skip\b", text, re.I):
             return ""
         if text:

@@ -217,7 +217,7 @@ class Group:
         return {"id": self.id, "name": meta.get("name", "Group"), "members": meta.get("members", []),
                 "created_at": meta.get("created_at"), "reads": meta.get("reads", {}),
                 "last": messages[-1] if messages else None,
-                "comms": bool(meta.get("comms")), "archived": bool(meta.get("archived"))}
+                "comms": bool(meta.get("comms")), "archived": bool(meta.get("archived")), "case": meta.get("case", "")}
 
     def delete(self):
         with _lock:

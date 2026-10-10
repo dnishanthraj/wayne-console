@@ -2302,3 +2302,4 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .gm-info__back:hover { color: var(--primary); }
 .gm-info__back svg { width: 13px; height: 13px; }
 .gm-info__back[hidden] { display: none; }
+.thread-menu__plain::before { display: none; }

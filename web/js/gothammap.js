@@ -1519,6 +1519,27 @@
     });
   }
 
+  // Comms on a case: open them himself — or open the channel that's there.
+  function commsButton(report) {
+    var go = $('.gm-info__go');
+    if (!go || !opts.comms) return;
+    var live = report.case && report.case !== 'closed' && !report.done;
+    var there = live && opts.comms.existing(report.id);
+    go.hidden = !live;
+    if (!live) return;
+    go.querySelector('.gm-info__go-bat').innerHTML = ARKHAM_BAT;
+    go.querySelector('.gm-info__go-text').textContent = there ? 'Open comms' : 'Start comms';
+    go.disabled = false;
+    go.onclick = function () {
+      if (there) return opts.comms.open(there);
+      go.disabled = true;
+      opts.comms.start(report.id).then(function (g) {
+        go.querySelector('.gm-info__go-text').textContent = g ? 'Open comms' : 'Nobody to open it with';
+        if (g) { there = g.id; go.disabled = false; }
+      }).catch(function () { go.disabled = false; });
+    };
+  }
+
   function pullOff(report, id, said) {
     fetch('/api/cases/unassign', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                    body: JSON.stringify({ report: report.id, contact: id }) })
@@ -1557,6 +1578,7 @@
              '', canvas.toDataURL(), SEVERITY[report.severity], true);
     openReport = report.id;          // after showInfo, which clears it for any other card
     dockInfo(true);
+    commsButton(report);
     caseProgress(report);
     loadOdds(report);
     reportLog(report);

@@ -2227,6 +2227,10 @@
     });
     var dm = key && key.indexOf('g:') !== 0;
     el['thread-menu'].querySelectorAll('[data-calls-only]').forEach(function (n) { n.hidden = !dm; });
+    el['thread-menu'].querySelectorAll('[data-group-only]').forEach(function (n) { n.hidden = dm; });
+    var arch = el['thread-menu'].querySelector('[data-act="archive"]');
+    var g = !dm && key ? state.groups[key.slice(2)] : null;
+    if (arch) arch.textContent = g && g.archived ? 'Unarchive chat' : 'Archive chat';
     var calls = el['thread-menu'].querySelector('[data-act="calls"]');
     calls.classList.toggle('is-on', !!m.calls);
     calls.setAttribute('aria-checked', m.calls ? 'true' : 'false');
@@ -2259,6 +2263,22 @@
         renderGroups();
       }).catch(function () {});
   }
+  // Put a group away (or bring it back): it folds into the archived list.
+  function archiveGroup() {
+    var key = threadKey();
+    if (!key || key.indexOf('g:') !== 0) return;
+    var id = key.slice(2), g = state.groups[id];
+    if (!g) return;
+    fetch('/api/groups/' + encodeURIComponent(id) + '/archive', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: !g.archived })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.group) state.groups[id] = Object.assign(state.groups[id] || {}, d.group);
+      el['thread-menu'].hidden = true;
+      paintThreadMenu();
+      renderGroups();
+    }).catch(function () {});
+  }
+
   function wireThreadMenu() {
     var btn = el['messages-more'], menu = el['thread-menu'];
     if (!btn || btn.dataset.wired) return;       // the session can load again: one set of listeners
@@ -2276,6 +2296,7 @@
       e.stopPropagation();
       if (item.dataset.mute) setMute({ messages: item.dataset.mute });
       else if (item.dataset.act === 'calls') setMute({ calls: !item.classList.contains('is-on') });
+      else if (item.dataset.act === 'archive') archiveGroup();
     });
     document.addEventListener('click', function (e) {
       if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) {
@@ -3531,6 +3552,22 @@
         return fetch('/api/bruce/lift', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                           body: JSON.stringify({ person: id }) })
           .then(function (r) { return r.json(); }).then(function (res) { if (res && res.spot) setBruce(res); return res; });
+      },
+      // Comms on a case: the channel there is, or one he opens.
+      comms: {
+        existing: function (reportId) {
+          var hit = Object.keys(state.groups).filter(function (id) { return state.groups[id].case === reportId; })[0];
+          return hit || null;
+        },
+        start: function (reportId) {
+          return fetch('/api/cases/comms', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                             body: JSON.stringify({ report: reportId }) })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d.group) { state.groups[d.group.id] = d.group; renderGroups(); }
+              return d.group || null;
+            });
+        },
+        open: function (groupId) { openGroup(groupId); }
       },
       // Calling the Batwing to wherever he is.
       summon: function () {

@@ -116,6 +116,7 @@ PULSE_SECONDS = 30
 # channel stays up after the sign-off before it's put away (seconds).
 COMMS_LINES = 4
 COMMS_LINGER = 8 * 60
+COMMS_QUIET = 10 * 60          # and nobody's said anything on it for this long: put away
 # Nobody texts out of the blue twice within this long, across everyone.
 # The least time between unprompted texts from anyone: often enough to feel
 # like a life going on around him, not so often it's a feed.
@@ -1913,19 +1914,23 @@ class Console(GroupChats):
         from ..engine import cases
         from ..memory import groups as store
         crew = [m for m in cases.team(case) if self.directory.get(m)]
-        if "bruce" in cases.team(case) and not crew:
-            # Him on it alone: Alfred in his ear from the cave — and Barbara, if she's at her screens
-            # and not out on something herself.
-            crew = [m for m in ("alfred", "batgirl") if self.directory.get(m)
-                    and (m == "alfred" or (presence.of(self.directory.get(m)).now()["status"] != presence.OFFLINE
-                                           and not cases.active(m)))]
-        if case["status"] == "closed" or not (len(crew) >= 2 or ("bruce" in cases.team(case) and crew)):
+        found = next((g for g in store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
+        if found is None and "bruce" in cases.team(case) and not crew:
+            # Him on it alone: no channel unless he opens one (see open_comms). Alfred may
+            # still have something to say — a word in his ear, as a text, now and then.
+            alfred = self.directory.get("alfred")
+            if alfred is not None and random.random() < 0.45 and not case.get("alfred_told"):
+                cases.mark(case["id"], alfred_told=True)
+                self._spawn(self._later(random.uniform(40, 160), self._send_unprompted(
+                    alfred, f"he's on the {case['kind'].lower()} at {case['place']} alone, and you're watching it on the "
+                            "cave's screens", "case_watch")))
+            return None
+        if case["status"] == "closed" or not (len(crew) >= 2 or ("bruce" in cases.team(case) and crew) or found):
             return None
         # Jason and Randy working one between them, him not on it: their own channel, not his to read.
         sharers = [m for m in crew if getattr(self.directory.get(m), "shares_location", True)]
         if not sharers and "bruce" not in cases.team(case):
             return None
-        found = next((g for g in store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
         if found is None:
             found = store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
             found.update_meta(lambda meta: meta.update({"case": case["id"], "comms": True,
@@ -1940,6 +1945,52 @@ class Console(GroupChats):
         await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
         return found
 
+    async def open_comms(self, report_id):
+        """
+        He opens a comms channel on a case himself: whoever's on it, and Alfred in the cave
+        (Barbara too, if she's at her screens and not out herself). His; nobody opens another.
+        """
+        from ..engine import cases
+        from ..memory import groups as store
+        case = cases.for_report(report_id)
+        if case is None or case["status"] == "closed":
+            return None
+        found = next((g for g in store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
+        if found is not None:
+            if (found.meta() or {}).get("archived"):
+                found.update_meta(lambda m: m.update({"archived": False}))
+            return found
+        crew = [m for m in cases.team(case) if self.directory.get(m)]
+        for m in ("alfred", "batgirl"):
+            contact = self.directory.get(m)
+            if contact is None or m in crew:
+                continue
+            if m == "alfred" or (presence.of(contact).now()["status"] != presence.OFFLINE and not cases.active(m)):
+                crew.append(m)
+        if not crew:
+            return None
+        found = store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
+        found.update_meta(lambda meta: meta.update({"case": case["id"], "comms": True, "by": "him",
+                                                    "next_post": time.time() + random.uniform(15, 45)}))
+        line = found.system(f"You opened comms: {case['kind'].lower()} at {case['place']}")
+        await self.broadcast({"type": "group_created", "group": self.group_payload(found)})
+        await self.broadcast({"type": "group_message", "group": found.id, "message": line})
+        return found
+
+    async def archive_group(self, group_id, archived=True):
+        """He puts a group chat away (or brings it back): it folds into the archived list, and goes quiet."""
+        from ..memory import groups as store
+        group = store.of(group_id)
+        if group is None:
+            return None
+        group.update_meta(lambda m: m.update({"archived": bool(archived), "archived_at": time.time(), "kept": True}))
+        if archived:
+            for key, task in list(self._group_readers.items()):
+                if key[0] == group.id and key not in self._group_writing:
+                    task.cancel()
+        await self.broadcast({"type": "group_updated", "group": self.group_payload(group)})
+        return group
+
     async def _comms_tick(self, now):
         """
         On comms while it's live: a line every minute or two from whoever's on it,
@@ -1953,12 +2004,15 @@ class Console(GroupChats):
             if not meta.get("comms"):
                 continue
             if meta.get("archived"):
-                # Put away when it ended; gone for good a few days on, so they don't pile up.
-                if now - meta.get("archived_at", now) > 3 * 86400:
+                # Put away when it ended; gone for good a few days on, so they don't pile up — unless
+                # he archived it himself, when it's his to delete.
+                if not meta.get("kept") and now - meta.get("archived_at", now) > 3 * 86400:
                     await self.group_delete(group.id)
                 continue
             case = cases.for_report(meta["case"])
-            if case is None or (case["status"] == "closed" and now > meta.get("close_at", now + 1)):
+            last = (group.summary().get("last") or {}).get("at", 0)
+            if case is None or (case["status"] == "closed" and now > meta.get("close_at", now + 1)
+                                and now - last > COMMS_QUIET):
                 group.update_meta(lambda m: m.update({"archived": True, "archived_at": now}))
                 for key, task in list(self._group_readers.items()):
                     if key[0] == group.id and key not in self._group_writing:
@@ -3205,6 +3259,26 @@ async def report_odds(report_id: str):
     if found is None:
         return JSONResponse({"error": "no such report"}, status_code=404)
     return JSONResponse(found)
+
+
+@app.post("/api/cases/comms")
+async def case_comms(request: Request):
+    """He opens a comms channel on a case."""
+    body = await request.json()
+    group = await console.open_comms(str(body.get("report", "")))
+    if group is None:
+        return JSONResponse({"error": "nobody to open it with"}, status_code=400)
+    return JSONResponse({"group": console.group_payload(group)})
+
+
+@app.post("/api/groups/{group_id}/archive")
+async def archive_group(group_id: str, request: Request):
+    """He archives a group chat, or brings it back."""
+    body = await request.json()
+    group = await console.archive_group(group_id, bool(body.get("archived", True)))
+    if group is None:
+        return JSONResponse({"error": "no such group"}, status_code=404)
+    return JSONResponse({"group": console.group_payload(group)})
 
 
 @app.post("/api/cases/unassign")
