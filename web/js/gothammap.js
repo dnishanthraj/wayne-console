@@ -2253,6 +2253,14 @@
   function relief(on) {
     // The ground rises only when the map tilts; flat, the hillshade is enough.
     try { map.setTerrain(on ? { source: 'terrain', exaggeration: 1.5 } : null); } catch (e) { /* older GPUs */ }
+    // Tilted, the far ground fades into the night before the world's edge can show as a line:
+    // the city sits in the dark, not on a square of map.
+    try {
+      if (map.setSky) {
+        map.setSky(on ? { 'sky-color': C.void, 'horizon-color': '#0a1622', 'fog-color': C.void, 'fog-ground-blend': 0.62,
+                          'horizon-fog-blend': 0.9, 'sky-horizon-blend': 0.55, 'atmosphere-blend': 0 } : {});
+      }
+    } catch (e) { /* a GPU without it: the vignette still does */ }
   }
 
   function setThreeD(on) {

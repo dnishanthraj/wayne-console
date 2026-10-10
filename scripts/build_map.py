@@ -708,6 +708,65 @@ def gotham_stadium(x, y):
     return {"tiers": _tiers(at, tiers), "ground": ground}
 
 
+def gcn_studios(x, y):
+    """Gotham Cable News on its Theater District corner: glass studios, the satellite dishes, the mast on the roof."""
+    at = _local(x, y, 12)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.82, 0.56), 0, 26, "~glass"), (rect(0.12, 0.05, 0.4, 0.3), 26, 34, "~glass"),
+                                 (disc(-0.27, -0.13, 0.06), 26, 28.5, "~works"), (disc(-0.1, -0.17, 0.05), 26, 28, "~works"),
+                                 (disc(0.24, 0.1, 0.012), 34, 64, "~works")])}
+
+
+def gbs_tower(x, y):
+    """The GBS tower in the Financial District: a dark slab, its crown, Jack Ryder's antenna on top."""
+    at = _local(x, y, 8)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.5, 0.42), 0, 118, "~glass"), (rect(0, 0, 0.36, 0.3), 118, 132, "~glass"),
+                                 (disc(0, 0, 0.02), 132, 178, "~works")])}
+
+
+def convention_center(x, y):
+    """The convention centre in the East End: a long low hall, a glass front, a plaza for the queues."""
+    at = _local(x, y, -6)
+    return {"tiers": _tiers(at, [(rect(0, 0, 1.9, 1.0), 0, 18, ""), (rect(0, -0.62, 1.1, 0.26), 0, 12, "~glass"),
+                                 (rect(0, 0.08, 1.5, 0.6), 18, 22, "")]),
+            "ground": [(at(rect(0, -1.0, 1.6, 0.5)), "plaza")]}
+
+
+def dixon_docks(x, y):
+    """Dixon Docks: three long sheds on the quay, a crane over them, the yard round about."""
+    at = _local(x, y, 30)
+    sheds = [(rect(-0.7 + 0.7 * i, 0, 0.5, 1.1), 0, 9, "~works") for i in range(3)]
+    return {"tiers": _tiers(at, sheds + [(square(1.15, -0.55, 0.08), 0, 34, "~works"),
+                                         (rect(0.85, -0.55, 0.7, 0.05), 32, 34, "~works")]),
+            "ground": [(at(rect(0, 0, 2.6, 1.6)), "works")]}
+
+
+def county_fair(x, y):
+    """The county fairground: the big wheel, the striped tents, the show ring, a field of cars."""
+    at = _local(x, y, 0)
+    tents = [(disc(-0.75 + 0.42 * i, 0.55, 0.15), 0, 6, "~ride") for i in range(4)]
+    tents += [(disc(-0.75 + 0.42 * i, 0.55, 0.05), 6, 9, "~ride") for i in range(4)]
+    ring = disc(0.55, -0.35, 0.42).difference(disc(0.55, -0.35, 0.36))
+    return {"tiers": _tiers(at, tents + [(ring, 0, 2, "~old")]) + wheel(x - 0.55, y - 0.4, 90, 22, 20, 24),
+            "ground": [(at(rect(0, -1.25, 2.2, 0.7)), "lot"), (at(disc(0.55, -0.35, 0.36)), "pitch:dirt")]}
+
+
+def roadhouse(x, y):
+    """The Iron Horse on the county road: a low bar with a neon sign, a gravel lot full of bikes and pickups."""
+    at = _local(x, y, 15)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.6, 0.32), 0, 6, "~old"), (rect(0.42, 0, 0.18, 0.22), 0, 4, "~old"),
+                                 (disc(-0.45, -0.32, 0.015), 0, 10, "~works")]),
+            "ground": [(at(rect(0, -0.5, 1.15, 0.45)), "lot")]}
+
+
+def transmitter(x, y):
+    """The transmitter on the heights: a lattice mast for every station in the city, anchors in the grass, a hut at its foot."""
+    at = _local(x, y, 0)
+    tiers = [(square(0, 0, 0.11), 0, 120, "~works"), (square(0, 0, 0.06), 120, 168, "~works"),
+             (disc(0, 0, 0.012), 168, 192, "~works"), (rect(0.3, 0.14, 0.26, 0.16), 0, 4, "")]
+    tiers += [(square(0.9 * math.cos(a), 0.9 * math.sin(a), 0.05), 0, 2, "~works") for a in (0.5, 2.6, 4.7)]
+    return {"tiers": _tiers(at, tiers)}
+
+
 def stagg_tower(x, y):
     """Stagg Enterprises: a glass tower with a mooring mast on its roof, for the airship."""
     at = _local(x, y, 6)
@@ -717,6 +776,13 @@ def stagg_tower(x, y):
 
 
 COMPLEXES = {
+    "GCN Studios": gcn_studios,
+    "GBS Tower": gbs_tower,
+    "Gotham Convention Center": convention_center,
+    "Dixon Docks": dixon_docks,
+    "Gotham County Fairground": county_fair,
+    "The Iron Horse": roadhouse,
+    "Gotham Transmitter": transmitter,
     "Gotham Stadium": gotham_stadium,
     "Stagg Enterprises": stagg_tower,
     "Gotham University": gotham_university,
@@ -3081,6 +3147,13 @@ def build():
             trees.append([round(x * 100), round(y * 100), h, r])
 
     trees.extend(extra_trees)
+    # No tree through a roof: every crown clear of every building, wherever it was planted —
+    # the estate's woods, the parks, the countryside, the yards.
+    roofs = shapely.STRtree(built)
+    clear = [t_ for t_ in trees
+             if not roofs.query(Point(t_[0] / 100, t_[1] / 100).buffer(t_[3] / 100 + 0.02), predicate="intersects").size]
+    print(f"{len(trees) - len(clear)} trees cleared off roofs")
+    trees = clear
 
     # Water that catches the light.
     import numpy as np

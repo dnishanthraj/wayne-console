@@ -325,7 +325,7 @@ def _company(model, options, now):
                          "Thomas Wayne Memorial Clinic, a gala to plan"}[which]
     found = _ask(model, options, _context(now) + f"Write one email to Bruce Wayne from {who}, about something real in "
                  "the company's or the city's week — specific names, numbers, a decision he's needed for — not about "
-                 "the vigilantes. It reads like real corporate mail. " + _MAIL_SHAPE, "a company email")
+                 "the vigilantes. It reads like real corporate mail." + _FACTS_ONLY + " " + _MAIL_SHAPE, "a company email")
     if not found or not found.get("subject"):
         return None
     return deliver(which, found["subject"], found.get("body", ""), folder=folder, kind="company",
@@ -336,7 +336,7 @@ def _invitation(model, options, now):
     found = _ask(model, options, _context(now) + "Write one invitation to Bruce Wayne — a gala, a charity auction, a "
                  "box at the Knightsdome, the mayor's fundraiser, a gallery opening on Museum Mile, a dinner Vicki Vale "
                  "insists on, an old Gotham family's anniversary. From whoever would send it, with the date, the place "
-                 "(somewhere real in Gotham), the dress, an RSVP. " + _MAIL_SHAPE, "an invitation")
+                 "(somewhere real in Gotham), the dress, an RSVP." + _FACTS_ONLY + " " + _MAIL_SHAPE, "an invitation")
     if not found or not found.get("subject"):
         return None
     return deliver(found.get("from_name") or "Invitation", found["subject"], found.get("body", ""), folder="inbox",
@@ -354,49 +354,96 @@ def _spam(model, options, now):
                    kind="spam", name=found.get("from_name"), address=found.get("from_address"))
 
 
+def _rogue_facts(name):
+    """Who a rogue really is and where they'd be held, so a letter about them gets it right."""
+    if not name:
+        return ""
+    from . import codex, incidents
+    entry = next((g for g in incidents.rogues() if g["name"] == name), None)
+    if entry is None:
+        return f" ({name})"
+    asylum = (codex._data()["rogues"].get(name) or {}).get("asylum")
+    where = codex.where(entry)
+    held = where.get("held") or ""
+    return (f" ({name}" + (f", real name {entry['real']}" if entry.get("real") else "")
+            + (f"; held now at {held}" if held and where.get("status") in ("in custody", "locked up") else "")
+            + f"; goes to {'Arkham Asylum' if asylum else 'Blackgate Penitentiary'} once GCPD transfer them)")
+
+
 def _from_event(model, options, event, now):
-    """What a night leaves in his mail."""
-    kind = event.get("kind")
-    if kind == "case":
-        how, rogue = event.get("how", ""), event.get("suspect", "")
-        place, what = event.get("place", ""), event.get("what", "")
-        if event.get("caught") or how in ("lost", "worse", "killed") or event.get("severity", 0) >= 4:
-            # Gordon, on the secure line: a rogue in a cell, or a night with names in it.
-            found = _ask(model, options, _context(now) + "Write one email from Commissioner James Gordon to Batman, "
-                         "on their secure line — weary, decent, few words, signed 'Jim' or 'G'. About last night: "
-                         f"the {what} at {place}" + (f", {rogue} behind it" if rogue else "") + f" — it ended: {how}"
-                         + (f"; {event['caught']} is in GCPD custody" if event.get("caught") else "")
-                         + ". What's next for GCPD, what he needs, what he can't say in public. " + _MAIL_SHAPE,
-                         "Gordon's email")
-            if found and found.get("subject"):
-                return deliver("gordon", found["subject"], found.get("body", ""), kind="gordon",
-                               key=f"gordon:{event.get('id')}")
-        if how in ("saved", "caught", "contained") and event.get("severity", 0) >= 3 and _draw("thanks", event.get("id")) < 0.4:
-            found = _ask(model, options, _context(now) + "Write one email to the Wayne Foundation (forwarded to Bruce) "
-                         f"from someone who was there at the {what} at {place} last night — saved by masked people they "
-                         "can't name and don't know how to thank; they're writing to the biggest charity in the city "
-                         "because they don't know who else to tell. Human, unpolished. " + _MAIL_SHAPE, "a thank-you")
-            if found and found.get("subject"):
-                return deliver("foundation", "Fwd: " + found["subject"], found.get("body", ""), kind="thanks",
-                               key=f"thanks:{event.get('id')}")
-        if event.get("chase") and _draw("claim", event.get("id")) < 0.5:
-            found = _ask(model, options, _context(now) + "Write one email from Wayne Enterprises' insurers to Bruce "
-                         f"Wayne about a claim: property WE owns or insures near {place} was damaged last night in a "
-                         "police chase (a car through a storefront, a security barrier, a fleet van). Dry, formal, a "
-                         "claim number. " + _MAIL_SHAPE, "an insurance email")
-            if found and found.get("subject"):
-                return deliver("Gotham Mutual Insurance", found["subject"], found.get("body", ""), kind="insurance",
-                               name=found.get("from_name") or "Gotham Mutual Insurance",
-                               address=found.get("from_address") or "claims@gothammutual.com", key=f"claim:{event.get('id')}")
+    """What a night leaves in his mail — every letter it would bring, not just the first."""
+    made = None
+    for writer in (_gordon_letter, _thanks_letter, _claim_letter, _arkham_letter):
+        got = writer(model, options, event, now)
+        made = got or made
+    return made
+
+
+_FACTS_ONLY = (" Use only the names given here for anyone real; never invent a name for a rogue, a victim or an "
+               "officer. No 'URGENT' in the subject unless it truly is.")
+
+
+def _gordon_letter(model, options, event, now):
+    if event.get("kind") != "case":
         return None
-    if kind == "breakout":
-        found = _ask(model, options, _context(now) + "Write one email from Arkham Asylum's administration to its "
-                     f"benefactors (the Wayne Foundation funds a wing) about an escape: {event.get('rogue')} "
-                     f"{event.get('how', 'is out')}. Careful, legalistic, reassuring, 'the matter is in hand'. "
-                     + _MAIL_SHAPE, "an Arkham notice")
-        if found and found.get("subject"):
-            return deliver("Arkham Asylum Administration", found["subject"], found.get("body", ""), kind="arkham",
-                           name=found.get("from_name") or "Arkham Asylum Administration",
-                           address=found.get("from_address") or "administration@arkham-asylum.org",
-                           key=f"arkham:{event.get('rogue')}:{int(event.get('at', 0) // 86400)}")
+    how, rogue = event.get("how", ""), event.get("suspect", "")
+    place, what = event.get("place", ""), event.get("what", "")
+    if not (event.get("caught") or how in ("lost", "worse", "killed", "costly") or event.get("severity", 0) >= 4):
+        return None
+    found = _ask(model, options, _context(now) + "Write one email from Commissioner James Gordon to Batman, on their "
+                 "secure line — weary, decent, few words, signed 'Jim' or 'G'. About last night: "
+                 f"the {what} at {place}" + (f", {rogue} behind it{_rogue_facts(rogue)}" if rogue else "")
+                 + f" — it ended: {how}" + (f"; {event['caught']} is in GCPD custody" if event.get("caught") else "")
+                 + ". What's next for GCPD, what he needs, what he can't say in public." + _FACTS_ONLY + " "
+                 + _MAIL_SHAPE, "Gordon's email")
+    if found and found.get("subject"):
+        return deliver("gordon", found["subject"], found.get("body", ""), kind="gordon", key=f"gordon:{event.get('id')}")
+    return None
+
+
+def _thanks_letter(model, options, event, now):
+    if event.get("kind") != "case":
+        return None
+    how, place, what = event.get("how", ""), event.get("place", ""), event.get("what", "")
+    if not (how in ("saved", "caught", "contained") and event.get("severity", 0) >= 3 and _draw("thanks", event.get("id")) < 0.4):
+        return None
+    found = _ask(model, options, _context(now) + "Write one email to the Wayne Foundation (forwarded to Bruce) from "
+                 f"someone who was there at the {what} at {place} last night — saved by masked people they can't name "
+                 "and don't know how to thank; they're writing to the biggest charity in the city because they don't "
+                 "know who else to tell. Human, unpolished, signed with a first name." + _FACTS_ONLY + " " + _MAIL_SHAPE,
+                 "a thank-you")
+    if found and found.get("subject"):
+        return deliver("foundation", "Fwd: " + found["subject"], found.get("body", ""), kind="thanks",
+                       key=f"thanks:{event.get('id')}")
+    return None
+
+
+def _claim_letter(model, options, event, now):
+    if event.get("kind") != "case" or not event.get("chase") or _draw("claim", event.get("id")) >= 0.5:
+        return None
+    place = event.get("place", "")
+    found = _ask(model, options, _context(now) + "Write one email from Wayne Enterprises' insurers to Bruce Wayne about "
+                 f"a claim: property WE owns or insures near {place} was damaged last night in a police chase (a car "
+                 "through a storefront, a security barrier, a fleet van). Dry, formal, a claim number." + _FACTS_ONLY
+                 + " " + _MAIL_SHAPE, "an insurance email")
+    if found and found.get("subject"):
+        return deliver("Gotham Mutual Insurance", found["subject"], found.get("body", ""), kind="insurance",
+                       name=found.get("from_name") or "Gotham Mutual Insurance",
+                       address=found.get("from_address") or "claims@gothammutual.com", key=f"claim:{event.get('id')}")
+    return None
+
+
+def _arkham_letter(model, options, event, now):
+    if event.get("kind") != "breakout":
+        return None
+    rogue = event.get("rogue", "")
+    found = _ask(model, options, _context(now) + "Write one email from Arkham Asylum's administration to its "
+                 f"benefactors (the Wayne Foundation funds a wing) about an escape: {rogue}{_rogue_facts(rogue)} "
+                 f"{event.get('how', 'is out')}. Careful, legalistic, reassuring, 'the matter is in hand'."
+                 + _FACTS_ONLY + " " + _MAIL_SHAPE, "an Arkham notice")
+    if found and found.get("subject"):
+        return deliver("Arkham Asylum Administration", found["subject"], found.get("body", ""), kind="arkham",
+                       name=found.get("from_name") or "Arkham Asylum Administration",
+                       address=found.get("from_address") or "administration@arkham-asylum.org",
+                       key=f"arkham:{rogue}:{int(event.get('at', 0) // 86400)}")
     return None

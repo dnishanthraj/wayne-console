@@ -1921,8 +1921,16 @@ class ContactSession:
         guarded = bool(self.call and not groupchat.outside(self.contact.id)
                        and any(groupchat.outside(m.contact.id) for m in self.call.members if m is not self))
         if getattr(self.contact, "sees_whereabouts", False):
-            # Alfred in the cave, Barbara at her screens: everything the console shows him, they can see.
-            tracker = "" if guarded or from_contact else self._batcomputer(prompt)
+            # Alfred in the cave, Barbara at her screens: everything the console shows him, they can see —
+            # all of it when the talk turns that way, a line the rest of the time (every turn carrying the
+            # whole board was seconds of reading before anyone said a word).
+            if guarded or from_contact:
+                tracker = ""
+            elif (self._WHEREABOUTS.search(prompt or "") or self._CRIMEY.search(prompt or "")
+                  or self._BOARDISH.search(prompt or "")):
+                tracker = self._batcomputer(prompt)
+            else:
+                tracker = self._batcomputer_glance()
         else:
             tracker = "" if guarded or from_contact else self._tracker(prompt)
         if tracker:
@@ -2163,6 +2171,19 @@ class ContactSession:
                          r"check (it|that) out|on the scanner|need you (on|at|over)|get (over|down) to|"
                          r"joker|scarecrow|riddler|penguin|two-face|bane|ivy|freeze|croc|black mask|zsasz|"
                          r"hatter|firefly|hush|clayface|harley|deathstroke|falcone|thorne|breakout|stabbing|machete)\b")
+
+    _BOARDISH = re.compile(r"(?i)\b(news|papers?|headline|case|cases|scanner|batwing|jet|patrol|rogue|joker|bane|"
+                           r"arkham|blackgate|gordon|gcpd|who's out|what's (going on|happening)|tonight|status|update|"
+                           r"report|anyone|everyone|the family|where)\b")
+
+    def _batcomputer_glance(self):
+        """The Batcomputer in a line, for when the talk's elsewhere: there if he asks, not in the way."""
+        from . import batman, cases, incidents
+        open_cases = [c for c in cases.board() if c["status"] != "closed"]
+        calls = incidents.at()
+        return (f"The Batcomputer's yours to check if he asks about anything on it — {batman.note()}; "
+                f"{len(calls)} calls open on the scanner, {len(open_cases)} case{'s' if len(open_cases) != 1 else ''} "
+                "on the board.")
 
     def _batcomputer(self, prompt):
         """

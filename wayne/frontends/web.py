@@ -807,6 +807,16 @@ class Console(GroupChats):
             await self.broadcast(events.notice(
                 f"The line's full — {contact.name} can't be patched in until someone drops off.", "warn"))
             return
+        # Already with someone on the call — Tim at Dick's — they're in the room: on Dick's speaker, no ring.
+        host = next((m for m in self.call.members
+                     if contact_id in presence.of(m.contact).whereabouts()[1] and contact_id not in self.call.speakerphone),
+                    None)
+        if host is not None:
+            self.call.speakerphone[contact_id] = host.contact.id
+            await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
+            ensure, willing, remark = True, True, False
+            note = note or (f"you're with {host.contact.name} — Bruce is on {host.contact.name}'s phone and they've put "
+                            "him on speaker; you're not on a line of your own, you're in the room")
         self.call.invited.add(contact_id)
         self._adding.add(contact_id)
         try:
@@ -1045,6 +1055,20 @@ class Console(GroupChats):
             # Ringing a group from a call is leaving that call: it ends here,
             # whether or not anyone picks up — not left running under the ring.
             await self.disconnect()
+        # Together in one place, they're one phone: ring the first of them, and the rest are in the
+        # room when it's answered (see _bring_the_room). Tim at Dick's doesn't get a call of his own.
+        heads, roomed = [], set()
+        for c in contacts:
+            if c.id in roomed:
+                continue
+            heads.append(c)
+            company = set(presence.of(c).whereabouts()[1])
+            roomed |= {o.id for o in contacts if o is not c and o.id in company}
+        if roomed:
+            log.info("one phone per room: ringing %s, with %s on speaker", [c.id for c in heads], sorted(roomed))
+            contacts = heads
+            if len(contacts) == 1:
+                return await self.connect(contacts[0].id)
         ring = self._group_ring = object()
         decisions = {c.id: presence.answers(c, presence.of(c).now()) for c in contacts}
         # Those who are together share the moment: busy for one is busy for both,

@@ -7154,6 +7154,104 @@
    "bio": "Pell Street closed to cars from six till two: sixty-odd stalls under red and gold awnings, lanterns strung end to end — dumplings, skewers, egg waffles, bubble tea, knock-off watches and phone cases, a fortune teller who's never once been wrong about rain. Packed on weekends, louder than anywhere in Gotham that isn't a fight.",
    "note": "Tim knows which dumpling stall stays open last. The triads take their cut at the far gate, quietly.",
    "canon": "an original for the console"
+  },
+  {
+   "name": "GCN Studios",
+   "x": 54.2,
+   "y": 93.4,
+   "area": "Diamond District",
+   "kind": "landmark",
+   "icon": "news",
+   "match": [
+    "gcn",
+    "gotham cable news",
+    "gcn studios"
+   ],
+   "bio": "Gotham Cable News on its Theater District corner — glass studios lit all night, the satellite dishes on the roof, and the window where Summer Gleeson reads the six o'clock."
+  },
+  {
+   "name": "GBS Tower",
+   "x": 52.8,
+   "y": 101.6,
+   "area": "Diamond District",
+   "kind": "landmark",
+   "icon": "news",
+   "match": [
+    "gbs",
+    "gotham broadcasting",
+    "gbs tower"
+   ],
+   "bio": "Gotham Broadcasting System's black glass tower in the Financial District — the newsroom on twelve, Jack Ryder's studio on forty, the antenna that tops the skyline."
+  },
+  {
+   "name": "Gotham Convention Center",
+   "x": 76.6,
+   "y": 106.6,
+   "area": "City Hall District",
+   "kind": "landmark",
+   "icon": "civic",
+   "match": [
+    "convention center",
+    "convention centre",
+    "the convention"
+   ],
+   "bio": "The East End's convention centre — trade shows, the comic convention, the mayor's election-night party, and a loading dock every crew in the city has cased."
+  },
+  {
+   "name": "Dixon Docks",
+   "x": 33.5,
+   "y": 127.4,
+   "area": "Tricorner",
+   "kind": "landmark",
+   "icon": "dock",
+   "match": [
+    "dixon docks",
+    "dixon"
+   ],
+   "bio": "Tricorner's old cargo docks — three long sheds, a crane that still works, and a night shift that sees nothing it's paid not to."
+  },
+  {
+   "name": "Gotham County Fairground",
+   "x": -14.0,
+   "y": 62.0,
+   "area": "Gotham County",
+   "kind": "landmark",
+   "icon": "circus",
+   "match": [
+    "fairground",
+    "county fair",
+    "the fair"
+   ],
+   "bio": "The county fairground out past Kane Heights — a big wheel, striped tents, the show ring, and the autumn fair the whole county drives out to."
+  },
+  {
+   "name": "The Iron Horse",
+   "x": -18.0,
+   "y": 44.0,
+   "area": "Gotham County",
+   "kind": "spot",
+   "icon": "bar",
+   "match": [
+    "iron horse",
+    "roadhouse",
+    "the iron horse"
+   ],
+   "bio": "A roadhouse on the county road — bikes and pickups in the gravel lot, a neon horse over the door, and a back room that's heard more deals than the courthouse."
+  },
+  {
+   "name": "Gotham Transmitter",
+   "x": 6.2,
+   "y": 54.4,
+   "area": "Kane Heights",
+   "kind": "landmark",
+   "icon": "tower",
+   "match": [
+    "transmitter",
+    "the mast",
+    "radio mast",
+    "tv mast"
+   ],
+   "bio": "The lattice mast on the Kane Heights ridge that carries every station in the city — GBS, GCN, the police band — red lights blinking all night."
   }
  ],
  "regions": [
