@@ -7,6 +7,52 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ### Added
 
+- **The night, as a system.** Calls on the scanner turn (a robbery into a
+  getaway, a snatch into a foot chase, a bar fight into a stabbing) and move
+  on real routes; crews have numbers (Bane brings thirty). Whoever's sent cuts
+  a getaway off where they can get ahead of it. Every call has odds as the
+  Batcomputer reckons them, GCPD's own baseline under them, and each free
+  member's button says what sending them would make it. Endings are graded
+  lives first: success, partial, failure. Rogues who get away come back worse;
+  a capture ends the run.
+- **Patrols on a roster.** Sectors per two-hour watch, the worst of the city
+  first, pairs some nights, a lead followed where the same crew's on the
+  scanner again; runs across the roofs (fast on the lines, a sprint on the
+  tops) and a while watching from each. After a case, each of them decides:
+  back someone up, take the next call, or a breather.
+- **Getting there like Batman.** Each one's fastest plausible way in the suit;
+  Bruce as Batman to a case or by night, Bruce Wayne by day; any pin, or to one
+  of the family and with them from then on. The Batwing is his alone: called,
+  it comes and waits; at the destination he drops out and it sweeps the city as
+  a drone till dawn; it gives one of the family a lift, on his way to his own
+  case or not.
+- **Mail** (<kbd>E</kbd>). The Batcomputer's night report at six (assembled
+  from the night), the morning briefing at seven, the market's close on
+  trading days, Gordon on the secure line, Wayne Enterprises, invitations,
+  what a night leaves (the insurer, a thank-you, Arkham's notice) and spam;
+  markdown, resizable columns.
+- **The crime panel.** A call's card docks in the map's side panel (which
+  widens by its edge): odds, progress, who's there and who's on the way, pull
+  someone off, open comms yourself. Tonight's finished calls fade on the map
+  and fold under "Completed" and "Cleared". Working a case alone, Alfred may
+  say something; comms close themselves once it's over and quiet.
+- **Calls.** One phone per room: whoever's with someone on the call is on
+  their speaker (and leaves with them), shown on their seat; the overlay has a
+  voice strip and your own words as you speak.
+- **Also:** mute a chat or a contact's calls; archive any group chat; Alfred
+  and Barbara see the whole console; Selina's rare jobs; a drone's tour of the
+  city; GCN, GBS, the convention centre, Dixon Docks, a county fairground, a
+  roadhouse and the transmitter mast on the map.
+
+### Fixed
+
+- Comms channels no longer carry a private line (Barbara's field talk reached
+  Bruce at home), half-written markers are never sent, and they know who's
+  there and who's still on the way.
+- Activities said in place of a patrol happen at home (no Mario Kart on the
+  docks); "not specified" is never an activity; a pair is in one place whoever
+  asks; nobody types in two chats at once.
+
 - **Plans, kept.** Say "everyone — the Silver Comet, Saturday at 7?" in a group
   chat, a text or on a call and it's read as a plan (what, where, when, who);
   each of them answers their own way from what their day holds then — in, out

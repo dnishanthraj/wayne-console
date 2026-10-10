@@ -922,6 +922,7 @@ class Console(GroupChats):
             if self.current_id == contact_id and self.call.members:
                 self.current_id = self.call.members[0].contact.id
             await self.broadcast(events.party(self._members(), removed=contact_id))
+            await self._room_goes_with(contact_id)
         # They said goodbye on the line; everyone heard it. A remark now and then, no more.
         if self.call and self.call.is_group and random.random() < 0.2:
             await self._react(f"{member.contact.name} has just dropped off the call.")
@@ -1031,6 +1032,7 @@ class Console(GroupChats):
                 if self.current_id == member.contact.id and self.call.members:
                     self.current_id = self.call.members[0].contact.id
                 await self.broadcast(events.party(self._members(), removed=member.contact.id))
+                await self._room_goes_with(member.contact.id)
                 # Whoever was in the room with them saw why they went — and may be going too.
                 beside = [m for m in self.call.members if member.contact.name in self.call.in_the_room(m)]
                 if beside:
@@ -1039,6 +1041,33 @@ class Console(GroupChats):
                 elif random.random() < 0.2:
                     # Their goodbye was heard by all — said it was coming, often agreed to. Seldom remarked on.
                     await self._react(f"{member.contact.name} {reason}.")
+
+    async def _room_goes_with(self, host_id):
+        """
+        Someone who hung up had others on their speaker — Tim at Dick's: they were
+        only ever on Dick's phone, so they go when Dick does. The call goes on for
+        whoever's left on lines of their own; the last one out ends it.
+        """
+        if not self.call:
+            return
+        roomed = [cid for cid, host in list(self.call.speakerphone.items()) if host == host_id]
+        for cid in roomed:
+            self.call.speakerphone.pop(cid, None)
+            member = next((m for m in self.call.members if m.contact.id == cid), None)
+            if member is None:
+                continue
+            if len(self.call.members) <= 1:
+                break
+            self.call.leave(member)
+            self.call.event(f"{member.contact.name} went with them — they were on their speaker")
+            self._wrap_up(member, {cid} | set(self._members()))
+            if self.current_id == cid and self.call.members:
+                self.current_id = self.call.members[0].contact.id
+            await self.broadcast(events.party(self._members(), removed=cid))
+        if roomed:
+            await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
+        if self.call and not self.call.members:
+            await self.disconnect()
 
     async def call_many(self, ids):
         """

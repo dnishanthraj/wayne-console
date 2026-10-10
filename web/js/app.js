@@ -249,10 +249,20 @@
     if (group && speaker && speaker !== state.lastSpeaker) state.fresh = true;
     state.lastSpeaker = speaker || state.lastSpeaker;
 
-    // With seats, the words go under the speaker's own ring.
-    var seat = speaker && state.seats[speaker];
+    // With seats, the words go under the speaker's own ring — or, someone on another's speaker,
+    // under theirs, with the name in front.
+    var seat = speaker && seatFor(speaker);
     if (seat) {
-      if (opensReply || seat.fresh !== false || speaker !== state.seatLast) seat.line.textContent = '';
+      var owner = seatOwner(speaker), roomVoice = owner !== speaker;
+      if (opensReply || seat.fresh !== false || speaker !== state.seatLast) {
+        seat.line.textContent = '';
+        if (roomVoice && state.contacts[speaker]) {
+          var who = document.createElement('b');
+          who.className = 'seat__voice';
+          who.textContent = state.contacts[speaker].name + ' ';
+          seat.line.appendChild(who);
+        }
+      }
       seat.fresh = false;
       state.seatLast = speaker;
       state.fresh = false;
@@ -443,8 +453,13 @@
      speaking lights up; the rest wait. One voice at a time, always.
      ------------------------------------------------------------------------ */
 
+  // Someone on another's speaker — Tim at Dick's — has no seat of their own: they're on Dick's.
+  function roomHost(id) { return state.room && state.room[id] && state.party.indexOf(state.room[id]) !== -1 ? state.room[id] : null; }
+  function seatFor(id) { return id && (state.seats[id] || (roomHost(id) && state.seats[roomHost(id)])) || null; }
+  function seatOwner(id) { return state.seats[id] ? id : roomHost(id); }
+
   function seatIds() {
-    var ids = state.party.slice();
+    var ids = state.party.filter(function (id) { return !roomHost(id); });
     state.groupRinging.forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); });
     return ids;
   }
@@ -498,10 +513,30 @@
       }
       seat.node.style.order = i;
       seat.node.dataset.state = state.groupRinging.indexOf(id) !== -1 || state.ringingId === id ? 'ringing' : 'live';
-      // On someone else's phone: say whose.
-      var host = state.room && state.room[id] && state.contacts[state.room[id]];
-      seat.node.querySelector('.seat__name').textContent = contact.name + (host ? ' \u00b7 with ' + host.name : '');
-      seat.node.dataset.room = host ? '1' : '0';
+      // Whoever's on their speaker, on their seat: small faces on the ring, their names by theirs.
+      var roomed = state.party.filter(function (rid) { return roomHost(rid) === id; });
+      seat.node.querySelector('.seat__name').textContent = contact.name +
+        (roomed.length ? ' + ' + roomed.map(function (rid) { return (state.contacts[rid] || {}).name || rid; }).join(', ') +
+                         ' \u00b7 on speaker' : '');
+      var badges = seat.node.querySelector('.seat__room');
+      if (!badges) {
+        badges = document.createElement('span');
+        badges.className = 'seat__room';
+        seat.node.querySelector('.seat__ring').appendChild(badges);
+      }
+      badges.innerHTML = '';
+      roomed.forEach(function (rid, k) {
+        var other = state.contacts[rid];
+        if (!other) return;
+        var f = document.createElement('span');
+        f.className = 'seat__room-face';
+        f.style.setProperty('--seat-accent', other.accent);
+        f.style.setProperty('--k', k);
+        f.dataset.tip = other.name + ' — on ' + contact.name + '\u2019s speaker';
+        portraitStyle(f, other, 'center 22%');
+        badges.appendChild(f);
+      });
+      seat.node.dataset.room = '0';
     });
   }
 
@@ -3138,7 +3173,7 @@
       var at = JSON.parse(bar.root.dataset.saved || 'null');
       if (at && bar.root._place) bar.root._place(at.x, at.y);
     } catch (e) { /* stays where the stylesheet puts it */ }
-    var ids = state.party.length ? state.party.slice() : [state.connectedId];
+    var ids = state.party.length ? state.party.filter(function (id) { return !roomHost(id); }) : [state.connectedId];
     state.groupRinging.forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); });
     if (state.ringingId && ids.indexOf(state.ringingId) === -1) ids.push(state.ringingId);
     Object.keys(bar.faces).forEach(function (id) {
@@ -3160,6 +3195,11 @@
       }
       face.style.order = i;
       face.dataset.state = (state.ringingId === id || state.groupRinging.indexOf(id) !== -1) ? 'ringing' : 'live';
+      // Whoever's on their speaker, by their name: "Dick + Tim".
+      var roomed = state.party.filter(function (rid) { return roomHost(rid) === id; })
+        .map(function (rid) { return (state.contacts[rid] || {}).name; }).filter(Boolean);
+      face.querySelector('.gm-call__name').textContent = contact.name + (roomed.length ? ' + ' + roomed.join(', ') : '');
+      face.dataset.tip = contact.name + (roomed.length ? ', with ' + roomed.join(' and ') + ' on speaker' : '');
     });
     bar.who.dataset.many = ids.length > 1 ? '1' : '0';
     if (!callbarLoop) callbarLoop = requestAnimationFrame(callbarPulse);
@@ -3178,8 +3218,9 @@
       bar.line.appendChild(who);
     }
     bar.line.appendChild(document.createTextNode(text));
+    var lit = seatOwner(speaker) || speaker || state.connectedId;
     Object.keys(bar.faces).forEach(function (id) {
-      bar.faces[id].dataset.speaking = id === (speaker || state.connectedId) ? '1' : '0';
+      bar.faces[id].dataset.speaking = id === lit ? '1' : '0';
     });
   }
 
@@ -3342,7 +3383,7 @@
   function wireAudio() {
     ConsoleAudio.on('onSentenceStart', function (text, key, durationMs, words, speaker) {
       setState('speaking');
-      if (speaker && state.seats[speaker]) seatSpeaking(speaker);
+      if (speaker && seatFor(speaker)) seatSpeaking(seatOwner(speaker));
       revealSentence(text, key, durationMs, words, speaker);
       var who = speaker || state.connectedId;
       ConsoleAudio.beds().forEach(function (id) { ConsoleAudio.bedLevel(id, id === who); });
