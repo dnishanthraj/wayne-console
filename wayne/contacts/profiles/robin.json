@@ -429,6 +429,7 @@
     "takes_orders": 0.95, "case_updates": 0.75, "asks_for_help": 0.6
   },
   "home": "Tim's houseboat",
+  "gets_about": "mixed",
   "home_sound": "houseboat",
   "interests": {
     "pastimes": [

@@ -1676,8 +1676,10 @@ class ContactSession:
         if comms:
             # On comms everyone hears everything — him included, wherever he is. A
             # "private word" from here was Barbara telling Jason off in Bruce's thread.
-            ask += (" Everything on this channel is heard by everyone on it, him included: there's no private "
-                    "line from here, so whatever you'd say to one of them, say it here, to them by name.")
+            ask += (" Everything on this channel is heard by everyone on it, him included: whatever you'd say about "
+                    "the op, to any of them, say it here, to them by name. Only something that's truly his alone and "
+                    "not the op itself — it happens, rarely — goes to him privately: end with [dm: what you'd text "
+                    "him].")
         else:
             ask += (f" If he asks you to take it to a private message, or there's something you'd only say to "
                     f"{operator_name(self.contact)} privately, end with [dm: what you'd text him — to him, in the second person, "
@@ -1709,7 +1711,8 @@ class ContactSession:
             "add": [m.strip() for m in re.findall(r"\[\s*add\s*:\s*([^\]]+)\]", text, re.I)],
             "remove": [m.strip() for m in re.findall(r"\[\s*remove\s*:\s*([^\]]+)\]", text, re.I)],
             "react": _tapback_emoji(next(iter(re.findall(r"\[\s*react\s*:\s*([^\]]{1,24})\]", text, re.I)), "")),
-            "dm": next(iter(re.findall(r"\[\s*dm\s*:\s*([^\]]+)\]", text, re.I)), "").strip()}
+            "dm": next(iter(re.findall(r"\[\s*dm\s*:\s*([^\]]+)\]", text, re.I)), "").strip(),
+            "take": next(iter(re.findall(r"\[\s*take\s*:\s*([^\]]+)\]", text, re.I)), "").strip()}
         said = plans.RSVP.search(text)
         text = plans.RSVP.sub("", text)
         if said:
@@ -1717,7 +1720,7 @@ class ContactSession:
             mine = [p for p in waiting if p.get("made_in") == f"g:{group.id}"] or waiting
             if mine:
                 plans.answer(mine[0]["id"], self.contact.id, said.group(1).lower(), delivery.clean(text))
-        text = re.sub(r"\[\s*(leave|(add|remove|react|dm)\s*:[^\]]*)\]", "", text, flags=re.I)
+        text = re.sub(r"\[\s*(leave|(add|remove|react|dm|take)\s*:[^\]]*)\]", "", text, flags=re.I)
         text = _LEFTOVER_MARKER.sub("", text)
         text = re.sub(r"\s*\[[^\]]{0,14}\]", "", text)     # a marker half-written: "[]", "[react]"
         text = self._plain(text)
@@ -1727,6 +1730,15 @@ class ContactSession:
         if guard:
             text = guards.strip_forbidden_address(text, guard)
         text = identity.scrub(text, self.contact.id, readers)
+        meta = group.meta() or {}
+        if meta.get("comms"):
+            from . import cases
+            case = cases.for_report(meta.get("case", ""))
+            if case is not None and self.comms_grave(case):
+                # A child taken is no place for a 💀 or a "lol" — whatever the model's habits.
+                text = re.sub(r"(?i)[ ,]*\b(lol|lmao|lmfao|haha+|hehe+)\b", "", _unemoji(text)).strip()
+            if getattr(self, "_called_onto_comms", None) and self._called_onto_comms.get("group") == group.id:
+                self._called_onto_comms = None          # said, once: they're on it now
         if re.match(r"\W*skip\b", text, re.I):
             return ""           # owed an answer or not, the word itself is never posted
         if not text.strip(" .") and (self._group_actions["react"] or self._group_actions["dm"]):
@@ -1779,23 +1791,42 @@ class ContactSession:
             return ""
         return "Where they are right now (the family's location app): " + "; ".join(lines) + "."
 
+    # A case where a life could be on it: comms is kept to the work. (A stolen car isn't a child taken.)
+    _GRAVE = re.compile(r"(?i)abduct|kidnap|hostage|homicide|body found|shot|shoot|stabb|machete|sexual|explosion|"
+                        r"bomb|overdose|toxin|gas attack|riot|mauling|mob hit|murder|breakout|arson|missing")
+
+    def comms_grave(self, case):
+        """Whether a case is one where comms stays strictly on the work: no jokes, no emoji."""
+        return (case.get("severity") or 0) >= 3 or bool(self._GRAVE.search(case.get("kind") or ""))
+
     def _comms_note(self, group):
         """
-        On a case's comms channel: what the op is, who's on it — and where he is.
-        Told nothing, they took it he was there: "you're late", "get out of
-        there before that hatch seals", to a man at home in the Manor.
+        On a case's comms channel: what the op is, who's on it and where — and where he is. Told nothing, they took
+        it he was there: "you're late", "get out of there before that hatch seals", to a man at home in the Manor;
+        and Alfred, told he was on it when he wasn't, had him "already ahead" of Dick. What a case like this asks
+        of how they sound; and only what's actually been said on it is there to answer.
         """
         meta = group.meta() or {}
         if not meta.get("comms"):
             return ""
-        from ..contacts import directory
-        from . import batman, cases
+        from . import cases
         case = cases.for_report(meta.get("case", ""))
         if case is None:
             return ""
+        return self.comms_brief(case, called=getattr(self, "_called_onto_comms", None) if
+                                (getattr(self, "_called_onto_comms", None) or {}).get("group") == group.id else None)
+
+    def comms_brief(self, case, called=None, live=False):
+        """
+        The op as this one knows it, on comms — by text in the channel, or `live` on a comms call: the case,
+        who's on it and where each of them is, where he is, where it's got to, how to sound.
+        """
+        from ..contacts import directory
+        from . import batman, cases
         book = directory()
         crew = cases.team(case)
         now = time.time()
+        him = operator_name(self.contact)
 
         def status(m):
             # Where each of them actually is: there, or still on the way — never assumed there.
@@ -1805,38 +1836,59 @@ class ContactSession:
             left = max(1, round((mine.get("joined", now) + mine.get("travel", 9) * 60 - now) / 60))
             return f"not there yet — on the way, about {left} min out"
         others = [f"{book.get(m).name} ({status(m)})" for m in crew if m != self.contact.id and book.get(m)]
+        bruce = batman.state(now)
+        if "bruce" in crew:
+            alongside = " with you" if self.contact.id in crew else ""
+            if bruce.get("route"):
+                left = max(1, round((bruce["route"]["end"] - now) / 60))
+                his = (f"{him} is on this one{alongside} — on his way, {bruce['route'].get('by', 'travelling')}, about "
+                       f"{left} min out.")
+            else:
+                his = f"{him} is on this one{alongside} — there, on the scene."
+        else:
+            where = (f"on his way to {bruce['where']}" if bruce.get("route")
+                     else f"at {bruce['where']}" if bruce.get("where") else "elsewhere")
+            his = (f"{him} isn't on this one: he's {where}, on comms from there — not on the scene, not on his way, "
+                   "not in danger. Nothing you say treats him as there.")
+        closed = case["status"] == "closed"
+        _phase, how = cases.phase(case, now)
+        theirs = how
+        for mine, them in (("you're", "they're"), ("your", "their"), ("you", "them")):
+            theirs = re.sub(rf"\b{mine}\b", them, theirs)
+        place = f"the {case['kind'].lower()} at {case['place']} ({case['area']})"
+        channel = "This is a live comms call" if live else "This is the comms channel"
+        tone = (f" A {case['kind'].lower()} is a life on the line: keep to the work — short, clear, no jokes, no emoji, "
+                "no 'lol' — the way you sound when it matters, still yourself." if self.comms_grave(case) else
+                " Keep to the work, the way you talk on comms — still yourself.")
+        honest = (" Answer only what's actually been said on comms — never a word from someone who hasn't spoken, "
+                  "never \"copy that\" to nothing.")
+        if called and called.get("asked_in"):
+            asked = (f" He's just put you on this channel himself — you're not on the case. Whether you go is yours: "
+                     f"if you will, say so and end with [take: {case['place']}]; if you can't or won't, say that.")
+        elif called:
+            asked = (" He's just pulled you onto comms himself" + (f" — you've dropped what you were doing ({called['left']}) "
+                     "for your screens" if called.get("left") else "") + "; say so if you would, or just get on with it.")
+        else:
+            asked = ""
         if self.contact.id not in crew:
-            # In his ear from the screens — Alfred in the cave, Barbara at the clock tower — not on the scene.
-            how = cases.phase_of_him(case, now)
-            return (f"This is the comms channel for the {case['kind'].lower()} at {case['place']} ({case['area']}). "
-                    f"You're not on the scene: you're on comms, watching from your screens — the feeds, the scanner, "
-                    f"GCPD's cars. {operator_name(self.contact)} is on it" + (f" with {', '.join(others)}" if others else " alone")
-                    + (f" — it's over: {case.get('outcome') or 'done'}." if case["status"] == "closed" else f", {how}."))
-        if case["status"] == "closed":
+            # In his ear from the screens — Alfred in the cave, Barbara at the Clocktower — not on the scene.
+            screens = {"alfred": "in the cave, on the screens", "batgirl": "at your screens in the Clocktower"}.get(
+                self.contact.id, "on your screens")
+            state = f"It's over — {case.get('outcome') or 'done'}." if closed else f"Where it's got to: {theirs}."
+            return (f"{channel} for {place}. You're not on the scene: you're {screens} — the feeds, the scanner, GCPD's "
+                    f"cars. On it: {', '.join(others) or 'nobody yet'}. {his} {state} Stick to the op — what the feeds "
+                    "show, GCPD's position, a warning, a word of worry — nothing off it." + tone + honest + asked)
+        if closed:
             state = f"It's over — {case.get('outcome') or 'done'}."
         else:
-            _phase, how = cases.phase(case, now)
             mine = (case.get("members") or {}).get(self.contact.id) or {}
             if mine.get("status") == "assigned" and case["status"] == "on scene":
                 left = max(1, round((mine.get("joined", now) + mine.get("travel", 9) * 60 - now) / 60))
                 how = f"on your way to join them, about {left} min out"
             state = f"Right now you're {how}."
-        bruce = batman.state(now)
-        if "bruce" in crew:
-            if bruce.get("route"):
-                left = max(1, round((bruce["route"]["end"] - now) / 60))
-                him = (f"{operator_name(self.contact)} is on this one with you — on his way, {bruce['route'].get('by', 'travelling')}, "
-                       f"about {left} min out.")
-            else:
-                him = f"{operator_name(self.contact)} is on this one with you — there, on the scene."
-        else:
-            where = (f"on his way to {bruce['where']}" if bruce.get("route")
-                     else f"at {bruce['where']}" if bruce.get("where") else "elsewhere")
-            him = (f"{operator_name(self.contact)} isn't on this one: he's {where}, reading this channel on his phone — not on "
-                   "the scene, not on his way, not in danger. Nothing you say treats him as there.")
-        return (f"This is the comms channel for the {case['kind'].lower()} at {case['place']} ({case['area']}) — "
-                f"on it with you: {', '.join(others) or 'nobody else yet'}. {state} {him} Talk to each of them as "
-                "where they are: someone still on the way can't see the scene or do anything at it yet.")
+        return (f"{channel} for {place} — on it with you: {', '.join(others) or 'nobody else yet'}. {state} {his} "
+                "Talk to each of them as where they are: someone still on the way can't see the scene or do anything "
+                "at it yet." + tone + honest + asked)
 
     def reach_out(self, about, why="impulse"):
         """

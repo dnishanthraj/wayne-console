@@ -430,6 +430,7 @@
     "takes_orders": 0.95, "case_updates": 0.55, "asks_for_help": 0.55
   },
   "home": "Dick's apartment",
+  "gets_about": "mixed",
   "home_sound": "dog_home",
   "interests": {
     "pastimes": [

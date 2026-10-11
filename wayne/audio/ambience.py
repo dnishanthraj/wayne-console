@@ -155,7 +155,8 @@ _ICON = {"manor": "manor", "police": "police", "hospital": "hospital", "lab": "l
          "industry": "warehouse", "water": "waterfront", "beach": "waterfront", "lighthouse": "docks",
          "naval": "docks", "news": "office", "civic": "court", "zoo": "park", "observatory": "rooftop"}
 _OFFICE_OF = {"police": "police_office", "hospital": "hospital", "lab": "lab", "news": "office"}
-_BY = {"driving": "car", "on the subway": "subway", "over the rooftops": "gliding", "on the bike": "bike",
+_BY = {"driving": "car", "on the subway": "subway", "on the train": "subway", "on the monorail": "subway",
+       "over the rooftops": "gliding", "on the bike": "bike",
        "on foot": "walking", "on the Batwing": "jet_cabin", "on the Batwing, with him": "jet_cabin"}
 _CASE_KIND = [(r"shoot|gunfight|gunman|gunmen|firefight|sniper|shots fired", "gunfight"),
               (r"\bfire\b|arson|blaze", "fire_scene")]

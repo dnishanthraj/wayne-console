@@ -5,6 +5,54 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-11
+
+### Added
+
+- **A real subway.** Gotham's three short lines become nine: Kane down the
+  west side to Tricorner; Robinson down the east side to the East End; a new
+  Finger line from the Power Station to the Convention Center; a Burnside
+  crosstown out under the harbour; a County line through Bristol, Kane
+  Heights, the stadium and Ironworks and under the river to downtown and the
+  ferries; the Diamond shuttle; the Narrows monorail; and two lines in
+  Blüdhaven. Where lines share track the map draws them side by side, and
+  stations where lines meet are larger roundels. Every station sits on its
+  line.
+- **People ride it.** Cass takes the train everywhere. Tim, Barbara, Dick and
+  Selina take it when it isn't much slower than driving. Trips change lines
+  where that's quicker and use the mainline rail to and from Blüdhaven. On
+  the map, a rider walks to the station, waits on the platform, then moves
+  at the train's pace.
+- **They know where they are on the way.** Ask "where are you?" and someone
+  on the train knows the line, the next stop and where they change. Someone
+  driving or walking knows the road they're on ("on Park Row, by the
+  courthouse"). Out between places, it's "nowhere with a name", and they
+  answer the way they'd actually know it, not exactly.
+
+### Changed
+
+- **Comms is the case, plus who's at their screens.** A case's comms opens
+  with whoever's on the case, plus Alfred if he's home and Barbara if she's
+  at the Clocktower working. You can add either of them yourself, and they
+  drop what they were doing for their screens. Anyone else you add is being
+  asked to help and can go, or say they can't. Someone you take off comms
+  isn't put back on.
+- **Crime talk goes on comms.** With comms open, "on it", "on scene", "it's
+  gone bad" and "it's over" are said there, not texted to you. A private
+  word still comes to you as a text when it's only for you.
+- **Comms sounds like comms.** On a grave case (a child taken, a hostage,
+  shots fired) it's short and serious: no jokes, no emoji, no "lol". Nobody
+  answers a line that was never said ("copy that, Babs" when Barbara hadn't
+  spoken). Alfred and Barbara stick to what their screens show. Comms now
+  knows where you actually are, so no more "your father's already ahead of
+  you" when you're at the Manor.
+
+### Fixed
+
+- **Waterloo Docks is in Blüdhaven.** A place's own name now always means
+  that place, so Dick, sent to Blüdhaven's waterfront, is no longer put on
+  Gotham's docks in Tricorner.
+
 ## [0.19.0] - 2026-10-11
 
 ### Added

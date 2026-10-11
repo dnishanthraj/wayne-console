@@ -412,10 +412,10 @@ class GroupChats:
         """They add someone to the group, or walk out of it — their call, in context."""
         if actions.get("dm"):
             comms = (group.meta() or {}).get("comms")
-            if self._ABOUT_HIM.search(actions["dm"]) or comms:
+            if self._ABOUT_HIM.search(actions["dm"]) or (comms and self._about_the_op(group, actions["dm"])):
                 # Jason's "tell the old man to watch Janus's shell companies" landed in his
                 # own thread with Bruce. It's said about him, to the others: it goes in the chat.
-                # On comms there's no private line at all — Barbara's "get out of there before
+                # And the op itself is comms', private or not — Barbara's "get out of there before
                 # that hatch seals" was for Jason, on the scene, not Bruce at home.
                 self._spawn(self._post_as(group, contact, given=actions["dm"]))
             elif time.time() - self._dm_asides.get(contact.id, 0) > DM_ASIDE_GAP:
@@ -423,6 +423,9 @@ class GroupChats:
                 # then, not with every message they post.
                 self._dm_asides[contact.id] = time.time()
                 self._spawn(self._dm_from_group(contact, actions["dm"]))
+        if actions.get("take") and (group.meta() or {}).get("comms"):
+            # Asked onto comms and going: on the case, the way anyone takes one.
+            self._spawn(self._take_by_name(contact, actions["take"]))
         for name in actions.get("add", [])[:1]:
             newcomer = self.directory.find(name)
             if (newcomer and newcomer.id != contact.id and newcomer.id not in group.members
@@ -452,6 +455,17 @@ class GroupChats:
             await self.broadcast({"type": "group_message", "group": group.id, "message": line})
             await self.broadcast({"type": "group_updated", "group": self.group_payload(group)})
             self._others_read(group, contact.id)
+
+    _OP_WORDS = re.compile(r"(?i)\b(scene|suspects?|van|exits?|feeds?|cameras?|gcpd|cops?|police|hostages?|"
+                           r"perimeter|roof|rooftop|crane|pier|warehouse|move|go|backup|clear|copy|position|eyes|"
+                           r"shots?|armed|gun|hurt|hit|bleeding)\b")
+
+    def _about_the_op(self, group, text):
+        """Whether a 'private word' is the op itself — the case's place, its kind, the work of it: comms', not his."""
+        from ..engine import cases
+        case = cases.for_report((group.meta() or {}).get("case", "")) or {}
+        names = [w for w in (case.get("place", ""), case.get("kind", ""), case.get("area", "")) if w]
+        return bool(self._OP_WORDS.search(text) or any(n.lower() in text.lower() for n in names))
 
     def _others_read(self, group, but=None):
         """After a change to the group, the rest read it — and may react."""
@@ -485,15 +499,24 @@ class GroupChats:
             line = group.system(f"You named the group “{group.name}”",
                                 said=f"{self._bruce()} renamed the group “{group.name}”")
             await self.broadcast({"type": "group_message", "group": group.id, "message": line})
+        comms = (group.meta() or {}).get("comms")
         for cid in add:
             contact = self.directory.get(cid)
             if contact and group.add_member(cid, backlog=0 if groupchat.outside(cid) else 6):
                 line = group.system(f"You added {contact.name}", said=f"{self._bruce()} added {contact.name}")
                 await self.broadcast({"type": "group_message", "group": group.id, "message": line})
+                if comms:
+                    # Onto a case's comms: Alfred and Barbara drop what they're doing; anyone else is asked in.
+                    group.update_meta(lambda m, cid=cid: m.update({"kept_out": [k for k in m.get("kept_out") or []
+                                                                               if k != cid]}))
+                    self._called_onto_comms(group, cid)
                 self._read_later(group, cid)
         for cid in remove:
             contact = self.directory.get(cid)
             if contact and len(group.members) > 1 and group.remove_member(cid, by_bruce=True):
+                if comms:
+                    # Taken off comms by him: not put back on it when they're next at their screens.
+                    group.update_meta(lambda m, cid=cid: m.update({"kept_out": sorted(set(m.get("kept_out") or []) | {cid})}))
                 await self._drop_member(group, cid)
                 line = group.system(f"You removed {contact.name}",
                                     said=f"{self._bruce()} removed {contact.name}")

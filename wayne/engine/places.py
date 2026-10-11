@@ -92,6 +92,11 @@ def _resolve(lowered):
             dx, dy = _jitter(lowered, region.get("spread", 4))
             return {"name": region["name"], "area": region["name"],
                     "x": round(region["x"] + dx, 1), "y": round(region["y"] + dy, 1)}
+    # A place's own name is that place, wherever it is: "Waterloo Docks" is Blüdhaven's waterfront, not a word
+    # ("docks") that Gotham's own docks answer to — which put Dick on the wrong city's waterfront for his case.
+    exact = next((p for p in data["places"] if p["name"].lower() == lowered.strip()), None)
+    if exact:
+        return _spot(exact)
     best = (_match([p for p in data["places"] if p["area"] not in regions], lowered)
             or _match([p for p in data["places"] if p["area"] in regions], lowered, by_name_only=True)
             or _match(venues(), lowered, by_name_only=True))
@@ -174,6 +179,27 @@ def near(x, y):
     if math.dist((best["x"], best["y"]), (x, y)) < 1.2 and best["name"] != area:
         return f"{area}, by {best['name']}"
     return area
+
+
+@lru_cache(maxsize=1)
+def _named_roads():
+    """The roads and bridges with names — [(name, [(x, y), ...])] — the ones anyone would know they're on."""
+    data = gazetteer()
+    return [(r["name"], [tuple(p) for p in r["line"]]) for r in data.get("roads", []) if r.get("class") != "rail"] + \
+        [(b["name"], [tuple(p) for p in b["line"]]) for b in data.get("bridges", [])]
+
+
+def road_near(x, y, within=1.0):
+    """The named road or bridge someone at (x, y) is on, as they'd say it — "" off them (most streets have none)."""
+    import math
+
+    def gap(a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        k = 0.0 if not (dx or dy) else max(0.0, min(1.0, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy)))
+        return math.dist((x, y), (a[0] + dx * k, a[1] + dy * k))
+    best = min(((min(gap(p, q) for p, q in zip(pts, pts[1:], strict=False)), name) for name, pts in _named_roads()
+                if len(pts) > 1), default=(math.inf, ""))
+    return best[1] if best[0] <= within else ""
 
 
 @lru_cache(maxsize=1)

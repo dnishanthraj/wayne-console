@@ -830,7 +830,8 @@ class Presence:
             if trip:
                 here = travel.position(trip, t or time.time())
                 shown["route"] = {"pts": trip["pts"], "start": trip["start"], "end": trip["end"], "from": trip.get("from", ""),
-                                  "by": travel.crossing(*here) or trip.get("by", "")}
+                                  "by": travel.crossing(*here) or trip.get("by", ""),
+                                  **({"times": trip["times"]} if trip.get("times") else {})}
             elif beside:
                 shown["spot"] = {**(shown["spot"] or {}), "x": beside[0], "y": beside[1]}
             else:
@@ -1098,18 +1099,22 @@ class Presence:
             suited = places.is_patrol(doing) or ("on the way to the" in doing and bool(getattr(self.contact, "beat", None)))
             how = getattr(self.contact, "gets_about", "drive") or "drive"
             if suited:
-                fast = travel.fastest(self.contact.id, origin, here, spot["name"], left_at, jet=False)
-                pts, minutes = fast["pts"], (fast["end"] - fast["start"]) / 60
+                went = travel.fastest(self.contact.id, origin, here, spot["name"], left_at, jet=False)
+                pts, minutes = went["pts"], (went["end"] - went["start"]) / 60
             else:
-                pts, minutes = travel.route(origin, here, None if moving else before, spot["name"], mode=how)
+                # Out of the suit: the car, a walk — or the train, for those who take it (engine.transit).
+                went = travel.way(origin, here, None if moving else before, spot["name"], mode=how, who=self.contact.id)
+                pts, minutes = went["pts"], went["minutes"]
+            times = went.get("times")
             if lead:
                 # The rest of the crossing, then the new way from where it lands.
                 minutes += (crossed - left_at) / 60
                 pts = lead + pts[1:]
-            means = (fast["by"] if suited
-                     else "on foot" if len(pts) == 2 else "on the subway" if how == "subway" and len(pts) < 12 else "driving")
+                times = None
             trip = {"to": where, "from": "" if moving else (before or ""), "pts": pts, "start": left_at,
-                    "end": left_at + minutes * 60, "by": means}
+                    "end": left_at + minutes * 60, "by": went["by"],
+                    **({"times": times} if times and len(times) == len(pts) else {}),
+                    **({"legs": went["legs"]} if went.get("legs") and not lead else {})}
             self._state["trip"] = trip
             self._state["trips"] = (self._state.get("trips") or [])[-7:] + [trip]
             self.save()
@@ -1262,20 +1267,39 @@ class Presence:
         return (line + said).strip()
 
     def _en_route(self, trip, place, doing, t):
-        """Where they are on a journey, in so many words: left from, going to, passing now, how long."""
+        """
+        Where they are on a journey, in so many words: left from, going to, how long — and where exactly, as they'd
+        know it: the road they're on, what they're passing, the line and the next stop on a train; or, out between
+        places, nowhere with a name.
+        """
+        from . import transit
         left = max(1, round((trip["end"] - t) / 60))
         gone = max(1, round((t - trip["start"]) / 60))
         by = trip.get("by") or ""
         x, y = travel.position(trip, t)
-        by = travel.crossing(x, y) or by
+        crossing = travel.crossing(x, y)
+        by = crossing or by
         passing = places.near(x, y)
         origin = self._spoken_place(trip.get("from") or "")
+        share = (t - trip["start"]) / max(1.0, trip["end"] - trip["start"])
+        on_train = transit.where_on(trip["legs"], share, place) if trip.get("legs") and not crossing else ""
+        road = places.road_near(x, y) if by in ("driving", "on foot", "on the bike", "running") else ""
         through = {"on the subway": "under", "over the rooftops": "over the roofs", "on foot": "walking through"}.get(by, "through")
+        if on_train:
+            now = f"; right now you're {on_train}"
+        elif road:
+            now = f"; just now on {road}" + (f", {passing}" if passing else "")
+        elif passing:
+            now = f"; just now {through} {passing}"
+        elif by in ("driving", "on foot", "on the bike", "running", "over the rooftops"):
+            now = "; just now somewhere between places — nowhere with a name you'd know"
+        else:
+            now = ""
         line = (f"Right now you're on your way to {place}" + (f", {by}" if by else "")
                 + (f" — you left {origin} {gone} minute{'s' if gone != 1 else ''} ago" if origin else "")
-                + (f"; just now {through} {passing}" if passing else "")
+                + now
                 + f". About {left} minute{'s' if left != 1 else ''} to go. You aren't there yet: if he asks where you "
-                  "are, you're on the way.")
+                  "are, you're on the way — put it the way you'd actually know it, which needn't be exact.")
         if doing and doing.lower() not in ("travelling", "on the way"):
             line += f" When you get there: {doing}."
         return line
@@ -1322,11 +1346,12 @@ class Presence:
             self._state["last_active"] = t or time.time()
             self.save()
 
-    def set_activity(self, doing, status, minutes, t=None, where="", company=(), xy=None, follow=None, owner=""):
+    def set_activity(self, doing, status, minutes, t=None, where="", company=(), xy=None, follow=None, owner="",
+                     terminal=False):
         """
         What they're doing now, for so long. `owner` is what set it when it isn't
         just something they said — "case", "lift", "follow" — which what they
-        say in passing doesn't overwrite (see `owned`).
+        say in passing doesn't overwrite (see `owned`). `terminal`: at their screens.
         """
         with self._lock:
             t = t or time.time()
@@ -1345,6 +1370,8 @@ class Presence:
                 self._state["activity"]["follow"] = follow
             if owner:
                 self._state["activity"]["owner"] = owner
+            if terminal:
+                self._state["activity"]["terminal"] = True
             self.save()
         if where and not getattr(self.contact, "shares_status", True):
             self.seen_at(where, "they told you", t)

@@ -129,7 +129,8 @@ class Contact:
     # whether he can see where they are at all (Find My, between family).
     home: str = ""
     shares_location: bool = True
-    # How they get about town when they're not in the suit: "drive", or "subway".
+    # How they get about town when they're not in the suit: "drive"; "subway" (the trains, wherever they go —
+    # see engine.transit); or "mixed", the train when it's not much slower than the car.
     gets_about: str = "drive"
     # What home sounds like behind them on a call — "cats_home" for Selina's cats,
     # "houseboat" for Tim's (see wayne.audio.ambience.SCENES). Empty: an ordinary home.

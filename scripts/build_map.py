@@ -2042,15 +2042,26 @@ def build():
     for line, name in bridges:
         add(line, "road", c="bridge", n=name)
 
-    # Below and around it: the subway, its stations — and the trains' lines as
-    # wholes, with where they run in tunnel and where they cross the water.
-    for line in src.get("subway", []):
-        pts = [(st[1], st[2]) for st in line["stations"]]
-        route_ = curve(pts, 3)
-        add(route_, "subway", n=line["name"], col=line["color"],
-            st=[round(route_.project(Point(st[1], st[2])) / route_.length, 4) for st in line["stations"]])
-        for st in line["stations"]:
-            add(Point(st[1], st[2]), "station", n=st[0], col=line["color"], line=line["name"])
+    # Below and around it: the subway, the Narrows monorail and Blüdhaven's metro — the network people ride
+    # (wayne.engine.transit), so every station is on its line. Each stretch of track once for every line that
+    # runs it, side by side (`off`, in line-widths); each line whole, for its trains and its name; each station
+    # once, however many lines call there (`x`) — and the main lines as wholes, with where they run in tunnel
+    # and where they cross the water.
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from wayne.engine import transit
+    colors = {line["name"]: line["color"] for line in transit.drawn()}
+    for key, offsets in transit.slots().items():
+        run = LineString(transit.network()["edges"][key]["pts"])
+        for name, off in offsets.items():
+            add(run, "subwayseg", n=name, col=colors[name], off=off)
+    for line in transit.drawn():
+        add(LineString(line["path"]), "subway", n=line["name"], col=line["color"], st=line["stops"], k=line["kind"])
+    for name, (x, y) in transit.network()["stations"].items():
+        calling = [line for line in transit.served(name) if line["kind"] != "rail"]
+        if calling:
+            add(Point(x, y), "station", n=name, col=calling[0]["color"], x=len(calling),
+                line=" · ".join(line["short"] for line in calling))
     for road in src["roads"]:
         if road["class"] != "rail":
             continue

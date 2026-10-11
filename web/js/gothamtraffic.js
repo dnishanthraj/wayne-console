@@ -154,7 +154,7 @@
       var p = f.properties;
       if (p.l === 'subway') {
         var r = line(longest(f.geometry));
-        r.n = p.n; r.col = p.col;
+        r.n = p.n; r.col = p.col; r.k = p.k || 'subway';
         r.tt = timetable(r.len, p.st, METRO, 25);
         subway.push(r);
       } else if (p.l === 'railroute') {
@@ -192,7 +192,7 @@
       [0, 1].forEach(function (back) {
         departures(s + n * 61 + back * 97, 180, r.tt.T, [5, 3, 2, 1], function (tau) {
           var pr = progress(r.tt, tau), u = back ? 1 - pr.u : pr.u, here = at(r, u);
-          out.push(point(here.p, { m: 'metro', col: r.col, r: back ? here.r + 180 : here.r, n: r.n + ' · subway' }));
+          out.push(point(here.p, { m: 'metro', col: r.col, r: back ? here.r + 180 : here.r, n: r.n + (r.k === 'monorail' ? '' : ' · subway') }));
         });
       });
     });

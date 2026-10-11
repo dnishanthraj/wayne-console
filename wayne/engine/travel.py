@@ -184,31 +184,6 @@ def _route(a, b, name_a, name_b):
     return tuple(_thin(pts)), minutes
 
 
-def _subway(a, b):
-    """
-    ([(x, y), ...], minutes) by subway — a walk to the nearest station of a line
-    that also stops near b, the ride along it, a walk out — or None if no one
-    line serves both ends.
-    """
-    from . import places
-    best = None
-    for line in places.gazetteer().get("subway", []):
-        stations = [(st[1], st[2]) for st in line["stations"]]
-        near_a = min(range(len(stations)), key=lambda i: math.dist(a, stations[i]))
-        near_b = min(range(len(stations)), key=lambda i: math.dist(b, stations[i]))
-        legs = (math.dist(a, stations[near_a]), math.dist(stations[near_b], b))
-        walk = sum(legs)
-        if near_a == near_b or max(legs) > 4.5:          # an eight-minute walk to a station, at most, either end
-            continue
-        step = 1 if near_b > near_a else -1
-        ride = stations[near_a:near_b + step:step] if step == 1 else stations[near_b:near_a + 1][::-1]
-        length = sum(math.dist(p, q) for p, q in zip(ride, ride[1:], strict=False))
-        minutes = walk / WALKING + TRAIN_WAIT + length / SUBWAY
-        if best is None or minutes < best[1]:
-            best = ([list(a)] + [list(p) for p in ride] + [list(b)], minutes)
-    return best
-
-
 def _rooftops(a, b):
     """
     A run over the roofs from a to b: never the straight line a map would draw
@@ -278,10 +253,9 @@ def route(a, b, name_a=None, name_b=None, patrol=False, mode="drive"):
     if not patrol and math.dist(a, b) <= WALK_UNDER:
         # Round the corner: they walk, the straight way, as you would.
         return [list(a), list(b)], max(1.0, math.dist(a, b) / WALKING)
-    if not patrol and mode == "subway":
-        by_train = _subway(a, b)
-        if by_train:
-            return by_train[0], max(1.0, min(by_train[1], 75.0))
+    if not patrol and mode in ("subway", "mixed"):
+        went = way(a, b, name_a, name_b, mode)
+        return went["pts"], went["minutes"]
     if patrol:
         graph = _load()
         if _widest_water(graph, a, b) <= GLIDE:
@@ -292,6 +266,45 @@ def route(a, b, name_a=None, name_b=None, patrol=False, mode="drive"):
         return [list(p) for p in pts], max(1.0, min(minutes / PATROL, 75.0))
     pts, minutes = _route(a, b, name_a or "", name_b or "")
     return [list(p) for p in pts], max(1.0, min(minutes + SETTING_OFF, 75.0))
+
+
+def _leaning(who, a, b):
+    """
+    How much slower than the car the train can be and still be taken, by someone who does both: a little,
+    or a lot — theirs, and the same for the same trip all day, so asking again doesn't change their mind.
+    """
+    import time
+    import zlib
+    key = f"{who}|{round(a[0])},{round(a[1])}|{round(b[0])},{round(b[1])}|{time.localtime().tm_yday}"
+    return 1.1 + (zlib.crc32(key.encode()) % 1000) / 1000 * 0.4
+
+
+def way(a, b, name_a=None, name_b=None, mode="drive", who=""):
+    """
+    How someone out of the suit gets from a to b — {"pts", "minutes", "by", and "times" when the pace isn't even}.
+    Round the corner, on foot. By train (engine.transit: a walk, the platform, the ride, any change, a walk) if
+    that's how they get about ("subway") — or, for someone who does both ("mixed"), when it's not much slower
+    than the car. Otherwise the car, or a cab: the roads.
+    """
+    a = (round(a[0], 2), round(a[1], 2))
+    b = (round(b[0], 2), round(b[1], 2))
+    if math.dist(a, b) <= WALK_UNDER:
+        return {"pts": [list(a), list(b)], "minutes": max(1.0, math.dist(a, b) / WALKING), "by": "on foot"}
+    drive = None
+    if mode in ("subway", "mixed"):
+        from . import transit
+        train = transit.ride(a, b)
+        if train:
+            if mode == "mixed":
+                pts, minutes = _route(a, b, name_a or "", name_b or "")
+                drive = ([list(p) for p in pts], minutes + SETTING_OFF)
+            if drive is None or train["minutes"] <= drive[1] * _leaning(who, a, b):
+                return {"pts": train["pts"], "minutes": max(1.0, min(train["minutes"], 90.0)), "by": train["by"],
+                        "times": train["times"], "lines": train["lines"]}
+    if drive is None:
+        pts, minutes = _route(a, b, name_a or "", name_b or "")
+        drive = ([list(p) for p in pts], minutes + SETTING_OFF)
+    return {"pts": drive[0], "minutes": max(1.0, min(drive[1], 75.0)), "by": "driving"}
 
 
 def _dist_to_line(p, line):

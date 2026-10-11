@@ -2339,11 +2339,91 @@ class Console(GroupChats):
                 case = self._chase_after(case, report, cut, member, trip["end"]) or case
         log.info("case %s turned: %s -> %s", case["id"], case.get("was", ["?"])[-1:], report["kind"])
 
+    # Where each of the two who work comms from their screens has to be for it: Alfred at home, Barbara in the
+    # Clocktower.
+    _SCREENS = {"alfred": "Wayne Manor", "batgirl": "The Clocktower"}
+
+    def _comms_crew(self, case, crew):
+        """
+        Who's on a case's comms when it opens: whoever's on the case — and Alfred if he's at home, Barbara if she's
+        at the Clocktower working. Anyone else is his to add (see _called_onto_comms).
+        """
+        out = list(crew)
+        for screens in self._SCREENS:
+            if screens not in out and self._at_their_screens(screens):
+                out.append(screens)
+        return out
+
+    def _at_their_screens(self, cid):
+        """Alfred at home and up; Barbara in the Clocktower, working — and neither out on a case of their own."""
+        from ..engine import cases
+        contact = self.directory.get(cid)
+        if contact is None or cid not in self._SCREENS or cases.active(cid):
+            return False
+        whereabouts = presence.of(contact)
+        state = whereabouts.now()
+        if state["status"] == presence.OFFLINE or whereabouts.whereabouts()[0] != self._SCREENS[cid]:
+            return False
+        return cid == "alfred" or bool(state.get("terminal"))
+
+    def _called_onto_comms(self, group, cid):
+        """
+        He's put someone on a case's comms himself. Alfred or Barbara drop whatever they were doing for their
+        screens, and what they left goes with them into what they say; anyone else is being asked in — onto the
+        case if they'll go, listening if they won't (see ContactSession._comms_note).
+        """
+        from ..engine import cases
+        meta = group.meta() or {}
+        case = cases.for_report(meta.get("case", "")) if meta.get("comms") else None
+        contact = self.directory.get(cid)
+        if case is None or case["status"] == "closed" or contact is None:
+            return
+        whereabouts = presence.of(contact)
+        left = (whereabouts.now().get("doing") or "").strip()
+        if cid in self._SCREENS:
+            minutes = max(30, int((case.get("due", time.time()) - time.time()) / 60) + 20)
+            whereabouts.set_activity(f"on comms for the {case['kind'].lower()} at {case['place']}", presence.BUSY,
+                                     minutes, owner="comms", terminal=True)
+            self._spawn(self._presence_changed(contact))
+        self.session_for(cid)._called_onto_comms = {"group": group.id, "left": left,
+                                                    "asked_in": cid not in self._SCREENS and cid not in cases.team(case)}
+
+    def _comms_for(self, cid):
+        """The live comms channel they're on for a case that's still going, or None."""
+        from ..engine import cases
+        mine = cases.active(cid)
+        for group in group_store.all_groups():
+            meta = group.meta() or {}
+            if not meta.get("comms") or meta.get("archived") or cid not in group.members:
+                continue
+            case = cases.for_report(meta.get("case", ""))
+            if case is None or case["status"] == "closed":
+                continue
+            if mine is None or case["id"] == mine["id"]:
+                return group
+        return None
+
+    async def _comms_word(self, group, contact, about, why):
+        """What would have been a text to him about a case, said on its comms instead — where the others hear it."""
+        say = {"case_assigned": f"he's just put you on this one — {about}. Say on comms that you're on it, your way, "
+                                "a few words",
+               "case_taken": f"you've just taken this one yourself — {about}. Say so on comms, briefly",
+               "case_arrived": f"you've just got to the scene — {about}. Tell comms you're there and what you see as "
+                               "you get there, a few words",
+               "case_trouble": f"it's gone bad — {about}. Call it on comms, now: a few words, what you need",
+               "case_closed": f"it's over — {about}. Call it on comms, your way, a line",
+               "case_hurt": f"you got hurt — {about}. Say it on comms if you would; if it's only his to know, end "
+                            "with [dm: what you'd text him]; if you'd keep it to yourself, reply with exactly SKIP",
+               "case_watch": f"{about}. A word on comms if you'd give one — what the feeds show, GCPD's position, a "
+                             "warning — or nothing"}.get(why, about)
+        await self._post_as(group, contact, opening=say, must=why == "case_trouble")
+
     async def _case_comms(self, case):
         """
         More than one of them on a case — or him and one of them — and there's a
         comms channel: everyone on it in a group chat while it lasts, talking the
-        way people do mid-op. Whoever joins later is added.
+        way people do mid-op, with Alfred in the cave (see _comms_crew). Whoever
+        joins later is added — Barbara too, if she sits down at her screens.
         """
         from ..engine import cases
         crew = [m for m in cases.team(case) if self.directory.get(m)]
@@ -2365,13 +2445,15 @@ class Console(GroupChats):
         if not sharers and "bruce" not in cases.team(case):
             return None
         if found is None:
-            found = group_store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
+            found = group_store.create(f"Comms · {case['kind']} · {case['place']}"[:60], self._comms_crew(case, crew))
             found.update_meta(lambda meta: meta.update({"case": case["id"], "comms": True,
                                                         "next_post": time.time() + random.uniform(15, 45)}))
             found.system(f"Comms open: {case['kind'].lower()} at {case['place']}")
             await self.broadcast({"type": "group_created", "group": self.group_payload(found)})
             return found
-        for member in crew:
+        kept_out = set((found.meta() or {}).get("kept_out") or ())
+        joining = crew + [s for s in self._SCREENS if s not in kept_out and self._at_their_screens(s)]
+        for member in joining:
             if member not in found.members:
                 found.add_member(member, backlog=8)
                 found.system(f"{self.directory.get(member).name} joined comms")
@@ -2381,7 +2463,8 @@ class Console(GroupChats):
     async def open_comms(self, report_id):
         """
         He opens a comms channel on a case himself: whoever's on it, and Alfred in the cave
-        (Barbara too, if she's at her screens and not out herself). His; nobody opens another.
+        (Barbara too, if she's at her screens in the Clocktower and not out herself — see
+        _comms_crew). His; nobody opens another.
         """
         from ..engine import cases
         case = cases.for_report(report_id)
@@ -2392,13 +2475,7 @@ class Console(GroupChats):
             if (found.meta() or {}).get("archived"):
                 found.update_meta(lambda m: m.update({"archived": False}))
             return found
-        crew = [m for m in cases.team(case) if self.directory.get(m)]
-        for m in ("alfred", "batgirl"):
-            contact = self.directory.get(m)
-            if contact is None or m in crew:
-                continue
-            if m == "alfred" or (presence.of(contact).now()["status"] != presence.OFFLINE and not cases.active(m)):
-                crew.append(m)
+        crew = self._comms_crew(case, [m for m in cases.team(case) if self.directory.get(m)])
         if not crew:
             return None
         found = group_store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
@@ -3110,8 +3187,15 @@ class Console(GroupChats):
         entries = [t for t in self._initiative_log() if time.time() - t < 86400]
         store.save_doc("initiative", entries + [time.time()])
 
+    # What they'd tell him about a case: said on its comms channel, if there is one and they're on it.
+    _COMMS_TALK = {"case_assigned", "case_taken", "case_arrived", "case_trouble", "case_closed", "case_hurt", "case_watch"}
+
     async def _send_unprompted(self, contact, about, why):
-        """They text first: written, then typed, then sent."""
+        """They text first: written, then typed, then sent — or, about a case with comms open, said there."""
+        if why in self._COMMS_TALK:
+            group = self._comms_for(contact.id)
+            if group is not None:
+                return await self._comms_word(group, contact, about, why)
         await self._call_first(contact.id)
         session = self.session_for(contact.id)
         loop = asyncio.get_running_loop()

@@ -421,6 +421,7 @@
   },
   "search_aloud": false,
   "home": "The Clocktower",
+  "gets_about": "mixed",
   "home_sound": "clocktower",
   "interests": {
     "pastimes": [

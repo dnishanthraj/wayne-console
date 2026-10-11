@@ -7351,136 +7351,410 @@
   "Justice Island": 0.1,
   "Arkham Island": 0.35
  },
- "subway": [
-  {
-   "name": "Kane Line",
-   "color": "#4fa8e0",
-   "stations": [
-    [
+ "transit": {
+  "_doc": "Gotham's trains as anyone rides them — see wayne.engine.transit. Stations once, [x, y]; each line the stations it calls at in order, with an [x, y] bend wherever the track shouldn't run straight. A stretch two lines both run is one stretch of track. Main-line rail comes from the roads of class rail and rail_stations; a station that's also a rail station sits exactly on it.",
+  "stations": {
+   "Cherry Hills": [
+    40.0,
+    27.0
+   ],
+   "Knightsdome": [
+    50.8,
+    27.4
+   ],
+   "Otisburg": [
+    50.2,
+    33.6
+   ],
+   "Burnley": [
+    51.38,
+    41.74
+   ],
+   "Hamilton Hill": [
+    48.4,
+    46.8
+   ],
+   "Coventry": [
+    40.6,
+    57.2
+   ],
+   "Gotham University": [
+    29.6,
+    66.0
+   ],
+   "Gotham General": [
+    31.6,
+    75.6
+   ],
+   "Upper West Side": [
+    25.4,
+    84.6
+   ],
+   "Riverside": [
+    24.2,
+    92.6
+   ],
+   "Chinatown": [
+    28.4,
+    101.8
+   ],
+   "Tricorner": [
+    28.6,
+    118.8
+   ],
+   "Gotham Docks": [
+    27.6,
+    126.8
+   ],
+   "Amusement Mile": [
+    62.0,
+    25.0
+   ],
+   "New Town": [
+    66.0,
+    35.4
+   ],
+   "Park Row": [
+    64.4,
+    45.6
+   ],
+   "Bowery": [
+    67.4,
+    51.4
+   ],
+   "Grand Avenue": [
+    62.8,
+    57.6
+   ],
+   "Museum Mile": [
+    60.6,
+    63.4
+   ],
+   "Fifth Avenue": [
+    63.0,
+    75.4
+   ],
+   "Fashion Avenue": [
+    64.8,
+    88.4
+   ],
+   "City Hall": [
+    73.0,
+    98.4
+   ],
+   "East End": [
+    78.8,
+    103.6
+   ],
+   "Power Station": [
+    78.0,
+    33.0
+   ],
+   "Robinsville": [
+    78.53,
+    42.93
+   ],
+   "Robinson Boulevard": [
+    70.6,
+    63.8
+   ],
+   "Janus Plaza": [
+    70.4,
+    75.6
+   ],
+   "Upper East Side": [
+    72.2,
+    86.0
+   ],
+   "Gotham Zoo": [
+    69.8,
+    92.0
+   ],
+   "Convention Center": [
+    76.4,
+    108.8
+   ],
+   "Botanical Garden": [
+    38.8,
+    64.4
+   ],
+   "Coventry Junction": [
+    46.11,
+    61.75
+   ],
+   "Iceberg Lounge": [
+    84.6,
+    61.2
+   ],
+   "Burnside Flea": [
+    96.4,
+    63.8
+   ],
+   "Burnside College": [
+    104.6,
+    64.2
+   ],
+   "Burnside Square": [
+    107.6,
+    68.0
+   ],
+   "Bristol": [
+    6.6,
+    27.4
+   ],
+   "Gotham Cemetery": [
+    6.8,
+    36.6
+   ],
+   "Gotham Downs": [
+    7.6,
+    47.2
+   ],
+   "Kane Heights": [
+    6.0,
+    55.4
+   ],
+   "Gotham Stadium": [
+    -0.8,
+    70.6
+   ],
+   "Ironworks": [
+    3.0,
+    87.0
+   ],
+   "Port Adams": [
+    6.4,
+    92.4
+   ],
+   "Gotham Marina": [
+    20.4,
+    98.6
+   ],
+   "Union Station": [
+    39.6,
+    97.2
+   ],
+   "Old Gotham": [
+    45.6,
+    107.0
+   ],
+   "Ferry Terminal": [
+    48.4,
+    114.2
+   ],
+   "Diamond Square": [
+    46.8,
+    93.8
+   ],
+   "Theater District": [
+    51.8,
+    89.4
+   ],
+   "GCPD Plaza": [
+    54.0,
+    101.0
+   ],
+   "Financial District": [
+    58.6,
+    104.6
+   ],
+   "Courthouse": [
+    68.6,
+    107.4
+   ],
+   "Narrows Precinct": [
+    20.4,
+    38.8
+   ],
+   "The Narrows": [
+    22.2,
+    33.8
+   ],
+   "Fort Joseph": [
+    109.8,
+    -7.6
+   ],
+   "Waterloo": [
+    116.0,
+    -3.32
+   ],
+   "Blüdhaven Precinct": [
+    120.0,
+    -6.2
+   ],
+   "Blüdhaven Central": [
+    124.0,
+    -9.0
+   ],
+   "Halyard Square": [
+    127.4,
+    -3.0
+   ],
+   "Port's Park": [
+    134.8,
+    -5.0
+   ],
+   "Waterloo Docks": [
+    117.4,
+    0.6
+   ],
+   "Avalon Heights": [
+    130.6,
+    -16.2
+   ]
+  },
+  "lines": [
+   {
+    "name": "Kane Line",
+    "short": "Kane",
+    "color": "#4fa8e0",
+    "kind": "subway",
+    "stops": [
      "Cherry Hills",
-     40.0,
-     27.0
-    ],
-    [
      "Knightsdome",
-     50.6,
-     27.6
-    ],
-    [
-     "Burnley Square",
-     52.4,
-     40.2
-    ],
-    [
+     "Otisburg",
+     "Burnley",
+     "Hamilton Hill",
      "Coventry",
-     40.6,
-     57.2
-    ],
-    [
      "Gotham University",
-     29.6,
-     66.0
-    ],
-    [
+     "Gotham General",
      "Upper West Side",
-     25.4,
-     84.6
-    ],
-    [
+     "Riverside",
      "Chinatown",
-     28.4,
-     101.8
-    ],
-    [
-     "Old Gotham",
-     44.4,
-     112.0
+     "Tricorner",
+     "Gotham Docks"
     ]
-   ]
-  },
-  {
-   "name": "Robinson Line",
-   "color": "#c9a23a",
-   "stations": [
-    [
+   },
+   {
+    "name": "Robinson Line",
+    "short": "Robinson",
+    "color": "#c9a23a",
+    "kind": "subway",
+    "stops": [
      "Amusement Mile",
-     66.6,
-     25.6
-    ],
-    [
      "New Town",
-     66.4,
-     35.6
-    ],
-    [
      "Park Row",
-     64.0,
-     45.8
-    ],
-    [
      "Bowery",
-     68.0,
-     51.6
-    ],
-    [
+     "Grand Avenue",
      "Museum Mile",
-     61.0,
-     63.2
-    ],
-    [
      "Fifth Avenue",
-     63.4,
-     75.4
-    ],
-    [
      "Fashion Avenue",
-     65.2,
-     88.6
-    ],
-    [
      "City Hall",
-     73.2,
-     98.6
+     "East End"
     ]
-   ]
-  },
-  {
-   "name": "Diamond Shuttle",
-   "color": "#58c08a",
-   "stations": [
-    [
+   },
+   {
+    "name": "Finger Line",
+    "short": "Finger",
+    "color": "#a77ee0",
+    "kind": "subway",
+    "stops": [
+     "Power Station",
+     "Robinsville",
+     "Park Row",
+     "Bowery",
+     "Grand Avenue",
+     "Museum Mile",
+     "Robinson Boulevard",
+     "Janus Plaza",
+     "Upper East Side",
+     "Gotham Zoo",
+     "City Hall",
+     "East End",
+     "Convention Center"
+    ]
+   },
+   {
+    "name": "Burnside Line",
+    "short": "Burnside",
+    "color": "#e8893a",
+    "kind": "subway",
+    "stops": [
+     "Gotham University",
+     "Botanical Garden",
+     "Coventry Junction",
+     "Museum Mile",
+     "Robinson Boulevard",
+     "Iceberg Lounge",
+     "Burnside Flea",
+     "Burnside College",
+     "Burnside Square"
+    ]
+   },
+   {
+    "name": "County Line",
+    "short": "County",
+    "color": "#3cc2c0",
+    "kind": "subway",
+    "stops": [
+     "Bristol",
+     "Gotham Cemetery",
+     "Gotham Downs",
+     "Kane Heights",
+     "Gotham Stadium",
+     "Ironworks",
+     "Port Adams",
+     "Gotham Marina",
+     "Chinatown",
      "Union Station",
-     40.0,
-     96.6
-    ],
-    [
-     "Diamond Square",
-     46.8,
-     93.8
-    ],
-    [
-     "Theater District",
-     51.8,
-     89.4
-    ],
-    [
-     "GCPD Plaza",
-     54.0,
-     101.0
-    ],
-    [
-     "Financial District",
-     58.6,
-     104.6
-    ],
-    [
-     "Courthouse",
-     68.6,
-     107.4
+     "Old Gotham",
+     "Ferry Terminal"
     ]
-   ]
-  }
- ],
+   },
+   {
+    "name": "Diamond Shuttle",
+    "short": "Diamond",
+    "color": "#58c08a",
+    "kind": "subway",
+    "stops": [
+     "Union Station",
+     "Diamond Square",
+     "Theater District",
+     "GCPD Plaza",
+     "Financial District",
+     "Courthouse"
+    ]
+   },
+   {
+    "name": "Narrows Monorail",
+    "short": "Monorail",
+    "color": "#b9c3cc",
+    "kind": "monorail",
+    "stops": [
+     "Narrows Precinct",
+     "The Narrows",
+     "Cherry Hills"
+    ]
+   },
+   {
+    "name": "Blüdhaven Harbor Line",
+    "short": "Harbor",
+    "color": "#e0609c",
+    "kind": "subway",
+    "stops": [
+     "Fort Joseph",
+     "Waterloo",
+     "Blüdhaven Precinct",
+     "Blüdhaven Central",
+     "Halyard Square",
+     "Port's Park"
+    ]
+   },
+   {
+    "name": "Blüdhaven Heights Line",
+    "short": "Heights",
+    "color": "#8f9cf0",
+    "kind": "subway",
+    "stops": [
+     "Waterloo Docks",
+     "Waterloo",
+     "Blüdhaven Precinct",
+     "Blüdhaven Central",
+     "Avalon Heights"
+    ]
+   }
+  ]
+ },
  "roundabouts": [
   {
    "name": "Kane Circle",

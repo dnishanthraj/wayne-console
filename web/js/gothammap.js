@@ -583,13 +583,17 @@
         // riding them as dots — over the city at a distance only. They're gone by the time
         // the buildings rise, flat or tilted, leaving the stations as dots: lines across
         // the roofs looked like paint spilled on the city.
-        { id: 'subway-casing', type: 'line', source: 'city', filter: is('subway'), minzoom: 10.8, maxzoom: 12.8,
+        // Each stretch of track once per line that runs it: where two share one, side by side (`off`, in
+        // line-widths), the way a transit map draws a shared trunk.
+        { id: 'subway-casing', type: 'line', source: 'city', filter: is('subwayseg'), minzoom: 10.8, maxzoom: 12.8,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': C.void, 'line-width': z([10.8, 2.6, 12.8, 5]),
+                   'line-offset': ['interpolate', ['linear'], ['zoom'], 10.8, ['*', ['get', 'off'], 1.3], 12.8, ['*', ['get', 'off'], 2.6]],
                    'line-opacity': ['interpolate', ['linear'], ['zoom'], 12.1, 0.9, 12.7, 0] } },
-        { id: 'subway', type: 'line', source: 'city', filter: is('subway'), minzoom: 10.8, maxzoom: 12.8,
+        { id: 'subway', type: 'line', source: 'city', filter: is('subwayseg'), minzoom: 10.8, maxzoom: 12.8,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': ['get', 'col'], 'line-width': z([10.8, 1.3, 12.8, 2.6]),
+                   'line-offset': ['interpolate', ['linear'], ['zoom'], 10.8, ['*', ['get', 'off'], 1.3], 12.8, ['*', ['get', 'off'], 2.6]],
                    'line-opacity': ['interpolate', ['linear'], ['zoom'], 12.1, 0.95, 12.7, 0] } },
         { id: 'metro', type: 'circle', source: 'movers', filter: ['==', ['get', 'm'], 'metro'], minzoom: 11, maxzoom: 12.8,
           paint: { 'circle-radius': z([11, 2, 12.8, 3.2]), 'circle-color': '#f4faff',
@@ -702,10 +706,16 @@
                     'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } },
         { id: 'beam', type: 'fill', source: 'movers', filter: ['==', ['get', 'm'], 'beam'],
           paint: { 'fill-color': '#fff1c4', 'fill-opacity': ['get', 'o'] } },
-        // Stations as roundels: white, ringed in their line's colour — the entrances, at any zoom.
+        // Stations as roundels: white, ringed in their line's colour — the entrances, at any zoom. Where lines
+        // meet, one bigger roundel ringed dark: a change.
         { id: 'station', type: 'circle', source: 'city', filter: is('station'), minzoom: 11.4,
-          paint: { 'circle-radius': z([11.4, 2.4, 14, 4, 17, 6.5]), 'circle-color': '#f4faff',
-                   'circle-stroke-color': ['get', 'col'], 'circle-stroke-width': z([11.4, 1.2, 15, 2.4]) } },
+          paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'],
+                                     11.4, ['case', ['>', ['get', 'x'], 1], 3.2, 2.4],
+                                     14, ['case', ['>', ['get', 'x'], 1], 5.2, 4],
+                                     17, ['case', ['>', ['get', 'x'], 1], 8, 6.5]],
+                   'circle-color': '#f4faff',
+                   'circle-stroke-color': ['case', ['>', ['get', 'x'], 1], C.void, ['get', 'col']],
+                   'circle-stroke-width': z([11.4, 1.2, 15, 2.4]) } },
         { id: 'railstation', type: 'circle', source: 'city', filter: is('railstation'), minzoom: 11.8,
           paint: { 'circle-radius': z([11.8, 2.4, 15, 5, 18, 7]), 'circle-color': '#e8f6ff',
                    'circle-stroke-color': '#02050a', 'circle-stroke-width': z([11.8, 1, 15, 2]) } },
@@ -869,7 +879,7 @@
     if (p.l === 'station') return p.n + ' · ' + p.line;
     if (p.l === 'railstation') return p.n + ' · ' + p.line + ' station';
     if (p.l === 'gate') return 'At the gate';
-    if (p.l === 'subway' || p.l === 'ferry' || p.l === 'lane') return p.n + (p.l === 'lane' ? ' · shipping channel' : '');
+    if (p.l === 'subway' || p.l === 'subwayseg' || p.l === 'ferry' || p.l === 'lane') return p.n + (p.l === 'lane' ? ' · shipping channel' : '');
     if (p.l === 'pitch') return ({ turf: 'Playing field', dirt: 'Ball field', court: 'Courts', track: 'Running track' }[p.k] || '');
     if (p.l === 'golf') return 'Golf course';
     if (p.l === 'lot') return 'Car park';
