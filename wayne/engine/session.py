@@ -283,6 +283,19 @@ _REFERS_BACK = re.compile(r"^\s*(and|what about|how about)\b|\b(it|that|this|he|
                           r"his|her|their|there|then)\b", re.I)
 
 
+def _plan_meant(waiting, text):
+    """
+    Which of the plans waiting on their answer this one's about — the one whose what and where the words name
+    most — or the soonest, when nothing names one. A yes went to the soonest plan, whatever it was a yes to.
+    """
+    words = set(re.findall(r"[a-z']{3,}", (text or "").lower()))
+
+    def named(p):
+        return len(words & set(re.findall(r"[a-z']{3,}", f"{p.get('what', '')} {p.get('where', '')}".lower())))
+    best = max(waiting, key=named)
+    return best if named(best) > 0 else waiting[0]
+
+
 def _echoes_back(prompt, last):
     """All but at most one of his words came from your last reply."""
     words, said = _plain_words(prompt), set(_plain_words(last))
@@ -698,7 +711,9 @@ class ContactSession:
                     return False, None
             return True, text
 
-        stream = self._stream(payload)
+        # A ceiling under the sentence cap, which normally stops it long before: room reserved for the reply,
+        # and never a runaway to the end of the window.
+        stream = self._stream(payload, num_predict=300 if getattr(self, "_texting_now", False) else 450)
         for piece in stream:
             buffer += piece
             if _HANG_UP.search(buffer):
@@ -1783,7 +1798,7 @@ class ContactSession:
             waiting = plans.pending(self.contact.id) or plans.reconsidering(self.contact.id)
             mine = [p for p in waiting if p.get("made_in") == f"g:{group.id}"] or waiting
             if mine:
-                plans.answer(mine[0]["id"], self.contact.id, said.group(1).lower(), delivery.clean(text))
+                plans.answer(_plan_meant(mine, text)["id"], self.contact.id, said.group(1).lower(), delivery.clean(text))
         text = re.sub(r"\[\s*(leave|(add|remove|react|dm|take)\s*:[^\]]*)\]", "", text, flags=re.I)
         text = _LEFTOVER_MARKER.sub("", text)
         text = re.sub(r"\s*\[[^\]]{0,14}\]", "", text)     # a marker half-written: "[]", "[react]"
@@ -2501,8 +2516,9 @@ class ContactSession:
         if getattr(self, "_rsvp", None):
             waiting = plans.pending(self.contact.id) or plans.reconsidering(self.contact.id)
             if waiting:
-                plans.answer(waiting[0]["id"], self.contact.id, self._rsvp,
-                             delivery.clean(reply if isinstance(reply, str) else ""))
+                said_back = delivery.clean(reply if isinstance(reply, str) else "")
+                plans.answer(_plan_meant(waiting, f"{said_back} {prompt}")["id"], self.contact.id, self._rsvp,
+                             said_back)
             self._rsvp = None
         if not isinstance(reply, str) or not reply:
             reply = reply if isinstance(reply, str) and reply else "Mm."
@@ -3228,6 +3244,11 @@ class ContactSession:
             self.vault.clear()
             self.story.clear()
             grapevine.clear(self.contact.id)
+            # And the rest of what they'd carry: what's on their mind about him (their bond memories — how they
+            # feel stays theirs) and the errands they'd promised from talks that are gone now.
+            from ..store import events as event_log
+            event_log.forget_audience(self.contact.id, "bond")
+            presence.of(self.contact).forget_intents()
             yield from self._acknowledge(
                 prompt, "You have just wiped everything you remembered of him and "
                         "your conversations, as he asked. You start fresh.", record=False)

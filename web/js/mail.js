@@ -230,6 +230,15 @@
       answer.textContent = m.rsvp !== 'accepted' ? 'Declined \u2014 Alfred sent your regrets.'
         : agreed ? 'In your diary.' : 'In your diary \u2014 Alfred accepted for you.';
       answer.dataset.state = m.rsvp;
+      // What became of it, as the diary has it now: called off, gone to, missed — then there's nowhere to go.
+      var since = m.diary && m.diary.status !== 'accepted' ? {
+        cancelled: 'Called off \u2014 they were told.', attended: 'You went.', left: 'You went, and left early.',
+        missed: 'You missed it.', gone: 'No longer in your diary.' }[m.diary.status] : '';
+      if (since) {
+        answer.textContent = since;
+        answer.dataset.state = m.diary.status;
+        return card;
+      }
       // Upcoming: set off for it from here — being there is the only way it counts.
       var ends = (function () { try { return new Date(e.date + 'T' + (e.time || '20:00')).getTime() + 3 * 3600 * 1000; } catch (err) { return 0; } })();
       if (m.rsvp === 'accepted' && e.id && ends > Date.now() && window.goToEngagement) {

@@ -122,6 +122,27 @@ def knows(contact, place):
     return int(hashlib.sha1(f"{contact.id}:{place['name']}".encode()).hexdigest()[:8], 16) / 0xFFFFFFFF < 0.6
 
 
+def describe(name):
+    """
+    What a place is, as Gotham knows it: his own words from the Codex if he's written some, else the map's — a
+    district's sketch, a landmark's story. '' if it's nowhere. (resolve() keeps only the spot.)
+    """
+    spot = resolve(name or "")
+    if not spot:
+        return ""
+    written = _edit_of(spot["name"])
+    if written:
+        return written
+    data = gazetteer()
+    place = next((p for p in data["places"] if p["name"] == spot["name"]), None)
+    if place is None:
+        venue = next((v for v in venues() if v["name"] == spot["name"]), None)
+        return (venue or {}).get("bio", "") or ""
+    if place.get("kind") == "district":
+        return data.get("areas", {}).get(place["name"], "") or ""
+    return place.get("bio", "") or ""
+
+
 def note(text, most=2, contact=None):
     """
     What anyone from Gotham knows of the places he's just named — a district's

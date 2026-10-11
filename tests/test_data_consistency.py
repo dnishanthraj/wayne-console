@@ -105,3 +105,47 @@ def test_a_reset_leaves_nothing_behind_it_should_not(clock):
     left = engagements.all_engagements()
     assert [e["id"] for e in left] == [mine["id"]]                             # what a conversation made, gone
     assert not any(e.get("plan") == plan["id"] for e in left)
+
+
+def test_a_letter_shows_what_became_of_its_evening(clock):
+    import wayne.frontends.web as web
+    row = engagements.agree("the Mayor's gala", "Gotham Opera House", clock() + 86400, "Mayor Nakano", "t-1")
+    letters = [{"id": "m1", "engagement": {"id": row["id"]}, "rsvp": "accepted"}, {"id": "m2"}]
+    assert web._with_diary(letters)[0]["diary"]["status"] == "accepted" and "diary" not in web._with_diary(letters)[1]
+    engagements.cancel(row["id"])
+    assert web._with_diary(letters)[0]["diary"]["status"] == "cancelled"
+    engagements.delete(row["id"])
+    assert web._with_diary(letters)[0]["diary"]["status"] == "gone"
+
+
+def test_forgetting_everything_takes_what_was_on_their_mind_and_their_errands(clock):
+    from wayne.engine import bonds, presence
+    from wayne.engine.session import ContactSession
+    tim = directory().get("robin")
+    bonds.nudge("robin", bonds.ME, warmth=-2, why="he stood you up", t=clock())
+    presence.of(tim).intend("text", "check the docks for him", clock() + 600, origin="promise")
+    assert bonds.memories("robin", bonds.ME, clock()) and presence.of(tim).intents()
+    session = ContactSession(tim)
+    session._acknowledge = lambda prompt, note, record=True: iter(())      # the reply itself isn't this test's
+    handled = session._handle_command("forget everything")
+    if hasattr(handled, "__iter__") and not isinstance(handled, bool):
+        try:
+            while True:
+                next(handled)
+        except StopIteration:
+            pass
+    assert bonds.memories("robin", bonds.ME, clock()) == [] and presence.of(tim).intents() == []
+
+
+def test_an_answer_goes_to_the_plan_it_names(clock):
+    from wayne.engine.session import _plan_meant
+    dinner = {"id": "a", "what": "dinner at Ralli's", "where": "Ralli's Family Restaurant"}
+    movie = {"id": "b", "what": "movie night", "where": "Wayne Manor"}
+    assert _plan_meant([dinner, movie], "yeah I'm in for movie night")["id"] == "b"
+    assert _plan_meant([dinner, movie], "sure")["id"] == "a"                    # nothing named: the soonest
+
+
+def test_an_incident_log_knows_the_place_as_he_wrote_it(clock):
+    from wayne.engine import incidents, places
+    places.edit("Ace Chemicals", "Where it all went wrong, and still smells of it.")
+    assert "still smells of it" in incidents._setting({"place": "Ace Chemicals"})

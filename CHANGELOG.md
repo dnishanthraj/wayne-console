@@ -5,6 +5,31 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-10-11
+
+### Fixed
+
+- **A letter shows what became of its evening.** An accepted invitation in
+  Mail kept saying "In your diary — Alfred accepted", with a Go button,
+  after you'd called the evening off or it had passed, and Go then failed.
+  Letters now read the diary as it is: "Called off — they were told", "You
+  went", "You went, and left early", "You missed it", "No longer in your
+  diary". There's no Go button unless the evening is still on.
+- **"Forget everything" now really does.** It cleared their history and
+  notes, but they still had their memories of you and the errands they'd
+  promised, so they "remembered" after being told to forget. Now those go
+  too. How they feel about you stays theirs.
+- **An answer goes to the plan it's about.** With several invitations
+  waiting, a "yes" went to the soonest, whatever it was a yes to. It now goes
+  to the plan whose name and place the words match, falling back to the
+  soonest.
+- **Incident logs know the place again,** including your own Codex
+  description of it. The lookup had been dropping the description, so the
+  writer never had the setting.
+- **A ceiling on every reply.** The main reply now has a length limit (450
+  tokens on a call, 300 in a text) under the sentence cap that normally stops
+  it much sooner. Room is always reserved for it in the window.
+
 ## [0.38.0] - 2026-10-11
 
 Robustness, from two reviews of the whole codebase: how prompts fit the

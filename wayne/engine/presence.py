@@ -1448,6 +1448,12 @@ class Presence:
         t = t or time.time()
         return [i for i in self._state["intents"] if i["due"] <= t]
 
+    def forget_intents(self):
+        """Every promise and errand of theirs, gone — told to forget everything, they don't carry on with them."""
+        with self._lock:
+            self._state["intents"] = []
+            self.save()
+
     def postpone(self, intent_id, seconds, count=True):
         """Later. `count` is False when nothing was tried — they were asleep."""
         with self._lock:

@@ -872,8 +872,7 @@ SEEN_AS = {"bruce": "the Bat himself — big, dark, there and then not", "nightw
 
 def _setting(report):
     """What the place is, so what happens there is of a piece with it — the boardwalk, the Iceberg Lounge's floor."""
-    found = places.resolve(report.get("place") or "")
-    bio = (found or {}).get("bio") or ""
+    bio = places.describe(report.get("place") or "")       # his own words for it, if he's written any
     return f" Where it is: {report['place']} — {bio[:220]}" if bio else ""
 
 

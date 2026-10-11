@@ -4711,11 +4711,29 @@ async def assign_case(request: Request):
     return JSONResponse(result if ("texted" in result or "declined" in result) else {"case": result})
 
 
+def _with_diary(messages):
+    """
+    Each letter with the evening it put in his diary, as the diary has it now — called off, changed, gone to,
+    missed — not as it was when the letter was answered: the diary is the one truth for that.
+    """
+    from ..engine import engagements
+    rows = {e["id"]: e for e in engagements.all_engagements()}
+    out = []
+    for m in messages:
+        wanted = ((m.get("engagement") or {}).get("id") or "") if isinstance(m.get("engagement"), dict) else ""
+        row = rows.get(wanted)
+        if wanted:
+            m = {**m, "diary": {"status": row["status"] if row else "gone", "at": row["at"] if row else None}}
+        out.append(m)
+    return out
+
+
 @app.get("/api/mail")
 async def get_mail(folder: str = "inbox"):
     """His mail, a folder at a time, newest first — and how much is unread."""
     from ..engine import inbox
-    return JSONResponse({"mail": inbox.mail(folder if folder in inbox.FOLDERS else "inbox"), "unread": inbox.unread(),
+    return JSONResponse({"mail": _with_diary(inbox.mail(folder if folder in inbox.FOLDERS else "inbox")),
+                         "unread": inbox.unread(),
                          "counts": {f: sum(1 for m in inbox.mail(f) if not m.get("read")) for f in inbox.FOLDERS}})
 
 
@@ -4723,7 +4741,7 @@ async def get_mail(folder: str = "inbox"):
 async def mail_thread(thread_id: str):
     """A conversation, oldest first — what they wrote and what he answered — and whether the last can be answered."""
     from ..engine import inbox
-    found = inbox.thread(thread_id)
+    found = _with_diary(inbox.thread(thread_id))
     return JSONResponse({"thread": found, "answerable": [m["id"] for m in found if inbox.answerable(m)]})
 
 
