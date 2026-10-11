@@ -3437,6 +3437,29 @@ class Console(GroupChats):
         """A moment for the Batcomputer to say out loud — the page plays it, never over a call (see system_voice)."""
         await self.broadcast({"type": "system", "event": event, "contact": contact_id or ""})
 
+    async def host(self, what, where, at, until, invited, notes=""):
+        """
+        He's hosting — a party at the Manor, a dinner — and asks them: a plan (engine.plans), so it's in everyone's
+        week and they answer it their own way, and the invitation in a chat of its own, where they say yes, no or
+        maybe and talk about it. Returns his diary row.
+        """
+        from ..engine import engagements, plans
+        until = until or at + engagements.LENGTH
+        when = plans.when(at)
+        line = (f"{what}" + (f" at {where}" if where else "") + f", {when} — I'm hosting. "
+                + ("You're invited." if len(invited) == 1 else "You're all invited.") + (f" {notes}" if notes else ""))
+        if len(invited) == 1:
+            # One guest: asked in their own thread, not a chat of one.
+            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited}, made_in="")
+            await self.text(invited[0], line)
+        else:
+            group = group_store.create(f"{what}"[:60], invited)
+            await self.broadcast({"type": "group_created", "group": self.group_payload(group)})
+            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited},
+                             made_in=f"g:{group.id}")
+            await self.group_text(group.id, line)
+        return next((e for e in engagements.all_engagements() if e.get("plan") == plan["id"]), None)
+
     async def cancel_engagement(self, engagement_id):
         """
         He calls something off from the diary. An invitation: Alfred sends his regrets. A meeting made by letter:
@@ -3502,6 +3525,15 @@ class Console(GroupChats):
                 time.localtime(now).tm_hour < 20 and getattr(self, "_went_home", "") != time.strftime("%Y-%m-%d"):
             self._went_home = time.strftime("%Y-%m-%d")
             await asyncio.to_thread(batman.go, batman.HOME, None, None, "", now, False)
+        # Now and then — rarely — trouble comes to the evening he's at: on the scanner, his to slip out for.
+        for e in engagements.all_engagements():
+            if e["status"] == "accepted" and e.get("present") and not e.get("crime_rolled") and e["at"] <= now < e["until"]:
+                report = engagements.crime_at(e, now)
+                if report:
+                    log.info("trouble at %s: %s", e["what"], report["kind"])
+                    await self.broadcast({"type": "scanner"})
+                    await self.broadcast({"type": "cases"})
+                    await self._system("case_trouble")
         for e in engagements.reminders(now):
             await self.broadcast({"type": "engagement_soon", "engagement": e})
             alfred = self.directory.get("alfred")
@@ -4476,6 +4508,11 @@ async def diary_add(request: Request):
     until = _diary_when(body.get("date"), body.get("to")) if body.get("to") else None
     if until is not None and until <= at:
         until += 86400                    # past midnight
+    invited = [c.id for c in (console.directory.find(n) for n in (body.get("with") or [])) if c] \
+        if isinstance(body.get("with"), list) else []
+    if body.get("host") and invited:
+        row = await console.host(body.get("what"), body.get("where", ""), at, until, invited, body.get("notes", ""))
+        return JSONResponse({"entry": engagements.entry(row)})
     row = engagements.add(body.get("what"), body.get("where", ""), at, until, body.get("as", "bruce"),
                           ", ".join(body.get("with") or []) if isinstance(body.get("with"), list) else body.get("with", ""),
                           body.get("notes", ""))

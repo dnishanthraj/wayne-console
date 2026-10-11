@@ -814,9 +814,7 @@ class Presence:
                 with self._lock:        # read on threads now: never a change mid-save
                     self._state["seen"] = {"where": live["name"], "x": live["x"], "y": live["y"], "at": now, "how": how}
                 return out
-            seen = self._state.get("seen")
-            if seen and (t or time.time()) - seen.get("at", 0) < 48 * 3600:
-                out["last_seen"] = seen          # the last he knows of where they were, and how
+            out["last_seen"] = self._last_seen(t)   # the last he knows of where they were, and how — never nowhere
             return out
         shown = {"status": state["status"], "doing": state["doing"],
                  "last_active": state["last_active"] or None, "line": self.line(t)}
@@ -850,10 +848,27 @@ class Presence:
                         shown["route"] = {**walking["leg"], "from": "", "by": "over the rooftops", "patrol": True}
         elif getattr(self.contact, "sightings", None):
             # Not on the app, but seen in public — Jim's car on the scanner: the last he knows, never live.
-            seen = self._state.get("seen")
-            if seen and (t or time.time()) - seen.get("at", 0) < 48 * 3600:
-                shown["last_seen"] = seen
+            shown["last_seen"] = self._last_seen(t)
         return shown
+
+    def _last_seen(self, t=None):
+        """
+        The last he knows of where they are — the latest sighting, however old: someone off the app stays on the map
+        where they were last seen, never gone from it. Before any sighting, where he'd last have known them to be:
+        their own place.
+        """
+        seen = self._state.get("seen")
+        if seen:
+            return seen
+        home = places.resolve(getattr(self.contact, "home", "") or "")
+        if not home:
+            return None
+        now = t or time.time()
+        with self._lock:
+            self._state["seen"] = {"where": home["name"], "x": home["x"], "y": home["y"], "at": now - 6 * 3600,
+                                   "how": "the last you knew"}
+            self.save()
+        return self._state["seen"]
 
     def patrolling(self, where, t=None):
         """

@@ -129,3 +129,74 @@ def test_the_console_takes_him_there_unless_hes_in_the_middle_of_something(clock
     engagements.add("a fitting", "Hart & Sons Tailors", clock() + 12 * 60, clock() + 3600)
     asyncio.run(console._diary_tick(clock()))
     assert went == [row["id"]]                                                      # on a case: it waits for him
+
+
+def test_who_knows_what_of_his_diary(clock):
+    engagements.add("dinner with Vicki Vale", "Le Bistro de la Rue", clock() + 86400)
+    gala = engagements.agree("the Mayor's gala", "Gotham Opera House", clock() + 2 * 86400, "Mayor Nakano", "t-g")
+    engagements._rows().put(gala["id"], {**gala, "source": "invitation"})
+    engagements.add("Board briefing", "Wayne Tower", clock() + 3600, source="routine")
+    dick, selina, lucius = (engagements.known_to(c, clock()) for c in ("nightwing", "catwoman", "lucius"))
+    assert "Vicki Vale" in dick and "Board briefing" not in dick
+    assert "Mayor's gala" in selina and "Vicki" not in selina                  # only what's public
+    assert "Board briefing" in lucius
+    assert engagements.known_to("gordon", clock()) == "" and engagements.known_to("alfred", clock()) == ""
+
+
+def test_their_evenings_at_his_are_in_his_diary_and_not_his_to_change(clock, monkeypatch):
+    from types import SimpleNamespace
+
+    from wayne.engine import week
+    dick = SimpleNamespace(id="nightwing", name="Dick")
+    tim = SimpleNamespace(id="robin", name="Tim")
+    habit = {"doing": "family dinner at the Manor", "where": "Wayne Manor", "from": "18:00", "to": "20:00",
+             "together": "manor-dinner"}
+    monkeypatch.setattr(week, "on", lambda contact, t=None: [habit] if contact.id in ("nightwing", "robin") else [])
+    import wayne.contacts as contacts
+    monkeypatch.setattr(contacts, "directory", lambda: [dick, tim])
+    day = datetime.date.fromtimestamp(clock())
+    rows = engagements.at_his(day, clock())
+    assert len(rows) == 1 and rows[0]["readonly"] and {p["name"] for p in rows[0]["who"]} == {"Dick", "Tim"}
+    assert rows[0]["what"] == "Family dinner at the Manor"
+
+
+def test_trouble_comes_to_an_evening_rarely_and_lands_on_the_scanner(clock):
+    from wayne.engine import incidents
+
+    class Sure:
+        def random(self):
+            return 0.0
+
+        def choices(self, seq, weights=None):
+            return [seq[0]]
+
+        def choice(self, seq):
+            return seq[0]
+    row = engagements.add("the Mayor's gala", "Gotham Opera House", clock() - 600, clock() + 3 * 3600)
+    row = {**engagements._rows().get(row["id"]), "present": True}
+    engagements._rows().put(row["id"], row)
+    report = engagements.crime_at(row, clock(), rng=Sure())
+    assert report["kind"] == "Armed robbery" and report["place"] == "Gotham Opera House"
+    assert engagements.crime_at(engagements._rows().get(row["id"]), clock(), rng=Sure()) is None   # rolled once
+    assert any(r["id"] == report["id"] for r in incidents.at(clock() + 60))
+
+
+def test_hosting_asks_them_in_a_chat_of_its_own_and_its_in_the_diary(clock, monkeypatch):
+    import wayne.frontends.web as web
+    from wayne.contacts import directory
+    console = web.Console.__new__(web.Console)
+    console.directory = directory()
+    said = []
+
+    async def broadcast(event):
+        return None
+
+    async def group_text(gid, line, reply_to=None):
+        said.append((gid, line))
+    console.broadcast, console.group_text = broadcast, group_text
+    console.group_payload = lambda g: {}
+    row = asyncio.run(console.host("A party at the Manor", "Wayne Manor", clock() + 86400, None,
+                                   ["nightwing", "batgirl"]))
+    assert row["source"] == "plan" and row["what"] == "A party at the Manor"
+    assert said and "I'm hosting. You're all invited." in said[0][1]
+    assert [p["name"] for p in engagements.entry(row)["who"]] == ["Dick", "Barbara"]

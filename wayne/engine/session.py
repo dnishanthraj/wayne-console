@@ -1551,9 +1551,11 @@ class ContactSession:
         from ..contacts import directory
         parts = [grapevine.relayed_block(self.contact.id), grapevine.block(self.contact.id),
                  groupchat.block(self.contact.id, directory(), prompt=getattr(self, "_said", None))]
+        from . import engagements
         if self.contact.id == "alfred":
-            from . import engagements
             parts.insert(0, engagements.diary_note())          # he keeps the diary: what's coming
+        else:
+            parts.insert(0, engagements.known_to(self.contact.id))   # what they'd know of it
         return "\n\n".join(p for p in parts if p)
 
     def group_post(self, group, unread, must=False, opening=None, task=None, chase=None, tapback=None):

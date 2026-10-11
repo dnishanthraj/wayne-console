@@ -326,3 +326,14 @@ def test_on_the_way_to_a_scene_they_answer_and_in_the_fight_they_dont(book, cloc
 def test_the_commissioner_at_the_podium_lets_it_ring(book):
     assert _rate(book.get("gordon"), {"status": "busy", "doing": "in a press conference"}) < 0.2
     assert _rate(book.get("gordon"), {"status": "online", "doing": "working late in your office"}) > 0.9
+
+
+def test_someone_off_the_app_always_has_a_last_seen_and_a_sighting_moves_it(clock):
+    from wayne.contacts import directory
+    from wayne.engine import presence
+    randy = presence.of(directory().get("batwing"))
+    first = randy.public(clock())
+    assert first.get("last_seen") and first["last_seen"]["how"] == "the last you knew"     # never just gone
+    randy.seen_at("Crime Alley", "seen on the scanner", clock())
+    later = randy.public(clock() + 9 * 86400)                                             # days on: still there
+    assert later["last_seen"]["where"] == "Crime Alley"

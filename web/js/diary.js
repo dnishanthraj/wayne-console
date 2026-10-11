@@ -122,6 +122,7 @@
       if (e.group && opts.openGroup) from.appendChild(link('Open the chat', function () { opts.openGroup(e.group); }));
     } else from.remove();
     var acts = li.querySelector('.dx-entry__acts');
+    if (e.readonly) { acts.remove(); return li; }          // theirs, at his: nothing of his to change
     if (e.status === 'accepted') {
       if (opts.go && e.until * 1000 > Date.now()) acts.appendChild(button('Go', 'dx-go', function (btn) {
         btn.disabled = true;
@@ -169,6 +170,7 @@
       '<div class="dx-form__row dx-as"><label><input type="radio" name="as" value="bruce"><span>Bruce Wayne</span></label>' +
       '<label><input type="radio" name="as" value="batman"><span>Batman</span></label></div>' +
       '<div class="dx-form__people"></div>' +
+      '<label class="dx-host"><input type="checkbox" name="host"><span>I\u2019m hosting \u2014 invite them</span></label>' +
       '<input class="modal__input" name="notes" placeholder="Notes" maxlength="300">' +
       '<div class="dx-form__acts"><button type="button" class="cx-btn dx-cancel">Cancel</button>' +
       '<button type="submit" class="cx-btn dx-save">' + (e ? 'Save' : 'Add to the diary') + '</button></div>';
@@ -194,10 +196,12 @@
       box.appendChild(chip);
     });
     if (e && e.source !== 'manual') box.hidden = true;      // who's coming to someone else's evening isn't his to set
+    if (e) f.querySelector('.dx-host').hidden = true;         // invitations go out once, when it's made
     f.querySelector('.dx-cancel').addEventListener('click', function () { editing = null; render(); });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var body = { what: f.what.value, where: f.where.value, date: f.date.value, from: f.from.value, to: f.to.value,
+                   host: !e && f.host.checked,
                    as: (f.querySelector('input[name=as]:checked') || {}).value || 'bruce', notes: f.notes.value,
                    with: Array.prototype.map.call(box.querySelectorAll('input:checked'), function (i) {
                      return (people.filter(function (p) { return p.id === i.value; })[0] || {}).name || i.value; }) };

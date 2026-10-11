@@ -305,7 +305,20 @@ def at(t=None):
                 open_now.append(report)
     open_now.extend(_breakouts(t))
     open_now.extend(_comebacks(t, cased))
+    open_now.extend(_at_his_evenings(t, cased))
     return sorted(open_now, key=lambda i: -i["at"])
+
+
+def _at_his_evenings(t, cased):
+    """Trouble that came to an evening he was at (engine.engagements.crime_at): on the scanner like anything else."""
+    out = []
+    for report in store.space("event_crimes").view():
+        if not report["at"] <= t < report["ends"]:
+            continue
+        found = _finish(dict(report), t, cased)
+        if found is not None:
+            out.append(found)
+    return out
 
 
 def _comebacks(t, cased):

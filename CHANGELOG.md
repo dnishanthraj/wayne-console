@@ -5,6 +5,31 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-11
+
+### Added
+
+- **They know your diary.** The family and Lucius know your evenings this
+  week (and Lucius your company days), Batman's meetings for those who know
+  who he is, and how the last few went. Expect "date night with Vicki,
+  right?" or "you left the Mayor's gala early?". Selina hears of the public
+  galas. Alfred keeps the whole thing. Jim knows none of Bruce Wayne's.
+- **Their evenings at yours.** The family's own habits at the Manor (Sunday
+  dinner, Alfred's roast, whoever comes) show in your diary on the days
+  they're on, with who's coming. They're read-only: theirs, kept with you.
+- **Host something.** Writing an event into the diary with people chosen, tick
+  "I'm hosting — invite them". They're asked in a chat of its own (or a text,
+  for one guest), answer yes, no or maybe, talk about it, and the diary shows
+  who's coming.
+- **Trouble at the evening.** Rarely (more at a gala, more where the city's
+  rougher), a crime breaks out where you are: on the scanner like any other,
+  yours to slip out of the evening for as Batman, which counts as leaving
+  early, or to leave to GCPD and the family.
+- **Never gone from the map.** Randy, Jason, Jim and Selina always show where
+  they were last seen, however long ago (at first, where you'd last have
+  known them to be: their own place). A sighting moves them, and that's the
+  new last seen.
+
 ## [0.31.1] - 2026-10-11
 
 ### Fixed

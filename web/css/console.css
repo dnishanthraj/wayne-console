@@ -2566,6 +2566,9 @@ body { background:
 .dx-form__people { display: flex; flex-wrap: wrap; gap: 6px; }
 .dx-form__people[hidden] { display: none; }
 .dx-form__acts { display: flex; justify-content: flex-end; gap: 6px; }
+.dx-host { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); cursor: var(--cursor-pointer); }
+.dx-host[hidden] { display: none; }
+.dx-host input { accent-color: var(--primary); margin: 0; }
 .dx-save { color: var(--primary); border-color: var(--primary-dim); }
 @container stage (max-width: 760px) { .dx-body { grid-template-columns: 1fr; } .dx-days { flex-direction: row; overflow-x: auto;
   border-right: 0; border-bottom: 1px solid var(--hairline); } }

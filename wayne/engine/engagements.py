@@ -353,8 +353,9 @@ def days(start, count=8, now=None):
         day = start + _dt.timedelta(days=i)
         lo = time.mktime((day.year, day.month, day.day, 0, 0, 0, 0, 0, -1))
         hi = lo + 86400
-        out.append({"date": day.isoformat(),
-                    "entries": [entry(e, now) for e in rows if lo <= e["at"] < hi]})
+        mine = [entry(e, now) for e in rows if lo <= e["at"] < hi]
+        theirs = [f for f in at_his(day, now) if not any(abs(f["at"] - m["at"]) < 1800 for m in mine)]
+        out.append({"date": day.isoformat(), "entries": sorted(mine + theirs, key=lambda x: x["at"])})
     return out
 
 
@@ -501,3 +502,117 @@ def day_done(now=None):
     soon = [e for e in rows if e["status"] == "accepted" and now < e["until"] and e["at"] < now + 90 * 60]
     return bool(ended) and not soon and now - max(e["until"] for e in ended) > _HOME_AFTER \
         and now - max(e["until"] for e in ended) < _HOME_AFTER + 600
+
+
+# --- what others know of his diary ---------------------------------------------------------------------------
+
+def known_to(contact_id, now=None):
+    """
+    What someone would know of his diary — Alfred keeps the family in the loop: the ones who know everything know
+    his evenings, the meetings he's made, Batman's too, and how the last few went (so they can call him on them);
+    Lucius knows the company's days as well; Selina, who knows who he is but not the family's business, hears of the
+    public evenings. '' for anyone else, or when there's nothing to know. (Alfred has the whole diary: diary_note.)
+    """
+    from .. import identity
+    now = now or time.time()
+    if contact_id == "alfred":
+        return ""
+    level = identity.level(contact_id)
+    if level not in ("all", "his"):
+        return ""
+    soon = [e for e in upcoming(now, days=7) if not e.get("plan")]
+    if level == "his":
+        soon = [e for e in soon if e.get("source") == "invitation"]
+    elif contact_id != "lucius":
+        soon = [e for e in soon if e.get("source") != "routine"]
+    else:
+        soon = [e for e in soon if e.get("as") != "batman"]
+
+    def when(at):
+        import datetime as _dt
+        d = _dt.date.fromtimestamp(at)
+        today = _dt.date.fromtimestamp(now)
+        name = "today" if d == today else "tomorrow" if d == today + _dt.timedelta(days=1) else d.strftime("%A")
+        return f"{name} at {time.strftime('%-I:%M %p', time.localtime(at)).lower()}"
+    lines = [("Batman: " if e.get("as") == "batman" else "") + e["what"] + (f" at {e['where']}" if e.get("where") else "")
+             + f", {when(e['at'])}" for e in soon[:4]]
+    past = [] if level == "his" else [
+        f"he {'went to' if e['status'] == 'attended' else 'left early from' if e['status'] == 'left' else 'never made it to'} "
+        f"{e['what']}" for e in recent(now, days=3)[-2:] if e.get("source") != "routine"]
+    if not lines and not past:
+        return ""
+    return ("What you know of his diary (Alfred keeps the family in the loop): " + "; ".join(lines or ["nothing much"])
+            + "." + (f" Lately {'; '.join(past)}." if past else "")
+            + " Bring it up only if it's natural — asking, teasing, reminding, calling him on it.")
+
+
+# --- their evenings at his ---------------------------------------------------------------------------------------
+
+def at_his(day, now=None):
+    """
+    Their habits that are at his — dinner at the Manor with whoever's coming this week — as diary rows for `day`,
+    read-only: theirs, kept with him. [entry-shaped dicts]
+    """
+    from ..contacts import directory
+    from . import week
+    import re as _re
+    noon = time.mktime((day.year, day.month, day.day, 12, 0, 0, 0, 0, -1))
+    social = _re.compile(r"(?i)dinner|lunch|brunch|family|party|movie|film|game|poker|chess|birthday|sunday")
+    found = {}
+    for contact in directory():
+        if (getattr(contact, "home", "") or "") == "Wayne Manor":
+            continue            # Alfred's roses are his house's day, not an evening at his
+        for habit in week.on(contact, noon):
+            if (habit.get("where") or "") != "Wayne Manor" or not (habit.get("together") or social.search(habit.get("doing", ""))):
+                continue
+            start, end = week._hours(habit.get("from", "0")), week._hours(habit.get("to", "0"))
+            key = (habit.get("together") or habit.get("doing", "")[:24], start)
+            row = found.setdefault(key, {"what": habit.get("doing", "at the Manor"), "start": start, "end": end, "who": []})
+            row["who"].append({"id": contact.id, "name": contact.name, "said": "yes"})
+    out = []
+    for (tag, _start), row in found.items():
+        at = noon - 12 * 3600 + row["start"] * 3600
+        until = noon - 12 * 3600 + (row["end"] if row["end"] > row["start"] else row["end"] + 24) * 3600
+        out.append({"id": f"family:{day.isoformat()}:{abs(hash(tag)) % 10**6}", "what": row["what"][0].upper() + row["what"][1:],
+                    "where": "Wayne Manor", "venue": _venue("Wayne Manor"), "at": at, "until": until, "as": "bruce",
+                    "source": "family", "origin": "their week — at yours", "status": "accepted",
+                    "state": "on now" if at <= (now or time.time()) <= until else
+                    ("went" if until < (now or time.time()) else "upcoming"),
+                    "who": row["who"], "host": "", "dress": "", "notes": "", "story": "", "kept_away_by": "",
+                    "left_for": "", "present": False, "thread": "", "group": "", "readonly": True})
+    return out
+
+
+# --- a crime at the evening ---------------------------------------------------------------------------------------
+# Rarely — more where the city's rougher, at a gala with the rich in one room, with someone loose who'd go for it —
+# trouble comes to where he is: a report on the scanner at the place, like any other (incidents.at takes it), his to
+# slip out of the evening for as Batman (and leaving early is noted), or to leave to GCPD and the family.
+
+_CRIME_ODDS = 0.02
+
+
+def crime_at(e, now=None, rng=None):
+    """Whether trouble comes to this evening — rolled once, while he's there. The report, or None."""
+    import random as _random
+
+    from . import incidents, places
+    rng = rng or _random
+    now = now or time.time()
+    if e.get("crime_rolled") or not e.get("present") or not e.get("venue") or e.get("source") == "routine":
+        return None
+    _rows().put(e["id"], {**e, "crime_rolled": now})
+    spot = places.resolve(e.get("where") or "") or {}
+    rough = incidents._crime_by_area().get(spot.get("area", ""), 0.4)
+    gala = any(w in (e.get("what") or "").lower() for w in ("gala", "ball", "fundraiser", "auction", "party", "opening"))
+    odds = _CRIME_ODDS * (1 + rough) * (2.0 if gala else 1.0)
+    if rng.random() >= odds:
+        return None
+    kind = rng.choices(["Armed robbery", "Kidnapping", "Hostage situation"], weights=[6, 2, 1])[0]
+    report = {"id": f"evt-{e['id']}", "kind": kind, "severity": 4 if kind == "Hostage situation" else 3,
+              "place": spot.get("name") or e["where"], "area": spot.get("area", ""), "x": e["venue"][0],
+              "y": e["venue"][1], "at": int(now), "ends": int(now + 75 * 60), "crew": rng.choice([2, 3, 4]),
+              "at_his": e["id"], "dispatch": f"Reports of a {kind.lower()} under way at {e['where']} — during "
+                                             f"{e['what']}."}
+    from .. import store
+    store.space("event_crimes").put(report["id"], report)
+    return report
