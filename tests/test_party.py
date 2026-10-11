@@ -165,3 +165,12 @@ def test_talking_over_someone_he_answers_them():
     call.last_speaker = tim                       # Tim's line was written, Dick's was the one playing
     list(call.turn("No, wait —", interrupted=True, talked_over="nightwing"))
     assert dick.asked and not tim.asked
+
+
+def test_named_is_not_asked():
+    tim = FakeMember("robin", "Tim", "Tim Drake", ["Good luck with that, Alfred."])
+    alfred = FakeMember("alfred", "Alfred", "Alfred Pennyworth", ["Quite."])
+    call = _call(tim, alfred)
+    call.last_speaker = tim
+    _run(call, "Is the kale back?")
+    assert len(tim.asked) == 1 and alfred.asked == []          # Alfred heard it; nobody asked him anything

@@ -3587,6 +3587,7 @@
       .then(function (data) {
         var text = (data.text || '').trim();
         if (!text) { setState('idle'); return; }
+        ConsoleMic.heardHim();          // it was words: how loud he was is how loud he is
         // Flagged as spoken so the server can reject it if it is the contact's
         // own voice arriving back through the microphone.
         // Whether their voice could have got into the take: hands-free, while it played. Held to talk, the
@@ -4435,6 +4436,7 @@
         if (!m || state.connectedId || state.ringingId) return;
         var id = calledBy(m[1]);
         if (!id) return;
+        ConsoleMic.heardHim();
         state.wakeRest = (m[2] || '').replace(/[.!]+$/, '').trim();
         placeCall(id);
       }).catch(function () {});

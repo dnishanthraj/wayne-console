@@ -91,7 +91,9 @@ if not log.handlers:
 # How long a spoken line stays eligible to be recognised as an echo of itself.
 # Long enough to cover a reply playing out plus the transcription round trip,
 # short enough that legitimately repeating a phrase later still gets through.
-ECHO_WINDOW_SECONDS = 25
+# How long what they said out loud is listened for coming back in: on a call with company the page plays the lines
+# in turn, and the last can leave the speakers a good while after it was voiced.
+ECHO_WINDOW_SECONDS = 60
 
 # How long a call rings before it is answered. Varied, because a constant delay
 # is only marginally less mechanical than none at all.
@@ -166,7 +168,7 @@ class Console(GroupChats):
         self.current_id = None
         # What the contact has said lately, for recognising its own voice
         # arriving back through the microphone.
-        self.recent_speech = deque(maxlen=12)
+        self.recent_speech = deque(maxlen=16)
         # Bumped whenever something supersedes the turn in flight. A turn that
         # finds its epoch stale stops forwarding events and stops synthesising,
         # which is what makes interrupting him actually interrupt him rather

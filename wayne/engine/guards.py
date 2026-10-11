@@ -275,16 +275,24 @@ def echoes(text, recently_spoken, threshold=0.62):
         # because it resembled a reply would be worse than the occasional echo.
         return False
 
-    for spoken in recently_spoken:
-        previous = (spoken or "").strip().lower()
-        if not previous:
-            continue
+    lines = [(spoken or "").strip().lower() for spoken in recently_spoken]
+    lines = [line for line in lines if line]
+    # On a call with company two lines come back as one take — Alfred's, then Randy's — and match neither alone.
+    joined = [f"{a} {b}" for a, b in zip(lines, lines[1:], strict=False)]
+    for previous in lines + joined:
         if difflib.SequenceMatcher(None, candidate, previous).ratio() >= threshold:
             return True
         # A short echo of a long reply scores low overall but is near-identical
         # to the fragment it came from, so check containment both ways.
         shorter, longer = sorted((candidate, previous), key=len)
         if len(shorter) >= 18 and shorter in longer:
+            return True
+    # And word for word: nearly every word of it was just said out loud — misheard here and there ("clazed"),
+    # run together, cut off — it's theirs coming back, not him.
+    words = [w for w in re.findall(r"[a-z']+", candidate) if len(w) > 2]
+    if len(words) >= 6 and lines:
+        said = set(re.findall(r"[a-z']+", " ".join(lines)))
+        if sum(w in said for w in words) / len(words) >= 0.8:
             return True
     return False
 
@@ -588,6 +596,34 @@ _VOCATIVE = re.compile(r"(?i)(?:^|[,.!?]\s*)(mom|mum|dad|honey|handsome|darling|
                        r"master \w+|b|bruce|selina|randy)\b(?=\s*[,.!?]|$)")
 
 
+# The shapes a call with company wore thin on (a family dinner, 11 Oct): "Master Timothy, if you… And Master Richard,
+# don't encourage him" — two people told off in one line, every line; "…And Tim?" — the line handed on at the end;
+# "if you think…, you are sorely mistaken" — the lecture; "good luck with that" said by Tim, then by Dick.
+_TWO_ADDRESSED = re.compile(r"[.!?…;]\s*(?:\[[^\]]*\]\s*)?\.*\s*[Aa]nd\s+(?:no,\s*)?(?:[Mm]aster\s+|[Mm]iss\s+)?"
+                            r"[A-Z][a-z]+\s*[,—–-]")
+_HANDED_ON = re.compile(r"(?:\b[Aa]nd\s+(?:[Mm]aster\s+)?[A-Z][a-z]+|[.!?…]\s*[A-Z][a-z]+)\s*[?…—]+\s*$")
+_LECTURE = re.compile(r"(?i)\bif you(?:'re| are| think| want| keep| spend| start| wanted| insist)?\b[^.?!]{3,100}?,\s*"
+                      r"(?:then |i suggest|i'd suggest|at least|you (?:are|might|should|could|can)|we (?:might|could))")
+_COMMON = {"the", "a", "an", "and", "to", "of", "you", "i", "it", "is", "that", "in", "on", "for", "with", "we", "he",
+           "she", "they", "be", "are", "was", "this", "but", "so", "just", "not", "me", "my", "your", "at", "do"}
+
+
+def _shared_phrase(texts):
+    """A run of three words two different lines both used — "good luck with", "don't be dramatic" — or ''."""
+    seen = {}
+    for n, text in enumerate(texts):
+        words = re.findall(r"[a-z']+", re.sub(r"\[[^\]]*\]", " ", text.lower()))
+        for i in range(len(words) - 2):
+            gram = words[i:i + 3]
+            if sum(w not in _COMMON for w in gram) < 2:
+                continue
+            key = " ".join(gram)
+            if key in seen and seen[key] != n:
+                return key
+            seen.setdefault(key, n)
+    return ""
+
+
 def worn_out(lines):
     """
     From the last lines of a conversation, (speaker, text) pairs: what's been used too often to use again —
@@ -597,6 +633,15 @@ def worn_out(lines):
     if len(texts) < 3:
         return []
     found = []
+    if sum(1 for t in texts if _TWO_ADDRESSED.search(t)) >= 2:
+        found.append("talking to two people in one line (\"X, … And Y, …\") — say it to one, or say less")
+    if sum(1 for t in texts[-6:] if _HANDED_ON.search(t.strip())) >= 2:
+        found.append("ending a line by handing it to someone (\"…And Tim?\")")
+    if sum(1 for t in texts if _LECTURE.search(t)) >= 2:
+        found.append("the \"if you…, then…\" lecture")
+    phrase = _shared_phrase(texts[-8:])
+    if phrase:
+        found.append(f"\"{phrase}\" (somebody's already said it)")
     if sum(1 for t in texts if _CONTRAST.search(t)) >= 2:
         found.append("the \"it's not X, it's Y\" turn of phrase")
     echoes_back = 0

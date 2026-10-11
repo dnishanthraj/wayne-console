@@ -32,7 +32,10 @@
   // Push-to-talk keeps the last moment too: a word begun a beat before the key
   // went down still makes it into the take.
   var PTT_PREROLL_MS = 300;
-  var SILENCE_HANGOVER_MS = 1100;  // silence before an utterance is considered over
+  // Silence before an utterance is over — counted from the end of his *voice* (see VOICE_HOLD_MS), not from the room
+  // going quiet: the level's slow release used to add the better part of a second on top, and a room that never
+  // went quiet held a take open for thirty.
+  var SILENCE_HANGOVER_MS = 850;
   var MIN_SPEECH_MS = 320;         // shorter than this is a cough, not a sentence
   var MAX_UTTERANCE_MS = 30000;
   var WAKE_MAX_MS = 4500;          // "Hey Alfred, where's Dick?" fits; a conversation across the room doesn't
@@ -52,7 +55,8 @@
   // reply leaking back through the speakers at the same bar as real speech
   // would let a contact interrupt itself — then answer what it just said, over
   // and over. Barging in costs a longer, louder commitment.
-  var ONSET_MS_DUCKED = 280;
+  // With a voice to go on, not just loudness, a quarter of a second is deliberate enough.
+  var ONSET_MS_DUCKED = 220;
   // Reverb and the audio pipeline both outlast the last sample, so the room is
   // still full of the reply for a moment after playback reports it is done.
   var ECHO_TAIL_MS = 550;
@@ -61,6 +65,35 @@
   // sentence and Whisper transcribes half a thought, while ending late costs a
   // moment of silence on the end of a clip nobody listens to. Err long.
   var EXIT_RATIO = 0.45;
+
+  /* Is it his voice? Loud was never enough: a mug put down, the keyboard, a door, the TV — anything over the room's
+     floor opened a take, held it open while it carried on, and was sent to be transcribed on the GPU the reply was
+     being written on. A take opens on his voice now: loud — he's at the mic, close; the room isn't — and shaped like
+     a voice: pitched (a fundamental between 70 and 420 Hz, which a click, a fan, a chair or a door hasn't), with its
+     energy where speech keeps it (200 Hz – 3.4 kHz, not the rumble or the hiss). It ends when his voice does. */
+  var VOICE_RATE = 8000;            // analysed at ~8 kHz: a voice's pitch and formants, at a sixth of the work
+  var VOICE_WINDOW_MS = 48;         // long enough for two periods of the lowest voice
+  var VOICE_HOP_MS = 20;
+  var PITCH_MIN_HZ = 70, PITCH_MAX_HZ = 420;
+  var VOICED_CLARITY = 0.55;        // how periodic a window must be (normalised autocorrelation: a voice is 0.7–0.95)
+  var SPEECH_BAND = 0.4;            // share of its energy in the speech band (a voice 0.6 and up; hiss about 0.15)
+  var VOICE_HOLD_MS = 320;          // after his last pitched moment he's still talking: consonants, the gaps between words
+  var VOICE_RECENT_MS = 220;        // how far back an onset looks for pitch
+  var ONSET_VOICED = 3;             // pitched windows in that time before a take opens…
+  var ONSET_VOICED_DUCKED = 4;      // …and more to talk over someone
+  var TAKE_VOICED_MIN = 5;          // a take with less voice in it than this is the room, not him: never sent
+  // How loud is "him, at the mic"? Until his voice has been heard, a fixed bar; then a share of how loud he usually is,
+  // learned from takes that turned out to be words (see heardHim) — the room's sounds sit well under it.
+  var NEAR_DEFAULT = 0.008;
+  var NEAR_SHARE = 0.3;
+  var NEAR_MIN = 0.005, NEAR_MAX = 0.05;
+  var NEAR_DUCKED = 1.6;            // over their voice, he has to be clearly louder than what leaks back in
+  // What leaks back in: how loud their voice comes back through the mic while it plays (a high percentile of the
+  // last moment and a half, so his own first words barely move it) — and he has to be well over it to cut in. A voice
+  // is a voice: their reply leaking past the echo cancelling is pitched too, and used to let them interrupt themselves.
+  var LEAK_SPAN_MS = 1500;
+  var LEAK_MARGIN = 2.2;
+  var VOICE_LEVEL_KEY = 'wayne-voice-level';
 
   var WORKLET = [
     'class Capture extends AudioWorkletProcessor {',
@@ -99,7 +132,21 @@
     // and how much has been heard since the last live caption.
     hangoverMs: SILENCE_HANGOVER_MS,
     sinceCaptionMs: 0,
-    endedBy: ''
+    endedBy: '',
+    // Is it his voice: the mic's own clock (so it holds however fast frames arrive), when he was last pitched, the
+    // last moment's verdicts, and how much voice — and how loud — the take in hand has had.
+    clock: 0,
+    voicedAt: -1e9,
+    recent: [],
+    takeVoiced: 0,
+    takeLevels: [],
+    lastTakeLevel: 0,
+    lastClarity: 0,
+    lastBand: 0,
+    voiceLevel: storedVoiceLevel(),
+    leak: [],
+    leakBar: 0,
+    leakAt: 0
   };
   // A caption of what he's saying, this often, while he says it.
   var CAPTION_EVERY_MS = 1200;
@@ -147,6 +194,138 @@
     var sum = 0;
     for (var i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
     return Math.sqrt(sum / frame.length);
+  }
+
+  /* --- is it his voice -------------------------------------------------- */
+
+  function storedVoiceLevel() {
+    try { return parseFloat(localStorage.getItem(VOICE_LEVEL_KEY)) || 0; } catch (e) { return 0; }
+  }
+
+  // The bar for "loud enough to be him": a share of his usual level once it's known.
+  function nearBar() {
+    if (!state.voiceLevel) return NEAR_DEFAULT;
+    return Math.max(NEAR_MIN, Math.min(NEAR_MAX, state.voiceLevel * NEAR_SHARE));
+  }
+
+  // A second-order filter (the RBJ cookbook's), Q 1/√2: 'low' or 'high' pass at f0.
+  function biquad(kind, f0, fs) {
+    var w = 2 * Math.PI * f0 / fs, c = Math.cos(w), alpha = Math.sin(w) * Math.SQRT1_2;
+    var a0 = 1 + alpha;
+    var b0 = (kind === 'low' ? (1 - c) / 2 : (1 + c) / 2) / a0;
+    var b1 = (kind === 'low' ? 1 - c : -(1 + c)) / a0;
+    var a1 = -2 * c / a0, a2 = (1 - alpha) / a0;
+    var x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    return function (x) {
+      var y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      return y;
+    };
+  }
+
+  /* The voice meter: the mic's samples low-passed and taken down to ~8 kHz, the rumble taken off, and every hop a
+     verdict on the last window — how periodic it is at a voice's pitch, and how much of its energy is speech's. */
+  function makeMeter(inRate) {
+    var step = Math.max(1, Math.round(inRate / VOICE_RATE)), rate8 = inRate / step;
+    var low = biquad('low', 3400, inRate), high = biquad('high', 200, rate8);
+    var size = Math.round(rate8 * VOICE_WINDOW_MS / 1000), hop = Math.round(rate8 * VOICE_HOP_MS / 1000);
+    var minLag = Math.floor(rate8 / PITCH_MAX_HZ), maxLag = Math.min(size - 24, Math.ceil(rate8 / PITCH_MIN_HZ));
+    var win = new Float32Array(size), pend = new Float32Array(hop), sq = new Float64Array(size + 1);
+    var filled = 0, waiting = 0, skip = 0, full = 0, fullN = 0, band = 0, bandN = 0;
+
+    function clarity() {
+      for (var i = 0; i < size; i++) sq[i + 1] = sq[i] + win[i] * win[i];
+      if (sq[size] < 1e-9) return 0;
+      var best = 0;
+      for (var lag = minLag; lag <= maxLag; lag++) {
+        var n = size - lag, num = 0;
+        for (var j = 0; j < n; j++) num += win[j] * win[j + lag];
+        var r = num / Math.sqrt(sq[n] * (sq[size] - sq[lag]) + 1e-12);
+        if (r > best) best = r;
+      }
+      return best;
+    }
+    function verdict(out) {
+      var share = fullN && bandN ? (band / bandN) / (full / fullN + 1e-12) : 0;
+      full = fullN = band = bandN = 0;
+      out.push({ clarity: clarity(), band: Math.min(1, share) });
+    }
+    return function (frame, out) {
+      for (var i = 0; i < frame.length; i++) {
+        var x = frame[i];
+        full += x * x; fullN++;
+        var y = low(x);
+        if (++skip < step) continue;
+        skip = 0;
+        var z = high(y);
+        band += z * z; bandN++;
+        if (filled < size) {
+          win[filled++] = z;
+          if (filled === size) verdict(out);
+          continue;
+        }
+        pend[waiting++] = z;
+        if (waiting === hop) {
+          win.copyWithin(0, hop);
+          win.set(pend, size - hop);
+          waiting = 0;
+          verdict(out);
+        }
+      }
+    };
+  }
+
+  var meter = null, meterRate = 0;
+  var heard = [];
+  // This frame through the meter: whatever windows it completed, judged — and the moment's verdicts kept.
+  function listen(frame) {
+    var r = rate();
+    if (!meter || meterRate !== r) { meter = makeMeter(r); meterRate = r; }
+    heard.length = 0;
+    meter(frame, heard);
+    for (var i = 0; i < heard.length; i++) {
+      var w = heard[i];
+      // Pitched and in the speech band — and over the room: a hum at the floor is pitched too, and nobody's voice.
+      var voiced = w.clarity >= VOICED_CLARITY && w.band >= SPEECH_BAND && state.envelope > state.noiseFloor * 1.5;
+      state.lastClarity = w.clarity;
+      state.lastBand = w.band;
+      state.recent.push({ at: state.clock, voiced: voiced });
+      if (voiced) {
+        state.voicedAt = state.clock;
+        if (state.speaking || state.pushing) {
+          state.takeVoiced++;
+          if (state.takeLevels.length < 600) state.takeLevels.push(state.envelope);
+        }
+      }
+    }
+    while (state.recent.length && state.clock - state.recent[0].at > VOICE_RECENT_MS) state.recent.shift();
+  }
+
+  // Their voice in the mic while it plays, sampled every few frames; the bar is a high percentile of it.
+  function trackLeak(level, playing) {
+    if (!playing) {
+      if (state.leak.length && Date.now() - state.lastPlayingAt > ECHO_TAIL_MS) { state.leak = []; state.leakBar = 0; }
+      return;
+    }
+    if (state.speaking) return;
+    state.leak.push({ at: state.clock, level: level });
+    while (state.leak.length && state.clock - state.leak[0].at > LEAK_SPAN_MS) state.leak.shift();
+    if (state.clock - state.leakAt < 50) return;
+    state.leakAt = state.clock;
+    var levels = state.leak.map(function (l) { return l.level; }).sort(function (a, b) { return a - b; });
+    state.leakBar = levels[Math.floor(levels.length * 0.8)] || 0;
+  }
+
+  function pitchedLately() {
+    var n = 0;
+    for (var i = 0; i < state.recent.length; i++) if (state.recent[i].voiced) n++;
+    return n;
+  }
+
+  // How loud his voice was in the take just finished: the median of the pitched moments.
+  function takeLevel() {
+    var levels = state.takeLevels.slice().sort(function (a, b) { return a - b; });
+    return levels.length ? levels[Math.floor(levels.length / 2)] : 0;
   }
 
   /* --- lifecycle --------------------------------------------------------- */
@@ -238,6 +417,8 @@
     state.speechMs = 0;
     state.sinceCaptionMs = 0;
     state.chunks = [];
+    state.takeVoiced = 0;
+    state.takeLevels = [];
   }
 
   /* --- frame handling ---------------------------------------------------- */
@@ -245,6 +426,7 @@
   function onFrame(frame) {
     var level = rms(frame);
     var frameMs = (frame.length / rate()) * 1000;
+    state.clock += frameMs;
 
     // Detection runs on an envelope, not on raw frame energy. A 128-sample
     // frame is under 3ms — far shorter than the gaps between words, so raw
@@ -255,6 +437,7 @@
 
     if (state.mode === 'ptt') {
       if (state.pushing) {
+        listen(frame);                   // held to talk: how loud his voice is, learned here too
         state.chunks.push(frame);
         if (handlers.onLevel) handlers.onLevel(Math.min(level * 5, 1));
         return;
@@ -276,7 +459,10 @@
       return;
     }
 
-    if (handlers.onLevel && state.mode !== 'wake') handlers.onLevel(Math.min(level * 5, 1));
+    listen(frame);
+    // The visualiser moves for his voice, not for the room: a cough or a door shows as a flicker at most.
+    var voicing = state.clock - state.voicedAt < VOICE_HOLD_MS;
+    if (handlers.onLevel && state.mode !== 'wake') handlers.onLevel(Math.min(level * (voicing || state.speaking ? 5 : 1.5), 1));
 
     ambientFrame(frame, state.envelope, frameMs);
   }
@@ -301,12 +487,19 @@
     var ducked = global.ConsoleAudio.isPlaying || global.ConsoleAudio.sounding ||
                  (Date.now() - state.lastPlayingAt) < ECHO_TAIL_MS;
     var factor = ducked ? SPEECH_FACTOR_DUCKED : SPEECH_FACTOR;
-    var enter = Math.max(state.noiseFloor * factor, ABSOLUTE_FLOOR);
+    trackLeak(level, ducked);
+    // Over the room by the usual margin — and loud enough to be him at the mic, not the room's own sounds; over
+    // their voice, well over what of it comes back in.
+    var enter = Math.max(state.noiseFloor * factor, ABSOLUTE_FLOOR, nearBar() * (ducked ? NEAR_DUCKED : 1),
+                         ducked ? state.leakBar * LEAK_MARGIN : 0);
     // The exit bar is also clamped above the measured room, because an exit
     // threshold below the noise floor can never be crossed — the take opens
     // and then stays open forever, which is the other way this fails.
     var exit = Math.max(enter * EXIT_RATIO, state.noiseFloor * 1.8);
-    var voiced = state.speaking ? level > exit : level > enter;
+    // Loud, and his voice: pitched a moment ago. Loud and not a voice — the TV, the kettle, the room carrying on —
+    // neither opens a take nor keeps one open.
+    var voicing = state.clock - state.voicedAt < VOICE_HOLD_MS;
+    var voiced = (state.speaking ? level > exit : level > enter) && voicing;
 
     if (!state.speaking) {
       // Always retain a little history so a take never starts mid-syllable.
@@ -319,9 +512,11 @@
 
       if (voiced) {
         state.speechMs += frameMs;
-        if (state.speechMs >= (ducked ? ONSET_MS_DUCKED : ONSET_MS)) {
+        if (state.speechMs >= (ducked ? ONSET_MS_DUCKED : ONSET_MS) &&
+            pitchedLately() >= (ducked ? ONSET_VOICED_DUCKED : ONSET_VOICED)) {
           state.speaking = true;
           state.silenceMs = 0;
+          state.takeVoiced = pitchedLately();
           state.chunks = state.preroll.slice();
           state.preroll = [];
           state.prerollFrames = 0;
@@ -362,9 +557,13 @@
   function finishUtterance() {
     var chunks = state.chunks;
     var spoke = state.speechMs - state.silenceMs;
+    var voice = state.takeVoiced;
+    state.lastTakeLevel = takeLevel();
     resetAmbient();
     if (handlers.onSpeechEnd) handlers.onSpeechEnd();
-    if (spoke < MIN_SPEECH_MS || !chunks.length) return;
+    // Too short, or too little voice in it to be him: the room. Not sent to be heard — which costs the GPU the
+    // reply's being written on — at all.
+    if (spoke < MIN_SPEECH_MS || !chunks.length || voice < TAKE_VOICED_MIN) return;
     var pcm = resample(merge(chunks), rate());
     if (state.mode === 'wake') { if (handlers.onWake) handlers.onWake(pcm); return; }
     if (handlers.onUtterance) handlers.onUtterance(pcm);
@@ -396,6 +595,8 @@
   function pushStart() {
     if (state.mode !== 'ptt') return Promise.resolve();
     state.pushing = true;
+    state.takeVoiced = 0;
+    state.takeLevels = [];
     state.chunks = state.preroll.slice();     // the moment just before the key
     state.preroll = [];
     state.prerollFrames = 0;
@@ -409,6 +610,7 @@
     var tooShort = Date.now() - state.startedAt < MIN_TAKE_MS;
     var chunks = state.chunks;
     state.chunks = [];
+    state.lastTakeLevel = takeLevel();
     var captureRate = rate();
     if (!state.held) close();      // on a call it stays open for the next press
     if (handlers.onLevel) handlers.onLevel(0);
@@ -433,9 +635,24 @@
     state.hangoverMs = Math.max(380, Math.min(SILENCE_HANGOVER_MS, ms || SILENCE_HANGOVER_MS));
   }
 
+  /* The take just sent turned out to be words: how loud he was in it is how loud he is — folded into what "loud
+     enough to be him" means from now on, and kept for the next visit. */
+  function heardHim() {
+    var level = state.lastTakeLevel;
+    state.lastTakeLevel = 0;
+    if (!(level > NEAR_MIN)) return;
+    state.voiceLevel = state.voiceLevel ? state.voiceLevel * 0.75 + level * 0.25 : level;
+    try { localStorage.setItem(VOICE_LEVEL_KEY, String(Math.round(state.voiceLevel * 1e5) / 1e5)); } catch (e) { /* kept for this visit only */ }
+  }
+
+  // Frames handed in directly, as the worklet would — for the page's own checks of the detector.
+  function feed(frame) { onFrame(frame); }
+
   global.ConsoleMic = {
     setMode: setMode,
     setPatience: setPatience,
+    heardHim: heardHim,
+    feed: feed,
     get endedBy() { return state.endedBy; },
     pushStart: pushStart,
     pushStop: pushStop,
@@ -451,12 +668,17 @@
     // able to read what it currently believes is the difference between tuning
     // it and guessing at it.
     get vad() {
+      var playing = global.ConsoleAudio.isPlaying;
       return {
         noiseFloor: state.noiseFloor,
-        threshold: Math.max(
-          state.noiseFloor * (global.ConsoleAudio.isPlaying ? SPEECH_FACTOR_DUCKED : SPEECH_FACTOR),
-          ABSOLUTE_FLOOR
-        ),
+        threshold: Math.max(state.noiseFloor * (playing ? SPEECH_FACTOR_DUCKED : SPEECH_FACTOR), ABSOLUTE_FLOOR,
+                            nearBar() * (playing ? NEAR_DUCKED : 1)),
+        envelope: state.envelope,
+        near: nearBar(),
+        voiceLevel: state.voiceLevel,
+        clarity: Math.round(state.lastClarity * 100) / 100,
+        band: Math.round(state.lastBand * 100) / 100,
+        voicing: state.clock - state.voicedAt < VOICE_HOLD_MS,
         speaking: state.speaking,
         speechMs: Math.round(state.speechMs),
         silenceMs: Math.round(state.silenceMs)

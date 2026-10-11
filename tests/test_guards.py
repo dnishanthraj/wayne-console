@@ -458,3 +458,37 @@ def test_a_remark_on_how_little_he_said_in_other_words_is_dropped_too():
     assert guards.remarks_on_brevity("Remarkably brief tonight, sir.", "fine")
     assert guards.remarks_on_brevity("A man of few words.", "yeah")
     assert not guards.remarks_on_brevity("Brief meeting tomorrow at nine.", "when is it")    # a long prompt: left alone
+
+
+# --- a call with company, worn thin (from a family dinner on the line, 11 Oct) ----------------------------------
+
+DINNER = [
+    ("alfred", "Master Timothy, if you spend as much time on those thermal overlays as you do arguing with your "
+               "brother, we might actually get through this meal. And Master Richard, don't encourage him."),
+    ("batwing", "Tell him I'm already halfway through my portion, Alfred. ...And tell Drake to eat his food."),
+    ("robin", "[laughs] Good luck with that, Alfred. The kale was only half as bad as Jason's protein shakes."),
+    ("batgirl", "Randy, don't be so dramatic. And Tim?"),
+    ("nightwing", "[laughs] Good luck with that, Alfie. Seriously though, let him finish a sentence."),
+    ("alfred", "Master Bruce, if you're going to interrupt, at least do it with some conviction. ...And Master "
+               "Randy, do try not to let the resentment boil over before dessert."),
+    ("batwing", "Don't worry, Alfred. I've got my own knife. And Drake?"),
+]
+
+
+def test_the_shapes_a_call_wore_thin_are_named_for_the_next_speaker():
+    worn = " | ".join(guards.worn_out(DINNER))
+    for shape in ("two people in one line", "handing it to someone", "lecture", "good luck with"):
+        assert shape in worn, shape
+    plain = [("robin", "We're at the Manor. Dinner ran long."), ("alfred", "Indeed, sir. The roast is nearly done."),
+             ("nightwing", "Come by after, B. We saved you a plate."), ("batgirl", "And the feeds are clean, for once.")]
+    assert guards.worn_out(plain) == []
+
+
+def test_two_of_their_lines_coming_back_as_one_take_are_an_echo():
+    said = ["It's quite lovely, sir, though Master Randy and I are currently engaged in a rather spirited debate "
+            "over whether the carrots were properly glazed.", "They're fine, Alfred.",
+            "Don't let Tim convince you they're mediocre just because he wants more seconds."]
+    take = ("But Master Randy and I are currently engaged in a whole new spirit of debate over whether the carrots "
+            "were properly clazed. They're fine, Alfred. Don't let Tim convince you they're mediocre.")
+    assert guards.echoes(take, said)
+    assert not guards.echoes("Tim, are the carrots really that bad or is Alfred just proud?", said)

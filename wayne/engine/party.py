@@ -33,12 +33,24 @@ MAX_CONTACTS = 7          # him and seven of them: the whole family on one line
 MAX_TURNS = 3
 # How much less someone on another's speaker chimes in, or fills a pause, than someone on their own line.
 ROOM_GUEST = 0.35
-# How often, after the people he spoke to have answered, someone else jumps in.
-CHIME = 0.5
+# How often, after the people he spoke to have answered, someone else jumps in — once at most. At a half, twice a
+# round, a family dinner on the line became the family talking to each other while he asked "what's going on?" three
+# times and finally "I am on this call."
+CHIME = 0.3
 
 _THE_ROOM = re.compile(
     r"\b(both of you|you both|you two|the two of you|all of you|you all|everyone|"
     r"everybody|guys|you lot)\b", re.I)
+
+
+# What makes a line one the person it names would answer: asked something, spoken to about themselves, or handed his
+# question ("ask Lucius, he built it"). "Good luck with that, Alfred" is none of them — Alfred heard it, that's all.
+_BRINGS_IN = re.compile(r"\?|\b(?:you|you're|your|you've|you'll|yours)\b|\b(?:ask|would know|knows|can tell|"
+                        r"tell (?:him|you|them)|your call|over to)\b", re.I)
+
+
+def _brings_in(line):
+    return bool(_BRINGS_IN.search(line or ""))
 
 
 def _opening(text):
@@ -165,7 +177,10 @@ class Call:
                 "goodbye and end with [hang up] — you'll drop off and the call goes on. If he "
                 "asks you to get someone on the line — asks you: \"let me call Tim\" is him doing it himself, "
                 "when he's ready — or someone truly needs to be here, end "
-                "with [add: their first name] and you'll ring them in.")
+                "with [add: their first name] and you'll ring them in. He's on this call: when he talks, he comes "
+                "first — answer what he asked, plainly, before anything for the others, and never talk about him as "
+                "if he weren't on the line. Say your line to one person; don't hand it on at the end (\"…And "
+                "Tim?\"), and don't pick up a phrase someone else just used.")
         secret = identity.guard_note(session.contact.id, self._ids(session))
         if secret:
             note += " " + secret
@@ -311,8 +326,9 @@ class Call:
             for other in self.others(member):
                 other.heard.append(self.heard_as(member.contact.id, reply, other))
             self._notice_asks(reply)
-            # Someone named or asked in that reply may come in — once.
-            if not queue and turns < most:
+            # Someone that reply brings in may come in — once. Named isn't brought in: "good luck with that,
+            # Alfred" pulled Alfred in, whose line named Tim, whose line named Randy.
+            if not queue and turns < most and _brings_in(reply):
                 for other in self.addressed(reply):
                     if other is not member and other not in spoken:
                         queue.append((other, True))
@@ -324,7 +340,7 @@ class Call:
         # Two of them on the line: an answer and a chime every time is a volley he's watching, not a call he's on.
         chance = CHIME * min(1.0, 0.55 + 0.25 * (len(self.members) - 1)) * (0.5 if len(self.members) == 2 else 1.0)
         extra = 0
-        while extra < 2 and len(self.members) > 1 and random.random() < chance:
+        while extra < 1 and len(self.members) > 1 and random.random() < chance:
             others = [m for m in self.members if m is not self.last_speaker and m.contact.id not in self.muted]
             if not others:
                 break
@@ -419,9 +435,10 @@ class Call:
         """Jumping in on what's just been said, unasked — or staying out of it."""
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
-            "Nobody asked you anything, but you're on this call and you heard that. If you'd "
-            "jump in — agree, argue, rib someone, add what you know, ask someone something — "
-            "say it in a line, to whoever it's for. If you'd stay out of it, reply with exactly SKIP.")
+            "Nobody asked you anything, but you're on this call and you heard that. Come in only if you've "
+            "something worth saying — what you know that the others don't, a real disagreement, the answer to what "
+            "he asked that nobody's given him — in a line, to one person. Not a jab by reflex, not a remark passed "
+            "on to the next person. Mostly you'd stay out of it: then reply with exactly SKIP.")
         line = yield from self._speak_aside(member, instruction)
         if line:
             self.last_speaker = member
@@ -490,10 +507,10 @@ class Call:
         return (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             f"The call's going — you're on with {identity.full_name_for(member.contact.id)} and {others}, and the last line has "
-            "just landed. If you'd come in now, do it the way you would with these people: answer or "
-            "rib whoever spoke, disagree, pick up a thread, ask one of them something by name, or turn "
-            "to him. Keep it to what one person says before someone else talks — often a few words. "
-            "If you'd leave it, or it's run its course, reply with exactly SKIP."
+            "just landed. If you'd come in now, do it the way you would with these people: to him, most "
+            "likely — what he asked that's still hanging, what he'd want to know — or a thread left open. One "
+            "person, often a few words; not a jab for the sake of one. If you'd leave it, or it's run its course, "
+            "reply with exactly SKIP."
             + (" He hasn't said anything for a while; someone might check he's still there — or you "
                "carry on without him." if quiet_for >= 3 else ""))
 
@@ -554,8 +571,8 @@ class Call:
         """
         self.aside_answered = False
         target = self._named(line, speaker)
-        if target is None:
-            return
+        if target is None or not _brings_in(line):
+            return                  # named, not asked: they heard it, and that's all
         reply = yield from self._speak(target, line, False, 1.0, True, via="from_contact")
         if reply:
             self.last_speaker = target

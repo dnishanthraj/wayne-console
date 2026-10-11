@@ -7,6 +7,55 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-11
+
+Live mic and group calls, from a real session: a family dinner on the line
+where takes ran 12 to 30 seconds, replies took 3 to 17 seconds to start, and
+everyone talked to each other while you asked "what's going on?" three times.
+
+### Changed
+
+- **The live mic opens for your voice, and nothing else.** It used to open on
+  anything a little louder than the room for an eighth of a second (a cough,
+  the keyboard, a door, the TV) and stay open while the sound carried on.
+  Background noise held takes open for up to thirty seconds, and every one
+  was transcribed on the GPU the reply was being written on. Now a take opens
+  only on sound that is:
+  - **loud enough to be you at the mic.** It learns how loud you usually
+    are from your own takes and needs about a third of that, so the room
+    sits well under it;
+  - **shaped like a voice:** pitched between 70 and 420 Hz, with its energy
+    in the speech band. Clicks, fans, rumble and hiss have neither.
+
+  A take closes when your voice stops, not when the room goes quiet. That
+  takes about half a second off every turn, and takes with too little voice
+  in them aren't sent at all.
+- **Cutting in is quicker and can't be set off by them.** While they talk,
+  the mic measures how loud their voice comes back through your speakers,
+  and you have to be clearly louder to cut in. In return, it now takes a
+  fifth of a second of your voice instead of almost a third.
+- **Group calls answer you.** When you talk, whoever you're talking to
+  answers you first, plainly, and nobody talks about you as if you weren't on
+  the line. Someone named in a line answers only if they're asked something,
+  spoken to, or handed your question. "Good luck with that, Alfred" no longer
+  pulls Alfred in, whose line pulled in Tim, whose line pulled in Randy.
+  Unprompted chimes are rarer (one per round at most) and are for something
+  worth saying, not a reflex jab.
+- **The shapes a call wears thin are noticed and steered round.** These
+  include addressing two people in one line ("Master Timothy, if you… And
+  Master Richard, don't encourage him"), ending a line by handing it on ("…And
+  Tim?"), the "if you…, then…" lecture, and a phrase picked up from whoever
+  spoke last ("good luck with that", twice running).
+
+### Fixed
+
+- **Their voices aren't taken for yours.** Two of their lines coming back
+  through the speakers as one take, with a word misheard ("clazed"), slipped
+  past the echo check and were answered as if you'd said them. The check now
+  compares against neighbouring lines run together, and against the words
+  themselves, and remembers a minute of what was played (on a group call the
+  last line can leave the speakers well after it was voiced).
+
 ## [1.0.0] - 2026-10-11
 
 Everything on the list is done. The last two releases came from two reviews
