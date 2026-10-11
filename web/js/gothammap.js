@@ -821,11 +821,26 @@
     });
     return files[0].then(function (fc) {
       fc.features.forEach(function (f) { f.geometry.coordinates = convert(f.geometry.coordinates); });
+      // The city's own additions, kept on this machine: drawn as its venues are, and found by search as its places.
+      (opts.data.lore || []).forEach(function (v) {
+        fc.features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: ll(v.x, v.y) },
+                           properties: { l: 'venue', k: v.kind, n: v.name, a: v.area, c: 1 } });
+        gazetteer.places = (gazetteer.places || []).concat([{ name: v.name, kind: 'venue', area: v.area, x: v.x, y: v.y,
+                                                              bio: v.bio, note: v.note, icon: v.kind }]);
+      });
       // Where each place is actually drawn — the build nudges a spot off the buildings — so search flies there.
       fc.features.forEach(function (f) {
         if (f.properties && f.properties.l === 'place' && f.properties.n && f.geometry.type === 'Point') {
           drawnAt[f.properties.n] = f.geometry.coordinates;
         }
+      });
+      // A place added to the gazetteer since the map was last built — someone's new flat — drawn all the same.
+      (gazetteer.places || []).forEach(function (p) {
+        if (p.kind === 'district' || p.kind === 'venue' || drawnAt[p.name] || typeof p.x !== 'number') return;
+        var at = ll(p.x, p.y);
+        fc.features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: at },
+                           properties: { l: 'place', k: p.kind, n: p.name, i: p.icon || '', a: p.area } });
+        drawnAt[p.name] = at;
       });
       map.getSource('city').setData(fc);
       if (window.GothamTraffic) GothamTraffic.init(fc, gazetteer.places || []);
@@ -930,7 +945,8 @@
       hover.hidden = false;
       hover.style.left = (e.point.x + 14) + 'px';
       hover.style.top = (e.point.y + 14) + 'px';
-      map.getCanvas().style.cursor = dropping ? 'var(--cursor-target)' : (top.properties.l === 'place' || top.properties.m ? 'var(--cursor-pointer)' : '');
+      map.getCanvas().style.cursor = dropping ? 'var(--cursor-target)' : (top.properties.l === 'place' || top.properties.m ||
+                                                                          top.properties.c ? 'var(--cursor-pointer)' : '');
     }
     map.getCanvas().addEventListener('mouseleave', function () { hover.hidden = true; });
     ['landmark', 'home', 'spot', 'district-label', 'quarter-label'].forEach(function (layer) {
@@ -941,6 +957,13 @@
                     duration: 900 });
         placeCard(f.properties.n);
       });
+    });
+    // A venue of the city's own additions opens like a place: what it is, and what he thinks of it.
+    map.on('click', 'venue', function (e) {
+      var f = e.features[0];
+      if (dropping || !f.properties.c) return;
+      map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 15.4), duration: 900 });
+      placeCard(f.properties.n);
     });
     // The report itself, not the map's flattened copy of it (lists come back as strings).
     function reportFor(f) {

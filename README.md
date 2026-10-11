@@ -5,7 +5,7 @@
 **Gotham, running on your Mac.**
 Call Alfred. Text Dick. Get left on read by Jason. Watch the city move on a live holographic map, and work the cases off the police scanner.
 
-![version](https://img.shields.io/badge/version-1.3.1-4fa8e0?style=flat-square)
+![version](https://img.shields.io/badge/version-1.4.0-4fa8e0?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-0b1520?style=flat-square&logo=apple)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-0b1520?style=flat-square&logo=python&logoColor=white)
 ![model](https://img.shields.io/badge/LLM-local%20via%20Ollama-0b1520?style=flat-square)
@@ -426,6 +426,8 @@ wayne-console/
 ## 🧬 Making it yours
 
 **Be someone else.** Who you are lives in an operator profile, [`wayne/operators/bruce.json`](wayne/operators/bruce.json): your story, what each contact calls you ("Master Bruce", "Mr. Wayne", "old man"), and the world, with every fact tagged by who knows it. Copy it somewhere private, rewrite it, and point `WAYNE_OPERATOR` at it. Every contact follows.
+
+**Add your own Gotham, privately.** A diner named for a friend, a reporter who writes to you, a fact only some of them know: put it in `data/lore.json` and it's part of the world. Places go on the map (clickable, with your note) and in the Codex, people into the Codex, facts into the briefing of whoever you say knows them, letter-writers into your mail. It lives in `data/`, so it's never committed: friends' names stay off GitHub. The format is in [`wayne/lore.py`](wayne/lore.py).
 
 **Add someone.** Drop a JSON file in `wayne/contacts/profiles/`. For a portrait, drop a picture on their face in the Codex: it's saved as `web/portraits/<id>.png` (anyone else's in `web/portraits/codex/`) and framed in a pop-up, the same framing everywhere. Portraits are gitignored, since they're usually personal or someone else's copyright.
 

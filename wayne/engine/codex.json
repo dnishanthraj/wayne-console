@@ -498,7 +498,7 @@
       "alias": "",
       "group": "Gotham",
       "pronoun": "she",
-      "age": 34,
+      "age": 23,
       "born": "",
       "height": "5′5″ (165 cm)",
       "weight": "",
@@ -506,9 +506,10 @@
       "hair": "Dark, cropped",
       "home": "Old Gotham",
       "occupation": "Crime reporter, Gotham Gazette",
-      "bio": "Evelyn Adams runs the Gazette's crime desk: first at every scene, a scanner on her nightstand and no friends at City Hall. She writes the morning's worst before the coffee's on.\n\nShe owes nobody, which makes her the only reporter in Gotham I'd trust with a tip — and the last one I'd want on my trail.",
+      "bio": "Evelyn Adams is twenty-three and already the best thing on the Gazette's crime desk: first at every scene, a scanner on her nightstand and no friends at City Hall. She writes the morning's worst before the coffee's on.\n\nShe's also, as far as anyone can tell, the reason Jason has started answering his phone before noon. She knows Jason Todd. She doesn't know about the hood — and a reporter that good should never have a reason to look. She owes nobody, which makes her the only one in Gotham I'd trust with a tip, and the last one I'd want on my trail.",
       "reach": [
-        "batgirl"
+        "batgirl",
+        "redhood"
       ]
     },
     {

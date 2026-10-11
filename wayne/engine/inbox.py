@@ -494,7 +494,7 @@ def write_one(model, options, now=None):
     weekend = datetime.date.fromtimestamp(now).weekday() >= 5
     if 8 <= hour < 19 and len(company) < (1 if weekend else 3) and _draw("company", day, len(company)) < (0.15 if weekend else 0.5):
         return _company(model, options, now)
-    letters = [m for m in sent if m.get("kind") == "letter" and m.get("sender") in CORRESPONDENTS]
+    letters = [m for m in sent if m.get("kind") == "letter" and m.get("sender") in _writers()]
     if 8 <= hour < 22 and len(letters) < (1 if weekend else 2) and _draw("letter", day, len(letters), hour) < 0.35:
         made = _correspondent(model, options, now)
         if made:
@@ -658,8 +658,9 @@ CORRESPONDENTS = {
               "the Gotham Gazette's investigative reporter — they dated once; flirtatious, sharp, always fishing: a "
               "story she's chasing, a dinner, a question about where he really goes at night"),
     "evelyn": ("Evelyn Adams", "eadams@gothamgazette.com", 2,
-               "the Gazette's crime reporter — terse, relentless, owes nobody: she wants Wayne Enterprises' comment on "
-               "something on her desk (a crime touching WE property, the Narrows rebuilding, a security contract)"),
+               "the Gazette's crime reporter, twenty-three — terse, relentless, owes nobody: she wants Wayne "
+               "Enterprises' comment on something on her desk (a crime touching WE property, the Narrows rebuilding, a "
+               "security contract). She's seeing Jason, which neither of them would ever put in a work email"),
     "leslie": ("Dr. Leslie Thompkins", "leslie@parkrowclinic.org", 2,
                "who held him the night his parents died and runs the free clinic on Park Row — warm, blunt, "
                "motherly: the clinic needs something, a patient's story, or she's worried about him and says so"),
@@ -693,6 +694,12 @@ CORRESPONDENTS = {
 _VOICES.update({cid: f"{entry[0]}, {entry[3]}" for cid, entry in CORRESPONDENTS.items()})
 
 
+def _writers():
+    """Everyone who writes to him: the Codex's correspondents, and the city's own additions (see wayne.lore)."""
+    from .. import lore
+    return {**CORRESPONDENTS, **lore.correspondents()}
+
+
 def _press():
     """What's really in the news this week — the tech, business and science Lucius follows, the policy Barbara does:
     searched, never made up (engine.culture) — for letters that would touch it. '' when nothing's been read."""
@@ -714,7 +721,7 @@ def _correspondent(model, options, now, rng=random):
     voice, picking up where they last left off with him, if they have.
     """
     recent = {m.get("sender") for m in mail() if now - m["at"] < 2 * 86400}
-    pool = [(cid, entry) for cid, entry in CORRESPONDENTS.items() if cid not in recent]
+    pool = [(cid, entry) for cid, entry in _writers().items() if cid not in recent]
     if not pool:
         return None
     cid, (name, address, _, who) = rng.choices(pool, weights=[e[2] for _, e in pool])[0]
@@ -745,7 +752,9 @@ def _reply_letter(model, options, event, now):
         return None
     secure = theirs.get("folder") == "secure"
     him = "Batman" if theirs.get("sender") == "gordon" else "Bruce Wayne"
-    voice = _VOICES.get(theirs.get("sender")) or f"{theirs['from']}, writing as they did before"
+    writer = _writers().get(theirs.get("sender"))
+    voice = _VOICES.get(theirs.get("sender")) or (f"{writer[0]}, {writer[3]}" if writer else None) \
+        or f"{theirs['from']}, writing as they did before"
     lines = "\n\n".join(f"— {m['from']} ({time.strftime('%a %-d %b, %H:%M', time.localtime(m['at']))}):\n"
                          f"{m['body'][:1200]}" for m in convo[-6:])
     found = _ask(model, options, _context(now, secure=secure)

@@ -6945,6 +6945,21 @@
    "note": "He has four of these. This is the one he lets me know about."
   },
   {
+   "name": "Evelyn's apartment",
+   "x": 65.6,
+   "y": 49.6,
+   "area": "The Bowery",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "evelyn's apartment",
+    "evelyn's place",
+    "evelyn's flat"
+   ],
+   "bio": "A second-floor one-bed on the Bowery, a block off Crime Alley: a police scanner on the windowsill, a wall of clippings, a good lock she fitted herself, and a second toothbrush nobody mentions.",
+   "note": "Close enough to Crime Alley for the scanner and for Jason, she says — in that order. I've had the street watched. Quietly."
+  },
+  {
    "name": "Selina's apartment",
    "x": 80.4,
    "y": 101.9,

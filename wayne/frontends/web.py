@@ -4532,6 +4532,11 @@ app = FastAPI(title="WayneTech Console", docs_url=None, redoc_url=None,
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
+def _lore():
+    from .. import lore
+    return lore
+
+
 def _contact_payload(contact):
     """What the page is told about a contact — who they are, not what runs them."""
     return {
@@ -4669,6 +4674,8 @@ async def session_info():
         "default": config.DEFAULT_CONTACT,
         # Gotham, for the little map on a status card.
         "map": {**{k: v for k, v in places.gazetteer().items() if k in ("places", "regions", "areas")},
+                # The city's own additions, kept on this machine (see wayne.lore): drawn with its venues.
+                "lore": [{k: v[k] for k in ("name", "kind", "area", "x", "y", "bio", "note")} for v in _lore().venues()],
                 # When the map was last built: its files are fetched with it, so a rebuilt
                 # city is never the browser's cached old one.
                 "version": f"{(WEB_DIR / 'map' / 'gotham.geojson').stat().st_mtime:.0f}"

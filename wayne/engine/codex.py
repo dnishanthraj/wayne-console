@@ -48,7 +48,8 @@ def people(directory):
     """The people of the Codex, each with whether he can ring them, and through whom if not."""
     mine, framed = notes(), frames()
     out = []
-    for person in _data()["people"]:
+    from .. import lore
+    for person in _data()["people"] + lore.people():
         entry = dict(person)
         contact = directory.get(person.get("contact") or "")
         entry["callable"] = contact is not None

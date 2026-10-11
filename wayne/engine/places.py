@@ -225,13 +225,22 @@ def road_near(x, y, within=1.0):
 
 
 @lru_cache(maxsize=1)
-def venues():
-    """The city's bars, clubs, diners, cafés, gyms, cinemas, hotels and shops, as the map has them — each with its line."""
+def _built_venues():
     path = Path(__file__).with_name("venues.json")
     found = json.loads(path.read_text()).get("venues", []) if path.exists() else []
     notes_path = Path(__file__).with_name("venue_notes.json")
     notes = json.loads(notes_path.read_text()).get("notes", {}) if notes_path.exists() else {}
     return [{**v, "bio": notes.get(v["name"], "")} for v in found]
+
+
+def venues():
+    """
+    The city's bars, clubs, diners, cafés, gyms, cinemas, hotels and shops, as the map has them — each with its line —
+    and the city's own additions, kept on this machine (see wayne.lore): a friend's diner is as real as Ralli's. The
+    map's are read once; the additions whenever their file changes.
+    """
+    from .. import lore
+    return _built_venues() + lore.venues()
 
 
 def around(x, y, but="", most=3, within=1.6):

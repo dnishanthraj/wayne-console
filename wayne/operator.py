@@ -93,7 +93,8 @@ def briefing(contact_id):
         or p.get("default_address")
     if address:
         lines.append(f"What you call him: {address}")
-    facts = [f["text"] for f in p.get("world", []) if _knows(f, contact_id, level)]
+    from . import lore
+    facts = [f["text"] for f in p.get("world", []) + lore.facts() if _knows(f, contact_id, level)]
     if facts:
         lines.append("What you know — background, not material: don't recite it, raise it "
                      "only when it matters, and never claim more than this:\n"

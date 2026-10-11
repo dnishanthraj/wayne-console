@@ -7,6 +7,33 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-11
+
+### Added
+
+- **Your own Gotham, kept private: `data/lore.json`.** Add places, people,
+  facts and letter-writers to the world, and they become as real as Ralli's:
+  - **Places** go on the map, drawn and searchable like the city's own
+    venues; click one for its description and your note. They also go into
+    the Codex, and anyone can say they're going there.
+  - **People** go into the Codex.
+  - **Facts** go into the briefing of whoever you say knows them.
+  - **Letter-writers** go into your mail.
+
+  It lives in `data/`, so it's never committed: friends' names and in-jokes
+  stay off GitHub.
+- **Evelyn Adams is Jason's.** She's twenty-three now, still the Gazette's
+  crime reporter, and she knows Jason Todd but not the Red Hood. Jason
+  mentions her more than he means to, then changes the subject. The family
+  knows about them and teases him when he lets them; Jim doesn't. She has a
+  flat on the Bowery, a block off Crime Alley, and it's on the map.
+
+### Fixed
+
+- **A place added to the gazetteer shows on the map without a rebuild.** It
+  used to be in search and in what the characters know, but not drawn until
+  the whole map was built again.
+
 ## [1.3.1] - 2026-10-11
 
 ### Added

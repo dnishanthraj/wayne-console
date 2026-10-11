@@ -123,6 +123,10 @@
     {
       "known_by": "masks",
       "text": "You reach him on the line he left you — a phone with no number that rings when he wants to talk, and that you can ring when the signal would take too long."
+    },
+    {
+      "known_by": ["alfred", "nightwing", "robin", "batgirl", "orphan", "batwing"],
+      "text": "Jason's seeing Evelyn Adams — twenty-three, the Gazette's young crime reporter. She knows Jason Todd, not the Red Hood. The family knows, teases him about it when he lets them, and worries a little: she's a very good reporter."
     }
   ],
   "whisper_hints": [
