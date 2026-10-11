@@ -590,7 +590,11 @@ def check(contact, scenario, turns, primer_lines):
             failures["repetition"] = "; ".join(repeats.values())
 
     last = delivery.clean(replies[-1]) if replies else ""
-    for pattern in rules.get("must", []):
+    # Playing Bruce, a past they share that fits is theirs to build on — Alfred taught him to ride a bike — so a
+    # rule that wants "I don't remember" only holds outside the game (see session: _SHARED_PAST under roleplay).
+    from wayne import operator as wayne_operator
+    musts = [] if rules.get("not_in_roleplay") and wayne_operator.roleplay() else rules.get("must", [])
+    for pattern in musts:
         if not re.search(pattern, last):
             failures["scenario rule"] = f"missing /{pattern}/"
     for pattern in rules.get("must_not", []):

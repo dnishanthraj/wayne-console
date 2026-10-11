@@ -126,7 +126,8 @@
    "checks": {
     "must": [
      "(?i)(don'?t|do not|can'?t)[\\s.…,]*(recall|remember)|remind me|tell me"
-    ]
+    ],
+    "not_in_roleplay": true
    },
    "core": true
   },

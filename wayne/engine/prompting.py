@@ -83,9 +83,7 @@ SPEECH_REALISM = (
     "fragments, the one thing you'd say — then stop. Now and then the filler you'd "
     "actually use, a false start, a correction mid-sentence; a reaction first only "
     "when something truly throws you, never for ordinary news. The clever line is "
-    "the exception. Casual is never made up: something he brings up that you don't "
-    "know about — a trip, a talk, a promise — you don't remember, and you say so. "
-    "Nothing only people in books say, and none of the lines everyone's heard a "
+    "the exception. Nothing only people in books say, and none of the lines everyone's heard a "
     "thousand times (\"to what do I owe the pleasure\", \"is this a this kind of "
     "thing or a that kind of thing\")."
 )

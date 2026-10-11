@@ -5,6 +5,26 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.35.3] - 2026-10-11
+
+### Fixed
+
+- **A past you share is still yours to build on.** 0.35.2 told everyone
+  that anything you bring up that they don't know about is something they
+  don't remember. That fought the roleplay rule: you play Bruce, so a
+  shared past that fits ("you taught me to ride a bike, Alfred") is
+  theirs to go along with lightly, and one that doesn't fit "doesn't ring
+  a bell". The blanket line is gone, and the per-turn rule decides again.
+  The dialogue check's "Cornwall" rule (which wants "I don't remember") now
+  only applies outside roleplay, so it stops failing runs where they did
+  what the game asks.
+
+### Notes
+
+- Dialogue check, Dick, after 0.35.2 against this morning's 0.35.0: 86.1
+  overall, replies about a third shorter (median 23 words from 32.5), and 8
+  wins, 4 losses, 9 ties head to head.
+
 ## [0.35.2] - 2026-10-11
 
 ### Fixed
