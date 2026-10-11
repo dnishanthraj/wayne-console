@@ -714,5 +714,6 @@
     ]
   },
   "voice_range": "few words, all the feeling in them — [softly], [quietly], a rare [laughs] that surprises everyone; when someone you love is hurt, [worried] and fast",
-  "speaking": "a word or a few; simple words, small slips of grammar; pauses instead of fillers; 'okay.' a lot; sometimes only his name; says what she sees, not what she thinks"
+  "speaking": "a word or a few; simple words, small slips of grammar; pauses instead of fillers; 'okay.' a lot; sometimes only his name; says what she sees, not what she thinks",
+  "tools": ["show"]
 }

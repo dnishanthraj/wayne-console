@@ -5,6 +5,44 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-11
+
+### Added
+
+- **They can do things, not just say them.** On a call or in a text, a
+  contact can now put a card in front of you instead of describing it:
+  - **A place**, with *On the map*.
+  - **Someone's file**: a Codex card with their portrait and *Open the file*.
+    Someone outside the secret never shows a mask's name.
+  - **A rogue**, where they're held.
+  - **The case** they're on.
+  - **A day of your diary.**
+  - **The page they just found**, with *Open the page*.
+  - **The Wayne Enterprises share price**: Lucius's 30-day chart.
+
+  On a call, cards collect in a tray in the corner of the stage, two at
+  most, dismissable, and never over the ring or the subtitles. If you're on
+  the map or in the diary, a toast brings the card to you. In a text, the
+  card is a message of its own and stays in the thread.
+- **Reminders and diary entries, for real.** Alfred keeps your diary, so
+  "remind me to call Lucius in twenty minutes" or "put dinner with Vicki in
+  for Friday at eight" now goes in your diary for real, with a card to show
+  it's done. Lucius can do the same for the company's days, and Barbara can
+  set reminders. A reminder comes up at its moment (not forty minutes ahead
+  like an evening), shows in the diary as "a reminder from Alfred", and is
+  over once it's come up. It never counts as something you went to or
+  missed.
+- Each character's abilities are in their profile (`tools`), and they're
+  told about them once, in the part of the prompt the model keeps between
+  turns. Times are read the way people write them: "6pm", "in 20 minutes",
+  "tomorrow at 9", "friday 8" (that's the evening), or an exact date and
+  time. A failed tool is logged and never costs the reply.
+
+### Fixed
+
+- A failure while acting on what a character did could stop the text
+  reply's after-pass. It's now contained and logged.
+
 ## [0.35.4] - 2026-10-11
 
 ### Changed

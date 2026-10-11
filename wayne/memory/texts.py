@@ -60,7 +60,7 @@ class TextLog:
         self.contact_id = contact_id
         self.thread = Thread(f"dm:{contact_id}")
 
-    def add(self, sender, text, at=None, kind=None, origin=None, reply_to=None):
+    def add(self, sender, text, at=None, kind=None, origin=None, reply_to=None, card=None):
         """
         Append a message ('me' or 'them'). Returns it. `kind` marks something
         that isn't a message — "missed_call", "declined_call" — shown in the
@@ -73,6 +73,8 @@ class TextLog:
             message["kind"] = kind
         if origin:
             message["origin"] = origin      # sent unprompted: "chase", "callback", ...
+        if card:
+            message["card"] = card          # something they showed him (see engine.show): a place, a file, a day
         with _lock:
             quoted = quote_of(self.thread.get(reply_to)) if reply_to else None
             if quoted:

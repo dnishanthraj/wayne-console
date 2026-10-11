@@ -333,6 +333,10 @@ _REPLY_CHOICE = re.compile(r"\[\s*(later|no reply)\s*\]", re.I)
 _TAKE = re.compile(r"\[\s*take\s*:\s*([^\]]+)\]", re.I)
 # Going to one of the family and staying with them — onto their case, if they're on one: "[join: Dick]".
 _JOIN = re.compile(r"\[\s*join\s*:\s*([^\]]+)\]", re.I)
+# Things they do on the line (see engine.show): put something in front of him, set him a reminder, write in his diary.
+_SHOW = re.compile(r"\[\s*show\s*:\s*([^\]]+)\]", re.I)
+_REMIND = re.compile(r"\[\s*remind\s*:\s*([^\]|]+?)\s*\|\s*([^\]]+)\]", re.I)
+_DIARY = re.compile(r"\[\s*diary\s*:\s*([^\]|]+?)\s*\|\s*([^\]|]+?)\s*(?:\|\s*([^\]]*))?\]", re.I)
 # The message a reply quotes, as a phone does: "[reply: Tim]" in a group,
 # "[reply: the car thing]" for one of his texts.
 _QUOTE = re.compile(r"\[\s*(?:reply|re|replying)(?:\s+to)?\s*:\s*([^\]]{1,80})\]", re.I)
@@ -346,9 +350,10 @@ _EMOJI_NAMES = {"heart": "❤️", "love": "❤️", "thumbs up": "👍", "thumb
 # repeated her last text word for word.
 _TRANSCRIPT_NOTE = re.compile(r"\(\s*(?:by|via)\s+(?:text|call|phone)\s*\)\s*|\(\s*texted\s*\)\s*", re.I)
 # Any marker of the console's still in the text once the known ones are read — never shown.
-_LEFTOVER_MARKER = re.compile(r"\[\s*(react|reply|group|take|join|add|dm|leave|remove|later|no reply|hang ?up)\b[^\]]*\]",
-                              re.I)
-_HALF_MARKER = re.compile(r"\[\s*(react|repl|group|take|add|dm|leave|remove|later|no|hang)\b[^\]]*$", re.I)
+_LEFTOVER_MARKER = re.compile(r"\[\s*(react|reply|group|take|join|add|dm|leave|remove|later|no reply|hang ?up|show|"
+                              r"remind|diary)\b[^\]]*\]", re.I)
+_HALF_MARKER = re.compile(r"\[\s*(react|repl|group|take|add|dm|leave|remove|later|no|hang|show|remind|diary)\b[^\]]*$",
+                          re.I)
 
 
 def _tapback_emoji(said):
@@ -724,6 +729,9 @@ class ContactSession:
                 self._join = going.group(1).strip()
                 buffer = _JOIN.sub("", buffer)
             elif "[join" in buffer.lower() and "]" not in buffer[buffer.lower().rfind("[join"):]:
+                continue        # half a marker so far
+            buffer = self._take_tools(buffer)
+            if re.search(r"\[\s*(show|remind|diary)\b[^\]]*$", buffer, re.I):
                 continue        # half a marker so far
             tapback = _TEXT_REACT.search(buffer)
             if tapback:
@@ -1360,6 +1368,26 @@ class ContactSession:
         text = _LEFTOVER_MARKER.sub("", _HANG_UP.sub("", text))
         return re.sub(r"[ \t]{2,}", " ", text).strip()
 
+    def _take_tools(self, text):
+        """
+        [show: …], [remind: … | …] and [diary: … | … | …] read off a reply (see engine.show) — kept for the console
+        to act on once the turn's done, and taken out of what's said. One of each a reply; only what's theirs to do.
+        """
+        from . import show
+        for pattern, tool, attr, read in (
+                (_SHOW, "show", "_shows", lambda m: m.group(1).strip()),
+                (_REMIND, "remind", "_reminds", lambda m: (m.group(1).strip(), m.group(2).strip())),
+                (_DIARY, "diary", "_diaries", lambda m: (m.group(1).strip(), m.group(2).strip(),
+                                                         (m.group(3) or "").strip()))):
+            found = pattern.search(text)
+            if not found:
+                continue
+            kept = self.__dict__.setdefault(attr, [])
+            if show.may(self.contact, tool) and not kept:
+                kept.append(read(found))
+            text = pattern.sub("", text)
+        return text
+
     def _read_markers(self, text):
         """
         The console's markers in a reply that arrived whole — a retry, a line on
@@ -1367,7 +1395,7 @@ class ContactSession:
         sends Tim), and taken out: a retry once said "[join: Dick]" aloud, wrote
         it into history and sent nobody anywhere.
         """
-        text = text or ""
+        text = self._take_tools(text or "")
         for pattern, attr, read in (
                 (_TAKE, "_take_case", lambda m: m.group(1).strip()),
                 (_JOIN, "_join", lambda m: m.group(1).strip()),
@@ -2140,6 +2168,7 @@ class ContactSession:
         self._meant_group = None
         self._text_react = self._text_quote = None
         self._take_case = self._join = None
+        self._shows, self._reminds, self._diaries = [], [], []
         length, self._turn_cap = None, None
         if via is None:
             # A call: this turn's length, from their own spread (see
@@ -3109,9 +3138,10 @@ class ContactSession:
             return None
         if silent:
             return format_search_results(results)     # nobody saw a search happen
-        yield events.sources([
-            {"title": r.get("title", ""), "url": r.get("url", "")} for r in results
-        ])
+        found = [{"title": r.get("title", ""), "url": r.get("url", ""),
+                  "snippet": (r.get("content") or r.get("snippet") or r.get("body") or "")[:240]} for r in results]
+        self._last_sources = found[:6]                # what [show: that page] can put in front of him
+        yield events.sources([{"title": f["title"], "url": f["url"]} for f in found])
         return format_search_results(results)
 
     def _holding_line(self, prompt):

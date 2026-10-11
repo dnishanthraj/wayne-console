@@ -158,7 +158,9 @@ def reminders(now=None):
     now = now or time.time()
     due = []
     for e in _rows().list():
-        if e["status"] == "accepted" and not e.get("reminded") and e["at"] - REMIND_BEFORE <= now < e["at"]:
+        ahead = 0 if e.get("reminder") else REMIND_BEFORE       # a reminder comes up at its moment, not before
+        if (e["status"] == "accepted" and not e.get("reminded")
+                and e["at"] - ahead <= now < max(e["at"], e["at"] - ahead + 1) + (120 if e.get("reminder") else 0)):
             e = {**e, "reminded": True}
             _rows().put(e["id"], e)
             due.append(e)
@@ -351,6 +353,9 @@ def settle(now=None):
             continue
         if e["status"] != "accepted" or e["until"] > now:
             continue
+        if e.get("reminder"):
+            rows.put(e["id"], {**e, "status": "done", "settled_at": now})      # a reminder's over once it's come up
+            continue
         case = _was_out(e["at"], e["until"])
         came = e.get("present") if e.get("venue") else not case
         # Gone before most of it was done: left early (the case that took him, or wherever he went).
@@ -402,7 +407,8 @@ def lately(now=None):
 # --- the diary, as he manages it ---------------------------------------------------------------------------
 
 _STATUS_WORDS = {"accepted": "upcoming", "attended": "went", "missed": "missed", "left": "left early",
-                 "cancelled": "cancelled", "declined": "declined", "invited": "invited", "unanswered": "never answered"}
+                 "cancelled": "cancelled", "declined": "declined", "invited": "invited", "unanswered": "never answered",
+                 "done": "reminded"}
 
 
 def _who(e):
@@ -438,6 +444,10 @@ def entry(e, now=None):
     plan = next((p for p in plans.all_plans() if p["id"] == e.get("plan")), None) if e.get("plan") else None
     if e.get("source") == "invite":
         origin = f"{e.get('with') or 'their'}'s invitation"
+    elif e.get("by"):
+        from ..contacts import directory
+        who = directory().get(e["by"])
+        origin = f"{'a reminder from' if e.get('reminder') else 'put in by'} {who.name if who else e['by']}"
     # Called off: what became of it for the rest of them.
     after = ""
     if e["status"] == "cancelled" and plan:
@@ -456,7 +466,7 @@ def entry(e, now=None):
             "who": _who(e), "host": e.get("host", ""), "dress": e.get("dress", ""), "notes": e.get("notes", ""),
             "story": e.get("story", ""), "kept_away_by": e.get("kept_away_by", ""), "left_for": e.get("left_for", ""),
             "late": late_words(e), "held_by": e.get("held_by", ""), "cancel_why": e.get("cancel_why", ""),
-            "after": after,
+            "after": after, "reminder": bool(e.get("reminder")), "by": e.get("by", ""),
             "present": bool(e.get("present")), "thread": e.get("thread") if e.get("source") in ("invitation", "mail") else "",
             "group": (plan or {}).get("made_in", "")[2:] if str((plan or {}).get("made_in", "")).startswith("g:") else ""}
 
@@ -477,13 +487,27 @@ def days(start, count=8, now=None):
     return out
 
 
-def add(what, where, at, until=None, as_="bruce", with_="", notes="", now=None, source="manual"):
-    """He writes something in himself — or his day does (`source` "routine"). Returns the row."""
+def add(what, where, at, until=None, as_="bruce", with_="", notes="", now=None, source="manual", by=""):
+    """
+    He writes something in himself — or his day does (`source` "routine"), or one of them puts it in for him
+    (`by`: Alfred, who keeps the diary). Returns the row.
+    """
     row = {"id": uuid.uuid4().hex[:10], "what": str(what).strip()[:120] or "something", "where": str(where).strip()[:80],
            "venue": _venue(where), "host": "", "with": str(with_)[:200], "notes": str(notes)[:300], "dress": "",
            "at": at, "until": until if until and until > at else at + (MEETING if as_ == "batman" else LENGTH),
            "as": "batman" if as_ == "batman" else "bruce", "source": source, "status": "accepted",
-           "thread": "", "answered_at": now or time.time()}
+           "thread": "", "answered_at": now or time.time(), **({"by": by} if by else {})}
+    _rows().put(row["id"], row)
+    return row
+
+
+def remind(what, at, by="", now=None):
+    """
+    A reminder one of them set for him ([remind: …], see engine.show): in the diary, coming up at the moment
+    itself rather than ahead of it, and over once it has — never an evening he went to or missed. Returns the row.
+    """
+    row = add(what, "", at, at + 300, source="reminder", now=now, by=by)
+    row = {**row, "reminder": True}
     _rows().put(row["id"], row)
     return row
 

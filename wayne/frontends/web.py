@@ -17,6 +17,7 @@ are released to the page strictly in order.
 import asyncio
 import concurrent.futures
 import contextlib
+import datetime
 import logging
 import logging.handlers
 import math
@@ -1546,6 +1547,7 @@ class Console(GroupChats):
                 whereabouts.drop_reached("relayed")     # nor to text him because Dick said to: they're talking
             else:
                 await self.broadcast({"type": "text_idle", "speaker": contact.id})
+            await self._use_tools(session, "text")      # what they did, not just said: a card, a reminder
             if group_task:
                 self._spawn(self.carry_out_group_task(contact, *group_task))
             if reply or turn["react"] or group_task:
@@ -1650,6 +1652,64 @@ class Console(GroupChats):
                     f"{said}\n(Typing fast you first wrote “{slipped}”, then put it right: “{fix}”.)"
                 session.history.amend_last_reply(amended)
         return parts[:i] + [slipped] + ([fix] if fix else []) + parts[i + 1:]
+
+    async def _use_tools(self, session, channel):
+        """
+        What they did on the line, not just said (engine.show): the card they put in front of him — on the call's
+        stage, or as a message of its own in the thread — the reminder they set, what they wrote in his diary. Each
+        as it would be: in the diary for real, and a card to show it was done.
+        """
+        contact = getattr(session, "contact", None)
+        if contact is None:
+            return
+        try:
+            await self._carry_out_tools(session, contact, channel)
+        except Exception as exc:          # what they did must never cost what they said
+            log.warning("%s's tools on the %s failed: %s", contact.id, channel, str(exc)[:200])
+
+    async def _carry_out_tools(self, session, contact, channel):
+        from ..engine import engagements, show
+        shows = getattr(session, "_shows", None) or []
+        reminds = getattr(session, "_reminds", None) or []
+        diaries = getattr(session, "_diaries", None) or []
+        session._shows, session._reminds, session._diaries = [], [], []
+        now = time.time()
+        cards = []
+        for when, what in reminds:
+            at = show.when(when, now)
+            if at is None or not what.strip():
+                log.info("%s's reminder had no time anyone could read: %r", contact.id, when)
+                continue
+            row = engagements.remind(what.strip(), at, by=contact.id, now=now)
+            cards.append({"kind": "reminder", "id": row["id"], "name": row["what"], "at": at,
+                          "date": datetime.date.fromtimestamp(at).isoformat()})
+            log.info("%s set a reminder for %s", contact.id, time.strftime("%a %H:%M", time.localtime(at)))
+        for when, what, where in diaries:
+            at = show.when(when, now)
+            if at is None or not what.strip():
+                continue
+            row = engagements.add(what.strip(), where.strip(), at, now=now, source="manual", by=contact.id)
+            cards.append({"kind": "entry", "id": row["id"], "name": row["what"], "where": row["where"], "at": at,
+                          "date": datetime.date.fromtimestamp(at).isoformat()})
+            log.info("%s put %s in the diary", contact.id, time.strftime("%a %H:%M", time.localtime(at)))
+        if reminds or diaries:
+            await self.broadcast({"type": "diary"})
+        for thing in shows:
+            found = show.card(thing, contact, now, sources=getattr(session, "_last_sources", None) or ())
+            if found:
+                cards.append(found)
+            else:
+                log.info("%s went to show %r, and there was nothing to show", contact.id, thing)
+        for card in cards[:3]:
+            await self._shown(contact, card, channel)
+
+    async def _shown(self, contact, card, channel):
+        """A card from them: on the stage while they're on the line, in the thread when it's a text."""
+        if channel == "text":
+            message = TextLog(contact.id).add("them", "", origin="card", card=card)
+            await self.broadcast({"type": "text_reply", "speaker": contact.id, "message": message})
+        else:
+            await self.broadcast({"type": "shown", "speaker": contact.id, "card": card})
 
     async def _edit_later(self, contact, message_id, text, group=None):
         """They've spotted the slip: a few seconds on, the message is edited to what they meant."""
@@ -4095,6 +4155,7 @@ class Console(GroupChats):
             if going:
                 member._join = None
                 self._spawn(self._join_by_name(member.contact, going))
+            await self._use_tools(member, "call")
 
     def _asked_to_add(self, text):
         """

@@ -104,7 +104,7 @@ def test_the_room_is_occasional_and_never_the_same_sound_twice_running():
     state = {}
     cues = ambience._lay_out("street_day", 0, 1200, random.Random(3), state, sky="clear")
     assert cues and len(cues) / 20 < 3                                       # a few a minute at most, on a street
-    for a, b in zip(cues, cues[1:]):
+    for a, b in zip(cues, cues[1:], strict=False):
         assert b["at"] - a["at"] >= ambience.MIN_GAP
     seen = {}
     for cue in cues:

@@ -550,6 +550,10 @@ def build_payload(contact, history, user_turn, texting=False):
         parts.append(standing_directives(contact, texting))
         if not texting:
             parts.extend(_spoken_self(contact))
+        from . import show
+        can = show.note(contact)
+        if can:
+            parts.append(can)
         script = _primer_script(contact, texting)
         if script:
             parts.append(script)

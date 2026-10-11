@@ -121,7 +121,7 @@
 
   function cacheElements() {
     ['input', 'compose', 'ptt', 'clock', 'bar-title', 'book', 'lock',
-     'heard', 'utterance', 'status', 'empty', 'viz-wrap', 'ringing-label',
+     'heard', 'utterance', 'shown', 'status', 'empty', 'viz-wrap', 'ringing-label',
      'dossier', 'dossier-close', 'dossier-name',
      'dossier-role', 'dossier-text', 'dossier-save', 'dossier-saved',
      'dossier-portrait', 'messages', 'messages-avatar', 'messages-name', 'messages-role',
@@ -912,6 +912,16 @@
     if (message.typing) {
       t.classList.add('bubble__dots');
       t.insertAdjacentHTML('beforeend', '<i></i><i></i><i></i>');
+    } else if (message.card) {
+      // Something they sent him rather than said: the card is the message.
+      li.classList.add('bubble--card');
+      t.appendChild(cardNode(message.card, contact));
+      if (message.at) {
+        var shownAt = document.createElement('span');
+        shownAt.className = 'bubble__time';
+        shownAt.textContent = clock(message.at);
+        t.appendChild(shownAt);
+      }
     } else {
       if (message.reply_to) t.appendChild(quoteNode(message.reply_to, opts.group, contact));
       appendMentions(t, message.text, opts.mentions, opts.group);
@@ -984,6 +994,186 @@
     }
     return li;
   }
+
+  /* --- what they show him ------------------------------------------------
+     A card a contact puts in front of him (see wayne/engine/show.py): a place, someone's file, a case, a day of
+     his diary, a reminder they set, the page they found, the share price — each with the one thing to do with
+     it. The same card on the call's stage and in a text thread. */
+  var CARD_ICON = {
+    place: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    case: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 20h18L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg>',
+    diary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>',
+    reminder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M5 3 2 6M19 3l3 3"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+    market: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
+  };
+  CARD_ICON.entry = CARD_ICON.diary;
+
+  function hhmm(at) { var d = new Date(at * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function dayAndTime(at) {
+    var d = new Date(at * 1000), today = new Date();
+    var tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+    var day = d.toDateString() === today.toDateString() ? 'Today' : d.toDateString() === tomorrow.toDateString() ? 'Tomorrow'
+      : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    return day + ' \u00b7 ' + hhmm(at);
+  }
+
+  function sparkline(series) {
+    if (!series || series.length < 2) return '';
+    var lo = Math.min.apply(null, series), hi = Math.max.apply(null, series), span = (hi - lo) || 1;
+    var pts = series.map(function (v, i) {
+      return (i * 100 / (series.length - 1)).toFixed(1) + ',' + (28 - (v - lo) / span * 24 - 2).toFixed(1);
+    }).join(' ');
+    return '<svg class="card__spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts + '"/></svg>';
+  }
+
+  function cardNode(card, contact) {
+    var node = document.createElement('div');
+    node.className = 'card card--' + card.kind;
+    var head = document.createElement('div');
+    head.className = 'card__head';
+    var icon = document.createElement('span');
+    icon.className = 'card__icon';
+    if ((card.kind === 'person' || card.kind === 'rogue') && card.portrait) {
+      icon.classList.add('card__icon--face');
+      icon.style.backgroundImage = 'url("' + card.portrait + '")';
+    } else {
+      icon.innerHTML = CARD_ICON[card.kind] || CARD_ICON.place;
+    }
+    head.appendChild(icon);
+    var words = document.createElement('div');
+    words.className = 'card__words';
+    var kindLabel = { place: 'Place', person: 'File', rogue: 'Rogue', case: 'Case', diary: 'Your diary', reminder: 'Reminder set',
+                      entry: 'In your diary', link: 'Page', market: 'Market' }[card.kind] || 'Shown';
+    var label = document.createElement('span');
+    label.className = 'card__kind';
+    label.textContent = kindLabel;
+    var title = document.createElement('b');
+    title.className = 'card__title';
+    title.textContent = card.name || '';
+    words.appendChild(label);
+    words.appendChild(title);
+    var sub = '';
+    if (card.kind === 'place') sub = card.area || '';
+    else if (card.kind === 'person' || card.kind === 'rogue') sub = [card.alias, card.role].filter(Boolean).join(' \u00b7 ');
+    else if (card.kind === 'case') sub = [card.place, card.status, (card.team || []).join(', ')].filter(Boolean).join(' \u00b7 ');
+    else if (card.kind === 'reminder' || card.kind === 'entry') sub = dayAndTime(card.at) + (card.where ? ' \u00b7 ' + card.where : '');
+    else if (card.kind === 'link') { try { sub = new URL(card.url).hostname.replace(/^www\./, ''); } catch (e) { sub = ''; } }
+    else if (card.kind === 'market') sub = (card.ticker || '') + ' \u00b7 ' + Number(card.close || 0).toFixed(2) + ' (' + (card.pct >= 0 ? '+' : '\u2212') + Math.abs(card.pct || 0).toFixed(2) + '%)';
+    if (sub) {
+      var small = document.createElement('span');
+      small.className = 'card__sub';
+      small.textContent = sub;
+      words.appendChild(small);
+    }
+    head.appendChild(words);
+    node.appendChild(head);
+    if (card.kind === 'market') {
+      var spark = document.createElement('div');
+      spark.className = 'card__chart' + (card.pct >= 0 ? ' is-up' : ' is-down');
+      spark.innerHTML = sparkline(card.series);
+      node.appendChild(spark);
+    }
+    if (card.kind === 'diary') {
+      var list = document.createElement('ol');
+      list.className = 'card__day';
+      (card.entries || []).forEach(function (e) {
+        var li = document.createElement('li');
+        li.innerHTML = '<time></time><span></span>';
+        li.querySelector('time').textContent = hhmm(e.at);
+        li.querySelector('span').textContent = (e.as === 'batman' ? 'Batman \u00b7 ' : '') + e.what + (e.where ? ' \u00b7 ' + e.where : '');
+        list.appendChild(li);
+      });
+      if (!list.children.length) {
+        var none = document.createElement('li');
+        none.className = 'card__none';
+        none.textContent = 'Nothing in the diary.';
+        list.appendChild(none);
+      }
+      node.appendChild(list);
+    }
+    if (card.line && card.kind !== 'diary') {
+      var line = document.createElement('p');
+      line.className = 'card__line';
+      line.textContent = card.line;
+      node.appendChild(line);
+    }
+    var act = cardAction(card);
+    if (act) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'card__act';
+      b.textContent = act.label;
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); act.go(); });
+      node.appendChild(b);
+    }
+    return node;
+  }
+
+  function showPlace(x, y) {
+    if (!window.GothamMap || x == null) return;
+    if (!GothamMap.isOpen()) document.getElementById('map-open').click();
+    setTimeout(function () { GothamMap.flyTo(x, y); }, 450);
+  }
+
+  function cardAction(card) {
+    if ((card.kind === 'place' || card.kind === 'case' || card.kind === 'rogue') && card.x != null) {
+      return { label: 'On the map', go: function () { showPlace(card.x, card.y); } };
+    }
+    if (card.kind === 'person' && window.Codex) {
+      return { label: 'Open the file', go: function () { Codex.open({ tab: 'people', name: card.name }); } };
+    }
+    if ((card.kind === 'diary' || card.kind === 'reminder' || card.kind === 'entry') && window.Diary) {
+      return { label: 'Open the diary', go: function () { Diary.open(card.date); } };
+    }
+    if (card.kind === 'link' && /^https?:\/\//.test(card.url || '')) {
+      return { label: 'Open the page', go: function () { window.open(card.url, '_blank', 'noopener,noreferrer'); } };
+    }
+    return null;
+  }
+
+  /* On a call: under what they're saying, the newest on top, two at most — and if he's looking at the map or
+     the diary, a card in the corner too, so it isn't missed. */
+  function onShown(event) {
+    var contact = state.contacts[event.speaker] || {};
+    var holder = document.createElement('div');
+    holder.className = 'shown__item';
+    holder.style.setProperty('--contact-accent', contact.accent || 'var(--primary)');
+    var who = document.createElement('p');
+    who.className = 'shown__who';
+    who.textContent = (contact.name || 'They') + ' showed you';
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'shown__close';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.innerHTML = '&times;';
+    close.addEventListener('click', function () { holder.remove(); if (!el.shown.children.length) el.shown.hidden = true; });
+    who.appendChild(close);
+    holder.appendChild(who);
+    holder.appendChild(cardNode(event.card, contact));
+    el.shown.insertBefore(holder, el.shown.firstChild);
+    while (el.shown.children.length > 2) el.shown.removeChild(el.shown.lastChild);
+    el.shown.hidden = false;
+    if (screens().some(function (p) { return p[1] && p[1].isOpen && p[1].isOpen(); })) {
+      var card = document.createElement('div');
+      card.className = 'toast toast--card';
+      card.style.setProperty('--contact-accent', contact.accent || 'var(--primary)');
+      var av = document.createElement('span');
+      av.className = 'bubble__avatar';
+      portraitStyle(av, contact, 'center 22%');
+      card.appendChild(av);
+      var body = document.createElement('div');
+      var name = document.createElement('span');
+      name.className = 'toast__name';
+      name.textContent = (contact.name || 'They') + ' showed you';
+      body.appendChild(name);
+      body.appendChild(cardNode(event.card, contact));
+      card.appendChild(body);
+      showToast(card, 'shown:' + event.speaker, 15000);
+    }
+    if (ConsoleTones.message) ConsoleTones.message();
+  }
+  function clearShown() { if (el.shown) { el.shown.innerHTML = ''; el.shown.hidden = true; } }
 
   /* One of his own messages, rewritten where it stands: Enter keeps it, Escape (or clicking away) leaves it as
      it was. The thread shows it edited; whoever's already read it may notice. */
@@ -3016,6 +3206,7 @@
     if (!opts.switching && !opts.refused && !opts.quiet) send({ type: 'disconnect' });
     state.comms = null;
     state.joiningComms = null;
+    clearShown();
     state.connectedId = null;
     state.ringingId = null;
     state.party = [];
@@ -3065,7 +3256,7 @@
     // whether or not anyone's on the line (a list of what's allowed through dropped every new kind).
     var callOnly = ['state', 'message', 'reply_start', 'sentence', 'reply_end', 'speak', 'party',
                     'call_ending', 'turn_complete', 'room', 'picked_up', 'contact_changed', 'transcript',
-                    'sources'].indexOf(event.type) !== -1;
+                    'sources', 'shown'].indexOf(event.type) !== -1;
     if (!state.connectedId && callOnly) return;
     // A turn he's cut off is over: whatever of it was still on its way is dropped, not played over him.
     if (typeof event.epoch === 'number') {
@@ -3219,6 +3410,10 @@
 
       case 'engagement_soon':
         diaryToast(event.engagement);
+        break;
+
+      case 'shown':
+        onShown(event);
         break;
 
       case 'diary':
@@ -4236,6 +4431,7 @@
     if (ConsoleTones.message) ConsoleTones.message();
   }
   window.goToEngagement = goToEngagement;
+  window.ConsoleShown = onShown;          // what a contact shows him — for the page's own checks too
 
   /* After a fresh start from Settings: said once, with where the old data went. */
   function startedOver(done) {

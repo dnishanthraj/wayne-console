@@ -2590,3 +2590,50 @@ body { background:
 .dx-save { color: var(--primary); border-color: var(--primary-dim); }
 @container stage (max-width: 760px) { .dx-body { grid-template-columns: 1fr; } .dx-days { flex-direction: row; overflow-x: auto;
   border-right: 0; border-bottom: 1px solid var(--hairline); } }
+
+/* --- what they show him (see app.js cardNode) -------------------------------------------------------------- */
+/* On the stage, out of the way: a tray in the corner above the compose bar, never pushing the ring or the line. */
+.shown { position: absolute; right: 22px; bottom: 18px; width: min(340px, calc(100% - 44px));
+  max-height: calc(100% - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 3;
+  scrollbar-width: thin; }
+.shown[hidden] { display: none; }
+@container stage (max-width: 720px) { .shown { left: 16px; right: 16px; width: auto; max-height: 45%; } }
+.shown__item { border-left: 2px solid var(--contact-accent, var(--primary)); padding: 8px 10px 10px 12px;
+  background: color-mix(in srgb, var(--void) 82%, transparent); backdrop-filter: blur(6px); border-radius: 0 10px 10px 0;
+  animation: shown-in 0.35s var(--ease) both; }
+@keyframes shown-in { from { opacity: 0; transform: translateY(6px); } }
+.shown__who { display: flex; justify-content: space-between; align-items: center; margin: 0 0 6px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
+.shown__close { background: none; border: 0; color: var(--text-faint); font-size: 16px; line-height: 1; padding: 0 2px;
+  cursor: var(--cursor-pointer); }
+.shown__close:hover { color: var(--text); }
+.card { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: var(--surface);
+  border: 1px solid var(--hairline-2); border-radius: 10px; text-align: left; min-width: 0; }
+.card__head { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.card__icon { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--contact-accent, var(--primary)); background: color-mix(in srgb, var(--contact-accent, var(--primary)) 12%, var(--surface-2));
+  background-size: cover; background-position: center 22%; }
+.card__icon svg { width: 18px; height: 18px; }
+.card__icon--face { border: 1px solid var(--hairline-2); }
+.card__words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card__kind { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
+.card__title { font-weight: 500; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__sub { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__line { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); display: -webkit-box;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.card__day { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.card__day li { display: grid; grid-template-columns: 44px 1fr; gap: 8px; font-size: 12.5px; color: var(--text); }
+.card__day time { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); }
+.card__day .card__none { display: block; color: var(--text-faint); }
+.card__chart { height: 36px; }
+.card__spark { width: 100%; height: 100%; display: block; }
+.card__spark polyline { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke: var(--good); }
+.card__chart.is-down .card__spark polyline { stroke: var(--alert); }
+.card__act { align-self: flex-start; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--hairline-2);
+  background: transparent; color: var(--primary); font: inherit; font-size: 12px; cursor: var(--cursor-pointer); }
+.card__act:hover { border-color: var(--primary-dim); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.bubble--card .bubble__text { background: none !important; padding: 0; }
+.bubble--card .card { width: min(320px, 70vw); }
+.bubble--card .bubble__time { float: none; display: block; margin: 4px 2px 0; }
+.toast--card { grid-template-columns: 34px 1fr; }
+.toast--card .card { margin-top: 6px; padding: 10px 12px; }

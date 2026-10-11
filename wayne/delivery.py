@@ -157,7 +157,7 @@ def remembered(text):
 # The console's own markers — [join: Dick], [react: 👍], [group: Family | …] — are instructions to the
 # engine, never words: whatever path a reply took, they never reach the voice, the screen or memory.
 _CONSOLE_MARKER = re.compile(r"\[\s*(?:join|take|react|reply|re|group|add|dm|remove|leave|rsvp|search|later|"
-                             r"no reply|hang ?up|nudge|yield|you go)\b[^\]]*\]", re.I)
+                             r"no reply|hang ?up|nudge|yield|you go|show|remind|diary)\b[^\]]*\]", re.I)
 
 
 def _marked(text):
