@@ -114,6 +114,11 @@ def transcribe_audio(audio, hint=None):
     """
     if audio is None or len(audio) < _MIN_SAMPLES:
         return "", 1.0
+    # Next to nothing in it — a tap of the key, a breath — is nothing: scaled up to full volume, Whisper
+    # heard "Thank you." in it and cut off whoever was talking.
+    if float(np.sqrt(np.mean(np.square(audio)))) < _SILENT_RMS:
+        return "", 1.0
+    seconds = len(audio) / SAMPLE_RATE
 
     # Normalize to full scale — helps with quiet mic input.
     max_amp = np.max(np.abs(audio))
@@ -136,8 +141,13 @@ def transcribe_audio(audio, hint=None):
                 language="en",
                 verbose=False,
                 initial_prompt=hint or WHISPER_HINT_PROMPT,
+                # One pass: the default falls back through rising temperatures, up to six decodes of a hard take.
+                temperature=0.0,
+                condition_on_previous_text=False,
             )
         text = collapse_loops(result.get("text", "").strip())
+        if _hallucinated(text, result, seconds):
+            return "", 1.0
         return (text, _confidence(result)) if _meaningful(text) else ("", 1.0)
 
     from scipy.io.wavfile import write as wav_write
@@ -167,7 +177,24 @@ def transcribe_audio(audio, hint=None):
                              "compression_ratio": getattr(s, "compression_ratio", 1.0),
                              "no_speech_prob": getattr(s, "no_speech_prob", 0.0)}
                             for s in segments]}
+    if _hallucinated(text, payload, seconds):
+        return "", 1.0
     return (text, _confidence(payload)) if _meaningful(text) else ("", 1.0)
+
+
+# What Whisper says into silence: the sign-offs of the videos it learned from.
+_PHANTOMS = re.compile(r"(?i)^\W*(thank you( (so much|very much))?|thanks( for watching)?|you|bye|okay|"
+                       r"please subscribe|subtitles by.*|\.+)\W*$")
+_SILENT_RMS = 0.004
+
+
+def _hallucinated(text, result, seconds):
+    """A short take that came back as one of Whisper's stock phrases, with the decoder itself unsure anyone spoke."""
+    if not text or seconds > 1.6 or not _PHANTOMS.match(text):
+        return False
+    segments = result.get("segments") or []
+    unsure = [seg for seg in segments if seg.get("no_speech_prob", 0) > 0.45 or seg.get("avg_logprob", 0) < -1.0]
+    return not segments or len(unsure) == len(segments)
 
 
 def transcribe_pcm(raw_bytes, hint=None):

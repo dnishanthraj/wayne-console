@@ -257,3 +257,53 @@ def test_a_silence_is_remembered_as_heard_never_as_mm():
     shown = history.for_model()
     assert not any(m["content"] in ("Mm.", "…") for m in shown if m["role"] == "assistant")
     assert any("Tim's being quiet" in m["content"] and "Tim?" in m["content"] for m in shown if m["role"] == "user")
+
+
+def test_a_line_written_whole_stops_when_hes_cut_in(monkeypatch):
+    """A pause-filler read a whole prompt and wrote a whole line while his own turn waited behind it."""
+    import wayne.engine.session as sess
+    from wayne.contacts import directory
+    session = sess.ContactSession(directory().get("robin"))
+
+    def chunks(**kw):
+        yield {"message": {"content": "First words"}}
+        session.cancel()                    # he cuts in here
+        yield {"message": {"content": " and the rest nobody hears"}}
+    monkeypatch.setattr(sess.ollama, "chat", chunks)
+    assert session._chat_once([{"role": "user", "content": "x"}]) == ""
+
+
+def test_cut_off_theyre_remembered_as_saying_what_he_heard():
+    import wayne.frontends.web as web
+    from wayne.contacts import directory
+    from wayne.engine.session import ContactSession
+    tim = directory().get("robin")
+    console = web.Console.__new__(web.Console)
+    session = ContactSession(tim)
+    session.history.messages.clear()
+    console.sessions, console.call = {"robin": session}, None
+    started = time.time()
+    session.history.record_exchange("Where are you?", "On a roof. Two streets from Dick. He took the shots fired.")
+    console._heard_upto = 11
+    console._remember_heard(tim, {10: "On a roof.", 11: "Two streets from Dick.", 12: "He took the shots fired."},
+                            started - 1)
+    assert session.history.messages[-1]["content"] == "On a roof. Two streets from Dick. —"
+
+
+def test_a_voice_nobody_wants_any_more_never_takes_a_slot(monkeypatch):
+    import threading
+
+    from wayne.audio import tts
+    engine = tts.AlfredVoiceService.__new__(tts.AlfredVoiceService)
+    engine._slots = threading.BoundedSemaphore(1)
+    called = []
+    monkeypatch.setattr(engine, "_timed", lambda text, voice: called.append(text) or (b"x", []), raising=False)
+    with pytest.raises(tts.SynthesisCancelled):
+        engine.synthesize_timed("Hello.", "v", cancelled=lambda: True)
+    assert not called
+
+
+def test_someone_on_a_speaker_joins_without_a_ring():
+    from wayne import events
+    assert events.party(["nightwing", "robin"], added="robin", room=True)["room"] is True
+    assert events.party(["nightwing"], added="robin")["room"] is False

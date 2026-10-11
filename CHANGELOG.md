@@ -106,6 +106,17 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   the second to answer that he wasn't asked, and a pause filled afterwards
   isn't an answer to his last line; a silence is remembered as what they
   heard, never as "Mm." (which the model had learned as a tic).
+- Calls: cutting in stops the reply at the server, not only on your
+  speakers — nothing of the old turn plays over you afterwards, synthesis it
+  was waiting on is dropped instead of holding the voice slots, a line being
+  written whole stops at the next word, and they're remembered as saying only
+  what you heard; texts, group posts and afterthoughts wait for the call to
+  end instead of taking the model mid-call; the check-in timer never fires
+  while you're talking; the last one on a group call saying goodbye ends it;
+  someone on another's speaker joins without a ring; only the likeliest next
+  speaker is kept warm; a near-silent take is nothing (no more "Thank you."
+  out of a tap of the key) and transcription takes one pass; how much of each
+  prompt was read afresh is logged.
 - Tests run in a world of their own: a temporary data directory before
   anything imports the engine, every cache emptied between tests, and a frozen
   clock for tests about the world — the suite had been due to go red by

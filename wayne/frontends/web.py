@@ -161,6 +161,8 @@ class Console(GroupChats):
         # True while a turn is mid-flight, so the next input can tell whether it
         # cut him off or merely followed him.
         self.voice_busy = False
+        self._heard_upto = None     # the last sentence he heard begin, when he cut in (see _remember_heard)
+        self._last_said = None
         self.boot_task = None
         self._release = None   # pending model release after a hang-up
         self.call = None       # the call in progress (see wayne.engine.party)
@@ -253,8 +255,12 @@ class Console(GroupChats):
         return clip_id
 
     def interrupt(self):
-        """Supersede whatever is being generated or spoken right now."""
+        """Supersede whatever is being generated or spoken right now — on the call, even a line written whole."""
         self.turn_epoch += 1
+        for member in (self.call.members if getattr(self, "call", None) else []):
+            cancel = getattr(member, "cancel", None)
+            if cancel:
+                cancel()
         return self.turn_epoch
 
     async def drive(self, generator, contact, epoch=None, release_at=None):
@@ -279,6 +285,9 @@ class Console(GroupChats):
         loop = asyncio.get_running_loop()
         began, first_at = time.monotonic(), None
         voices = set()           # who spoke in this turn: theirs is the prefix worth keeping warm
+        # Every event of the turn carries its number, so a page that's cut it off drops the rest of it.
+        turn = epoch if epoch is not None else self.turn_epoch
+        said_now, started_wall = {}, time.time()        # this turn's sentences, by key: what he heard, if cut off
 
         async def hold():
             if release_at is not None:
@@ -322,7 +331,7 @@ class Console(GroupChats):
                         return
                     if superseded():
                         continue
-                    await self.broadcast(event)
+                    await self.broadcast({**event, "epoch": turn})
                     if event.get("type") == "sentence":
                         async with released_changed:
                             released.add(event["key"])
@@ -341,7 +350,7 @@ class Console(GroupChats):
 
         speech = asyncio.Queue()
         sender = asyncio.create_task(releaser())
-        worker = asyncio.create_task(self._speech_worker(speech, shown, superseded))
+        worker = asyncio.create_task(self._speech_worker(speech, shown, superseded, turn))
         self.voice_busy = True
 
         try:
@@ -359,6 +368,7 @@ class Console(GroupChats):
                 if event.get("type") == "sentence":
                     self._said += 1
                     event = {**event, "key": self._said}
+                    said_now[self._said] = event.get("text", "")
                 if event.get("type") == "sentence":
                     voices.add(event.get("speaker") or contact.id)
                 if event.get("type") == "sentence" and first_at is None:
@@ -373,7 +383,7 @@ class Console(GroupChats):
                 if event.get("type") == "sentence" and self._can_speak(speaker):
                     spoken = event.get("voice") or event["text"]
                     task = asyncio.create_task(
-                        asyncio.to_thread(self._timed_synthesis, spoken, speaker)
+                        asyncio.to_thread(self._timed_synthesis, spoken, speaker, superseded)
                     )
                     speech.put_nowait((event["key"], event["text"], task, speaker.id))
                 outbox.put_nowait(event)
@@ -383,6 +393,10 @@ class Console(GroupChats):
             await sender
             await worker
             self.voice_busy = False
+            if superseded() and said_now:
+                self._remember_heard(contact, said_now, started_wall)
+            # Written already but still playing on his speakers: if he cuts in now, it's trimmed then.
+            self._last_said = (contact, dict(said_now), started_wall) if said_now else None
             if epoch is None or epoch == self.turn_epoch:
                 # Only now is the turn genuinely finished: the model has stopped
                 # writing and every sentence has been synthesized and released.
@@ -400,6 +414,9 @@ class Console(GroupChats):
         meanwhile goes first.
         """
         await asyncio.sleep(0.4)
+        if self.call and self.call.is_group and getattr(self.call, "last_speaker", None):
+            likeliest = self.call.last_speaker.contact.id
+            voices = [likeliest] if likeliest in voices else list(voices)[:1]
         for cid in list(voices):
             on_call = cid == self.current_id or cid in self._members()
             if epoch != self.turn_epoch or self.voice_busy or not on_call or cid not in self.sessions:
@@ -409,11 +426,16 @@ class Console(GroupChats):
             except Exception as exc:          # a warm-up that fails costs nothing but the warm-up
                 log.debug("keeping %s warm failed: %s", cid, exc)
 
-    def _timed_synthesis(self, text, contact):
+    def _timed_synthesis(self, text, contact, cancelled=None):
         started = time.monotonic()
         try:
-            audio, words = self.voice.synthesize_timed(text, contact.voice_id)
+            import inspect
+            takes = "cancelled" in inspect.signature(self.voice.synthesize_timed).parameters
+            audio, words = (self.voice.synthesize_timed(text, contact.voice_id, cancelled=cancelled) if takes
+                            else self.voice.synthesize_timed(text, contact.voice_id))
         except Exception as exc:
+            if type(exc).__name__ == "SynthesisCancelled":
+                raise                          # not a failure: nobody wanted it any more
             log.warning("%s synthesis FAILED after %.2fs: %s", contact.id,
                         time.monotonic() - started, str(exc)[:160])
             raise
@@ -424,7 +446,24 @@ class Console(GroupChats):
     def _can_speak(self, contact):
         return self.voice.available and contact.has_voice
 
-    async def _speech_worker(self, speech, shown, superseded):
+    def _remember_heard(self, contact, said_now, started_wall):
+        """
+        Cut off, they're remembered as having said what he heard — up to the sentence he heard begin — and
+        no further: the rest of what the model wrote was never said to him.
+        """
+        session = self.sessions.get(contact.id)
+        upto = getattr(self, "_heard_upto", None)
+        if session is None or upto is None or (self.call and self.call.is_group):
+            return
+        history = session.history
+        last = history.messages[-1] if history.messages else None
+        if not last or last["role"] != "assistant" or last.get("at", 0) < started_wall:
+            return
+        heard = " ".join(text for key, text in sorted(said_now.items()) if key <= upto)
+        history.amend_last_reply((heard + " —").strip() if heard else "—")
+        self._heard_upto = None
+
+    async def _speech_worker(self, speech, shown, superseded, turn=None):
         """
         Release clips in submission order. Synthesis runs concurrently, but a
         later sentence finishing first must never jump the queue — the page
@@ -462,7 +501,7 @@ class Console(GroupChats):
             if audio and await shown(key):
                 self.recent_speech.append((time.monotonic(), text))
                 await self.broadcast({**events.speak(self._store_clip(audio), text, key, words),
-                                      "speaker": speaker})
+                                      "speaker": speaker, "epoch": turn})
 
     async def connect(self, contact_id, incoming=None, ensure=False, also_ringing=()):
         """
@@ -865,7 +904,8 @@ class Console(GroupChats):
         # — a chase, a call back, the rest of a group ring — it waits its turn.
         epoch = self.interrupt() if by_him else self.turn_epoch
         loop = asyncio.get_running_loop()
-        await self.broadcast(events.party(self._members() + [contact_id], added=contact_id))
+        await self.broadcast(events.party(self._members() + [contact_id], added=contact_id,
+                                          room=contact_id in self.call.speakerphone))
         rang = loop.time()
         if remark:
             await self._while_it_rings(contact)
@@ -1030,6 +1070,12 @@ class Console(GroupChats):
         if not self.call or not self.call.is_group:
             return
         for member in list(self.call.members):
+            if getattr(member, "_hanging_up", False) and len(self.call.members) == 1:
+                # The last of them has said goodbye: the call ends when they've finished saying it, as a
+                # one-to-one does — it used to stay up, and they'd fill the next pause after their goodbye.
+                member._hanging_up = False
+                await self.broadcast(events.call_ending())
+                return
             if getattr(member, "_hanging_up", False) and len(self.call.members) > 1:
                 member._hanging_up = False
                 self.call.leave(member)
@@ -1437,6 +1483,7 @@ class Console(GroupChats):
 
     async def _afterthought(self, session, exchanges, by):
         """What the exchange set in motion — see wayne.engine.initiative."""
+        await self._call_first()          # someone who's left a call that goes on: read once it's over
         try:
             found = await asyncio.to_thread(initiative.afterthought, session, exchanges, by)
             if found:
@@ -1504,6 +1551,18 @@ class Console(GroupChats):
         if contact:
             await self._tapback_text(contact, message_id, "me", emoji)
 
+    async def _call_first(self, contact_id=None, most=20 * 60):
+        """
+        While he's on a call, the model is the call's: other work (a text, a post in a group, an unprompted
+        word, the pass after someone leaves) waits for it to end — a text reply taken mid-call made his next
+        line wait behind it and then read the whole call again. Work for someone on the call goes ahead.
+        """
+        waited = 0.0
+        while getattr(self, "current_id", None) and (contact_id is None or contact_id not in self._members()) \
+                and waited < most:
+            await asyncio.sleep(2.0)
+            waited += 2.0
+
     async def _write_text(self, contact, body):
         """
         The contact writes a text reply, held to the same lock as call turns.
@@ -1512,6 +1571,7 @@ class Console(GroupChats):
         read afterwards, a call turn in between had already reset them, and
         a reply held "for later" came back as nothing at all.
         """
+        await self._call_first(contact.id)
         session = self.session_for(contact.id)
         loop = asyncio.get_running_loop()
         result = {"text": ""}
@@ -2806,6 +2866,7 @@ class Console(GroupChats):
 
     async def _send_unprompted(self, contact, about, why):
         """They text first: written, then typed, then sent."""
+        await self._call_first(contact.id)
         session = self.session_for(contact.id)
         loop = asyncio.get_running_loop()
         async with self.turn_lock:
@@ -3954,6 +4015,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 console._spawn(console.connect(payload.get("id", "")))
             elif kind == "disconnect":
                 console._spawn(console.disconnect())
+            elif kind == "interrupt":
+                # He cut in: the turn stops here too, not only on his speakers.
+                try:
+                    console._heard_upto = int(payload.get("heard_upto") or 0)
+                except (TypeError, ValueError):
+                    console._heard_upto = 0
+                console.interrupt()
+                if not console.voice_busy and getattr(console, "_last_said", None):
+                    console._remember_heard(*console._last_said)     # the reply was written; he heard part of it
+                    console._last_said = None
             elif kind == "nudge":
                 console._spawn(console.nudge())
             elif kind == "signoff":

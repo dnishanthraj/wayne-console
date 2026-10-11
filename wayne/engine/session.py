@@ -24,6 +24,7 @@ only way that actually works mid-stream:
                    matters; the whole-text check is skipped when streaming.
 """
 import concurrent.futures
+import logging
 import math
 import random
 import re
@@ -49,6 +50,8 @@ from . import (
     world,
 )
 from .search import format_search_results, google_search, is_factual_lookup, subject_of_a_take
+
+_log = logging.getLogger("wayne")
 
 # Searches run on a worker so the holding line can be written meanwhile.
 _SEARCHES = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -428,12 +431,34 @@ class ContactSession:
         ollama.chat(model=self.contact.model, messages=payload, stream=False,
                     options=self._options(num_predict=1), **self._extra())
 
+    def cancel(self):
+        """He's cut in: whatever of theirs the model is writing right now stops (see _chat_once)."""
+        self._cancelled = getattr(self, "_cancelled", 0) + 1
+
     def _chat_once(self, payload, **overrides):
-        response = ollama.chat(
-            model=self.contact.model, messages=payload,
-            stream=False, options=self._options(**overrides), **self._extra(),
-        )
-        return response["message"]["content"].strip()
+        """
+        One whole reply — streamed underneath, so a line he's talked over (a lull, a draft, a retry) stops at
+        the next word instead of holding his own turn behind a request nobody will hear: a pause-filler read
+        a whole prompt and wrote a whole line while his answer waited two to seven seconds.
+        """
+        mine = getattr(self, "_cancelled", 0)
+        response = ollama.chat(model=self.contact.model, messages=payload, stream=True,
+                               options=self._options(**overrides), **self._extra())
+        if isinstance(response, dict):          # a fake that answers whole
+            return response["message"]["content"].strip()
+        parts = []
+        try:
+            for part in response:
+                if getattr(self, "_cancelled", 0) != mine:
+                    return ""
+                piece = part.get("message", {}).get("content", "")
+                if piece:
+                    parts.append(piece)
+        finally:
+            close = getattr(response, "close", None)
+            if close:
+                close()
+        return "".join(parts).strip()
 
     def _stream(self, payload, **overrides):
         for part in ollama.chat(
@@ -443,6 +468,11 @@ class ContactSession:
             piece = part.get("message", {}).get("content", "")
             if piece:
                 yield piece
+            if part.get("done") and part.get("prompt_eval_count") is not None:
+                # How much of the prompt the model had to read afresh: the cached prefix held, or it didn't —
+                # the difference between a second and seven before the first word.
+                _log.info("%s read %d prompt tokens in %.2fs", self.contact.id, part.get("prompt_eval_count") or 0,
+                          (part.get("prompt_eval_duration") or 0) / 1e9)
 
     # --- sentence assembly ------------------------------------------------
 

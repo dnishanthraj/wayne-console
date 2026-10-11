@@ -38,6 +38,10 @@ class SynthesisError(RuntimeError):
     pass
 
 
+class SynthesisCancelled(Exception):
+    """No longer wanted: the turn it belonged to was cut off before it got a slot."""
+
+
 class AlfredVoiceService:
     def __init__(self):
         from ..config import TTS_CONCURRENCY
@@ -98,20 +102,31 @@ class AlfredVoiceService:
         with self._slots:
             return self.synthesize(text, voice_id)
 
-    def synthesize_timed(self, text, voice_id):
+    def synthesize_timed(self, text, voice_id, cancelled=None):
         """
         Timed synthesis, within the concurrency cap, retrying a "busy" refusal
         and falling back once to the plain endpoint. See _timed.
+
+        `cancelled` says whether it's still wanted — asked before taking a slot
+        and again once one's free. Six sentences of a reply he'd cut off after
+        the first each still queued for a slot and sent their request, and the
+        next reply's first sentence waited behind them all. A busy refusal is
+        waited out with the slot let go, not held through the sleep.
         """
-        with self._slots:
-            for attempt in range(3):
+        cancelled = cancelled or (lambda: False)
+        for attempt in range(3):
+            if cancelled():
+                raise SynthesisCancelled(text)
+            busy = False
+            with self._slots:
+                if cancelled():
+                    raise SynthesisCancelled(text)
                 try:
                     return self._timed(text, voice_id)
                 except SynthesisError as exc:
-                    if "429" in str(exc) and attempt < 2:
-                        time.sleep(0.6 * (attempt + 1) ** 2)   # someone else's slot frees up
-                        continue
-                    raise
+                    if "429" not in str(exc) or attempt >= 2:
+                        raise
+                    busy = True
                 except requests.exceptions.ConnectionError as exc:
                     # Can't reach the service at all: a second request would
                     # only double the wait before saying so.
@@ -120,6 +135,9 @@ class AlfredVoiceService:
                     # Timed out or dropped. One more go without the alignment,
                     # the lighter request; the page estimates word timing.
                     return self.synthesize(text, voice_id, timeout=_SENTENCE_TIMEOUT), []
+            if busy:
+                time.sleep(0.6 * (attempt + 1) ** 2)   # someone else's slot frees up
+        raise SynthesisError("ElevenLabs kept refusing (busy)")
 
     def _timed(self, text, voice_id):
         """

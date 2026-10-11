@@ -182,10 +182,15 @@
 
   /** Stop him talking, the way interrupting a person does. */
   function interruptHim() {
-    if (!ConsoleAudio.isPlaying) return;
+    var busy = ['thinking', 'speaking'].indexOf(document.documentElement.dataset.state) !== -1;
+    if (!ConsoleAudio.isPlaying && !busy) return;
     // Whoever he talked over is who he's answering, unless he names someone —
     // the voice he heard, not whoever the model had got to writing next.
-    state.talkedOver = state.party.length > 1 ? (state.seatLast || state.lastSpeaker || null) : null;
+    if (ConsoleAudio.isPlaying) state.talkedOver = state.party.length > 1 ? (state.seatLast || state.lastSpeaker || null) : null;
+    // The server stops too: stopping only the speakers here left it writing and voicing the rest, which then
+    // played over him while he talked — and was remembered as said.
+    state.cutEpoch = state.lastEpoch || 0;
+    send({ type: 'interrupt', heard_upto: state.heardUpto || 0 });
     ConsoleAudio.stop();
     cutOff();
   }
@@ -381,8 +386,11 @@
     if (quietFor > 0) wait += quietFor;
 
     state.idleTimer = setTimeout(function () {
-      // Someone being rung in: the quiet is waiting for them, not a lull to fill.
-      if (!state.connectedId || ConsoleAudio.isPlaying || (state.ringingId && state.ringingId !== state.connectedId)) {
+      // Someone being rung in: the quiet is waiting for them, not a lull to fill. And he's talking (holding the key,
+      // being heard, being transcribed): that isn't a silence — a check-in fired mid-press and cut his turn off.
+      var busy = ['listening', 'transcribing', 'thinking'].indexOf(document.documentElement.dataset.state) !== -1;
+      if (!state.connectedId || ConsoleAudio.isPlaying || state.spaceDown || busy ||
+          (state.ringingId && state.ringingId !== state.connectedId)) {
         armIdleCheck(); return;
       }
       if (closing) {
@@ -2721,7 +2729,7 @@
     if (state.party.length) el['bar-title'].textContent = state.party.length > 1
       ? names.join(' · ')
       : (state.contacts[state.party[0]] || {}).full_name || '';
-    if (event.added) {
+    if (event.added && !event.room) {
       state.ringingId = event.added;
       ConsoleSystem.say('add', event.added).then(function () {
         if (state.ringingId === event.added) ConsoleTones.startRinging();
@@ -2838,6 +2846,11 @@
                     'call_ending', 'turn_complete', 'room', 'picked_up', 'contact_changed', 'transcript',
                     'sources'].indexOf(event.type) !== -1;
     if (!state.connectedId && callOnly) return;
+    // A turn he's cut off is over: whatever of it was still on its way is dropped, not played over him.
+    if (typeof event.epoch === 'number') {
+      if (event.epoch <= (state.cutEpoch || 0)) return;
+      state.lastEpoch = Math.max(state.lastEpoch || 0, event.epoch);
+    }
 
     switch (event.type) {
       case 'state':
@@ -3417,6 +3430,7 @@
         return;
       }
       state.spaceDown = true;
+      clearTimeout(state.idleTimer);
       interruptHim();
       setState('listening');
       ConsoleMic.pushStart();
@@ -3461,6 +3475,7 @@
 
   function wireAudio() {
     ConsoleAudio.on('onSentenceStart', function (text, key, durationMs, words, speaker) {
+      state.heardUpto = key;            // the last sentence he actually heard begin — what's remembered if he cuts in
       setState('speaking');
       if (speaker && seatFor(speaker)) seatSpeaking(seatOwner(speaker));
       revealSentence(text, key, durationMs, words, speaker);

@@ -65,12 +65,13 @@ def speak(audio_id, text, index=0, words=None):
     return {"type": "speak", "words": words or [], "audio_id": audio_id, "text": text, "index": index}
 
 
-def party(members, added=None, removed=None):
+def party(members, added=None, removed=None, room=False):
     """
     Who is on the call now, in order of joining — and who just arrived or left,
-    so the page can announce it and redraw the directory.
+    so the page can announce it and redraw the directory. `room`: the one added
+    was already there on someone's speaker — no ring, no "adding".
     """
-    return {"type": "party", "members": list(members), "added": added, "removed": removed}
+    return {"type": "party", "members": list(members), "added": added, "removed": removed, "room": bool(room)}
 
 
 def call_ending():

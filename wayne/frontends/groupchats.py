@@ -255,6 +255,8 @@ class GroupChats:
         `given` is something they've already written for the group (in the
         wrong thread): it's sent as it is.
         """
+        if given is None:
+            await self._call_first(contact.id)      # the model's the call's while he's on one
         session = self.session_for(contact.id)
         loop = asyncio.get_running_loop()
         session._group_actions = {"leave": False, "add": []}
