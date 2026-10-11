@@ -237,3 +237,23 @@ def test_they_always_know_what_they_wrote_themselves():
     group.add("nightwing", "told randy to come home", at=101)    # Tim's message still unread for Dick
     assert group.read_upto("nightwing") < 100
     assert "told randy to come home" in [m["text"] for m in group.seen_by("nightwing")]
+
+
+def test_in_a_group_chat_they_know_what_their_own_status_says(monkeypatch):
+    """'Nice status' gets an answer from whoever wrote it — on a call, in a text, and in the group."""
+    import time as _time
+
+    from wayne.contacts import directory
+    from wayne.engine import ContactSession, presence
+    from wayne.memory import groups as group_store
+    dick = directory().get("nightwing")
+    whereabouts = presence.of(dick)
+    whereabouts.set_line(whereabouts.line_key(), "coffee & chaos ☕")
+    session = ContactSession(dick)
+    seen = {}
+    monkeypatch.setattr(session, "_chat_once", lambda payload, **kw: seen.setdefault("prompt", payload[-1]["content"]) and "lol")
+    family = group_store.create("Family", ["nightwing", "robin"])
+    session.group_post(family, [{"id": "a", "from": "robin", "text": "what's with the status", "at": _time.time()}],
+                       must=True)
+    assert 'Your status line, which everyone here can see, says "coffee & chaos ☕"' in seen["prompt"]
+    assert "coffee & chaos" in presence.of(dick).note()                 # and on a call or a text

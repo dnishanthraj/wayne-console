@@ -1556,6 +1556,10 @@ class ContactSession:
                            "seeing them now" + (f" — you've been {state['doing']}." if state["doing"] else "."))
         elif state["doing"]:
             context.append(f"Right now you're {state['doing']}.")
+        # The line they set, which the whole chat can see — "nice status" gets an answer from whoever wrote it.
+        status = presence.of(self.contact).line()
+        if status:
+            context.append(f'Your status line, which everyone here can see, says "{status}".')
         # Someone in the chat reaching back — "remember the docks?" — and what they'd remember of it. With
         # someone outside the secret in the group, nothing of the masks comes back.
         asked_back = " ".join(m["text"] for m in (unread or [])[-3:] if m.get("from") != self.contact.id

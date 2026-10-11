@@ -5,6 +5,14 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-11
+
+### Fixed
+
+- In a group chat they know what their own status line says, as they already
+  did on calls and in texts, so "what's with the status?" gets an answer from
+  whoever wrote it.
+
 ## [0.16.0] - 2026-10-11
 
 ### Added
