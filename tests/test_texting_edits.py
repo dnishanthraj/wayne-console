@@ -173,3 +173,19 @@ def test_their_slip_is_edited_a_moment_later_and_the_page_hears(monkeypatch):
     asyncio.run(console._edit_later(dick, sent["id"], "heading to the docks now"))
     assert log.thread.get(sent["id"])["text"] == "heading to the docks now"
     assert events[-1]["type"] == "text_edited"
+
+
+# --- the voice, on a call ------------------------------------------------------------------------------------------
+
+def test_each_of_them_has_their_own_range_on_a_call(monkeypatch):
+    from wayne import delivery
+    from wayne.engine.session import ContactSession
+    monkeypatch.setattr(delivery, "supported", lambda model=None: True)
+    alfred = " ".join(ContactSession(directory().get("alfred"))._voice_notes())
+    jason = " ".join(ContactSession(directory().get("redhood"))._voice_notes())
+    assert "[quietly]" in alfred and "never shout" in alfred
+    assert "[angry]" in jason and "[shouting]" in jason
+    monkeypatch.setattr(delivery, "supported", lambda model=None: False)
+    assert not any("lands" in n for n in ContactSession(directory().get("alfred"))._voice_notes())
+    for cue in ("angry", "softly", "quietly", "worried", "excited", "frustrated", "tired", "chuckles"):
+        assert delivery._performable(cue, "eleven_v4_turbo") == cue                   # every one is performed

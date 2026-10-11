@@ -49,10 +49,14 @@ VOICE_DIRECTIVE = (
     "Your voice is performed by an actor who follows stage cues in square "
     "brackets: " + " ".join(f"[{cue}]" for cue in delivery.CUES) + ". Put one "
     "just before the words it colours, only where you would truly make that "
-    "sound — most replies have none, and never more than two. CAPITALS for the "
+    "sound — most replies have none, and never more than two. When what he says "
+    "moves you, the words change with it too: shorter, broken off with a dash, "
+    "louder, quieter. CAPITALS for the "
     "one word you would hit hard; an ellipsis for a real pause. No other "
-    "bracketed cues — except the markers a turn tells you about ([react: …], "
-    "[take: …] and the like), which are for the console, not the actor."
+    "bracketed cues than these and the ones a turn offers you (the ones that "
+    "are yours, the ones the moment has) — and the markers a turn tells you "
+    "about ([react: …], [take: …] and the like), which are for the console, "
+    "not the actor."
 )
 
 # The single biggest tell that something is a machine is that every reply is

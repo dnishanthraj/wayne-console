@@ -5,6 +5,22 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-10-11
+
+### Changed
+
+- **Their own emotional range on calls.** Only a few voice cues (a sigh, a
+  laugh, a whisper, a shout) were offered on every call, and the rest
+  (angry, crying, worried, softly, excited, a voice breaking) only in
+  special situations, so most calls sounded flat. Now each of them has a
+  range of their own, offered on every call. Alfred goes cold and quiet
+  rather than loud and never shouts unless you're in danger. Jason's anger
+  is close to the surface, and he's quietest when it's about the Joker.
+  Dick laughs easily and softens the moment someone's hurting. Randy's
+  voice breaks once in a long while, and he hangs up before you can hear it.
+  When what you say moves them, their words change too: shorter, broken off,
+  louder, quieter.
+
 ## [0.34.0] - 2026-10-11
 
 ### Added

@@ -2944,8 +2944,11 @@ class ContactSession:
         return note.strip()
 
     def _voice_notes(self):
-        """How their voice is on this line, and whether he's muted: notes for a call turn."""
+        """How their voice is on this line — their range, and the moment's — and whether he's muted: notes for a call turn."""
         notes = []
+        if delivery.supported() and getattr(self.contact, "voice_range", ""):
+            # The same every turn (it's theirs), so the read-ahead keeps it: what something landing sounds like.
+            notes.append(f"When something lands — news, a scare, a joke, a hurt — it's heard: {self.contact.voice_range}.")
         voice = self._voice_note()
         if voice:
             notes.append(voice)
