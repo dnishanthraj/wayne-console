@@ -793,6 +793,14 @@ html[data-link="ending"] .compose { opacity: 0.35; pointer-events: none; }
 .ptt__ring { position: absolute; inset: -1px; border-radius: 50%; border: 1px solid transparent; }
 
 .ptt[data-live="1"] { color: var(--alert); border-color: var(--alert); }
+/* Live mic: a small switch beside the mic — lit while it's the way he talks on calls. */
+.live-toggle { flex: none; height: 30px; padding: 0 11px; border-radius: 15px; border: 1px solid var(--hairline-2);
+  background: transparent; color: var(--text-faint); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em;
+  text-transform: uppercase; cursor: var(--cursor-pointer); transition: color 0.2s var(--ease), border-color 0.2s var(--ease); }
+.live-toggle:hover { color: var(--text); border-color: var(--primary-dim); }
+.live-toggle.is-on { color: var(--good); border-color: color-mix(in srgb, var(--good) 55%, transparent); }
+.live-toggle[aria-pressed="true"] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 18%, transparent); }
+.heard.is-live { font-style: italic; opacity: 0.8; }
 .ptt[data-live="1"] .ptt__ring { border-color: var(--alert); animation: halo 1.3s ease-out infinite; }
 
 @keyframes halo {

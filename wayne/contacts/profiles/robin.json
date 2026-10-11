@@ -711,6 +711,7 @@
     "Old Gotham",
     "Otisburg"
   ],
+  "patience_ms": 680,
   "bond": {
     "toward_him": {
       "warmth": 65,

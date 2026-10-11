@@ -1128,6 +1128,10 @@ class ContactSession:
         """
         notes = []
 
+        if getattr(self, "_came_in", False):
+            self._came_in = False
+            notes.append("He was mid-thought — he paused and you came in on it. That's fine, it's how you talk; "
+                         "answer what he got out, or what you think he was getting at.")
         if _ASKS_FOR_TIME.search(prompt or "") and len(prompt or "") < 120:
             self._asked_for_time = time.time()
             notes.append("He's asked you to give him a moment. A word at most ('Sure.', 'Take your time.') or "

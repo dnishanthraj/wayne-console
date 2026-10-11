@@ -695,6 +695,7 @@
     ]
   },
   "sees_whereabouts": true,
+  "patience_ms": 950,
   "bond": {
     "toward_him": {
       "warmth": 90,

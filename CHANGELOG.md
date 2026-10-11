@@ -5,6 +5,20 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-11
+
+### Added
+
+- **Live mic.** A **Live** switch beside the mic: on a call, just talk, no
+  button. What you're saying shows as you say it (a live caption, every
+  second or so, from the local Whisper). The pause that ends what you're
+  saying is the quickest person on the line's: Jason comes in on a breath
+  (about 450 ms), Alfred waits for a full stop (nearly a second), and on a
+  group call whoever's quickest decides. When they come in on a pause
+  mid-thought they know it, so it sounds like a cut-in, not a misheard
+  answer. Talking over them still stops them. The mic is only live during a
+  call, and the choice is kept for the next one.
+
 ## [0.17.0] - 2026-10-11
 
 ### Changed

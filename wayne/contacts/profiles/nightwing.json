@@ -692,6 +692,7 @@
     "Central Business District, Blüdhaven",
     "Port's Park, Blüdhaven"
   ],
+  "patience_ms": 560,
   "bond": {
     "toward_him": {
       "warmth": 75,

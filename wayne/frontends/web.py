@@ -3389,7 +3389,7 @@ class Console(GroupChats):
         await self.drive(keep(), contact, epoch)
         return result.get("value")
 
-    async def submit(self, text, spoken=False, confidence=1.0, talked_over="", overlapped=None):
+    async def submit(self, text, spoken=False, confidence=1.0, talked_over="", overlapped=None, cut_in=False):
         """
         Run one turn. `spoken` marks input that came from a microphone, which is
         the only kind that can be an acoustic echo — typed text never is.
@@ -3420,6 +3420,9 @@ class Console(GroupChats):
         was_speaking = self.voice_busy
         self._lull_energy, self._lulls = 1.0, 0
         self._him_at = time.time()
+        # Live mic: he paused mid-thought and they came in on it — theirs to know, so it sounds like a cut-in.
+        for member in (self.call.members if self.call else []):
+            member._came_in = cut_in
         epoch = self.interrupt()
         async with self.turn_lock:
             if epoch != self.turn_epoch:
@@ -3643,6 +3646,8 @@ def _contact_payload(contact):
         "knows": wayne_identity.level(contact.id),
         # Where they live, by its place on the map: his to find ("Jim" finds Jim's apartment), nobody else's.
         "home": contact.home,
+        # In live mic, how short a pause they'll come in on — Jason's breath, Alfred's full stop (milliseconds).
+        "patience": contact.patience,
         # Where things stand between them, in words — never a number: what he'd sense, not a score.
         "standing": _standing_payload(contact),
     }
@@ -4463,6 +4468,8 @@ async def transcribe(request: Request):
     body = await request.body()
     began = time.monotonic()
     text, confidence = await asyncio.to_thread(stt.transcribe_pcm, body, _speech_hint())
+    if request.query_params.get("partial"):
+        return JSONResponse({"text": text, "confidence": round(confidence, 2)})     # a live caption, not a turn
     # How long hearing him took, against how long he spoke: slow here is the GPU shared with a reply being written.
     log.info("heard %.1fs of speech in %.2fs%s", len(body) / 4 / stt.SAMPLE_RATE, time.monotonic() - began,
              " (while the model was busy)" if console.voice_busy or console.turn_lock.locked() else "")
@@ -4490,7 +4497,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 console._spawn(console.submit(
                     payload.get("text", ""), spoken=bool(payload.get("spoken")),
                     confidence=confidence, talked_over=str(payload.get("talked_over") or ""),
-                    overlapped=payload.get("overlapped")))
+                    overlapped=payload.get("overlapped"), cut_in=bool(payload.get("cut_in"))))
             elif kind == "connect":
                 console._spawn(console.connect(payload.get("id", "")))
             elif kind == "disconnect":

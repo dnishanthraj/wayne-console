@@ -653,6 +653,7 @@
   ],
   "home_sound": "safehouse",
   "home": "Jason's safehouse",
+  "patience_ms": 450,
   "bond": {
     "toward_him": {
       "warmth": 20,

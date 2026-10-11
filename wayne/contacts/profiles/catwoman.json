@@ -693,6 +693,7 @@
   ],
   "home_sound": "cats_home",
   "home": "Selina's apartment",
+  "patience_ms": 620,
   "bond": {
     "toward_him": {
       "warmth": 55,

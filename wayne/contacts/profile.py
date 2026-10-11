@@ -160,6 +160,8 @@ class Contact:
     nicknames: tuple = ()
     # What they call someone only when it slips — Randy's "Mom": never twice in a few lines (see session).
     rare_address: tuple = ()
+    # In live mic, how short a pause they'll come in on, in milliseconds: Jason on a breath, Alfred at a full stop.
+    patience: int = 0
     # What to keep in mind when a particular person is on the call or in the chat, by their id — Barbara, with
     # her father there: he doesn't know she's Batgirl.
     around: dict = field(default_factory=dict)
@@ -346,6 +348,7 @@ def _load_profile(path):
         cover=str(raw.get("cover", "")),
         nicknames=tuple(raw.get("nicknames", [])),
         rare_address=tuple(raw.get("rare_address", [])),
+        patience=int(raw.get("patience_ms", 0) or 0),
         around=dict(raw.get("around", {})),
         sees_work=str(raw.get("sees_work", "")),
         calls_in=dict(raw.get("calls_in", {})),

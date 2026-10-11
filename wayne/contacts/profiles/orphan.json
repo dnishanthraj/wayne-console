@@ -674,6 +674,7 @@
     "Robinson Park"
   ],
   "gets_about": "subway",
+  "patience_ms": 900,
   "bond": {
     "toward_him": {
       "warmth": 75,

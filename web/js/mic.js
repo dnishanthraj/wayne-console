@@ -93,8 +93,15 @@
     speechMs: 0,
     envelope: 0,
     noiseFloor: 0.01,
-    lastPlayingAt: 0
+    lastPlayingAt: 0,
+    // Live mic: how long a pause ends what he's saying — the quickest on the line decides (see setPatience) —
+    // and how much has been heard since the last live caption.
+    hangoverMs: SILENCE_HANGOVER_MS,
+    sinceCaptionMs: 0,
+    endedBy: ''
   };
+  // A caption of what he's saying, this often, while he says it.
+  var CAPTION_EVERY_MS = 1200;
 
   var handlers = {
     onLevel: null,        // (0..1)
@@ -102,6 +109,7 @@
     onSpeechStart: null,
     onSpeechEnd: null,
     onBargeIn: null,
+    onPartial: null,      // (Float32Array pcm so far) — for a live caption while he's still talking
     onError: null
   };
 
@@ -226,6 +234,7 @@
     state.speaking = false;
     state.silenceMs = 0;
     state.speechMs = 0;
+    state.sinceCaptionMs = 0;
     state.chunks = [];
   }
 
@@ -329,8 +338,15 @@
     state.chunks.push(frame);
     state.speechMs += frameMs;
     state.silenceMs = voiced ? 0 : state.silenceMs + frameMs;
+    state.sinceCaptionMs += frameMs;
+    if (handlers.onPartial && state.sinceCaptionMs >= CAPTION_EVERY_MS && voiced) {
+      state.sinceCaptionMs = 0;
+      handlers.onPartial(resample(merge(state.chunks), rate()));
+    }
 
-    if (state.silenceMs >= SILENCE_HANGOVER_MS || state.speechMs >= MAX_UTTERANCE_MS) {
+    if (state.silenceMs >= state.hangoverMs || state.speechMs >= MAX_UTTERANCE_MS) {
+      // Ended by a pause shorter than an ordinary one: someone quick on the line came in on it.
+      state.endedBy = state.hangoverMs < SILENCE_HANGOVER_MS && state.silenceMs < SILENCE_HANGOVER_MS ? 'cut' : 'pause';
       finishUtterance();
     }
   }
@@ -400,8 +416,16 @@
     return true;
   }
 
+  /* How long a pause ends what he's saying, in live mic: an ordinary pause by default, shorter when someone quick
+     to come in is on the line — Jason doesn't wait for him to finish a thought. Never longer than ordinary. */
+  function setPatience(ms) {
+    state.hangoverMs = Math.max(380, Math.min(SILENCE_HANGOVER_MS, ms || SILENCE_HANGOVER_MS));
+  }
+
   global.ConsoleMic = {
     setMode: setMode,
+    setPatience: setPatience,
+    get endedBy() { return state.endedBy; },
     pushStart: pushStart,
     pushStop: pushStop,
     warm: warm,

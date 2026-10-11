@@ -133,6 +133,7 @@
      'messages-delete', 'messages-more', 'thread-menu', 'groups-wrap', 'group-info', 'group-info-name', 'group-info-members',
      'group-info-add', 'group-info-add-label', 'group-info-close', 'group-info-save', 'seats',
      'group-info-pic', 'group-info-pic-remove', 'group-info-file',
+     'live-mic',
      'messages-call', 'call-pick', 'call-pick-form', 'call-pick-people', 'call-pick-cancel',
      'call-pick-go'].forEach(function (id) { el[id] = $(id); });
   }
@@ -2877,6 +2878,9 @@
   function hangUp(opts) {
     opts = opts || {};
     if (state.muted) { state.muted = false; paintMute(); }
+    // Live mic is for calls: off the phone, the mic closes; the choice waits for the next call.
+    if (state.mode === 'ambient') setMode('ptt');
+    clearCaption();
     state.theyMuted = {};
     paintTheyMuted();
     state.room = {};
@@ -3128,6 +3132,7 @@
         renderDirectory();
         syncBeds();
         renderCallbar();
+        applyMicPreference();
         break;
 
       case 'call_ending':
@@ -3232,14 +3237,57 @@
         // voice stops the moment he presses — so "Yes, bring the car around" after "Shall I bring the car
         // around?" is him agreeing, not an echo.
         state.heSpokeAt = Date.now();
+        clearCaption();
         send({ type: 'prompt', text: text, spoken: true, talked_over: state.talkedOver,
                overlapped: state.mode === 'ambient' && !!state.takeHeardVoice,
+               // Live mic, and the take ended on a pause shorter than an ordinary one: someone came in on it.
+               cut_in: state.mode === 'ambient' && ConsoleMic.endedBy === 'cut',
                confidence: typeof data.confidence === 'number' ? data.confidence : 1 });
         state.takeHeardVoice = false;
         state.talkedOver = null;
       })
       .catch(function () { setState('idle'); });
   }
+
+  /* --- live mic -------------------------------------------------------------
+     Just talk: no button. What he's saying shows as he says it, and the pause that ends it is the quickest
+     person's on the line — Jason comes in on a breath, Alfred lets him finish. On only during a call; the choice
+     is kept for the next. */
+  function livePref() {
+    try { return localStorage.getItem('wayne-live-mic') === '1'; } catch (e) { return false; }
+  }
+  function setLivePref(on) {
+    try { localStorage.setItem('wayne-live-mic', on ? '1' : '0'); } catch (e) { /* the choice just isn't kept */ }
+  }
+  function paintLive() {
+    var on = state.mode === 'ambient';
+    el['live-mic'].setAttribute('aria-pressed', on ? 'true' : 'false');
+    el['live-mic'].classList.toggle('is-on', livePref());
+  }
+  function applyMicPreference() {
+    if (!state.connectedId || state.muted) return;
+    if (livePref() && state.mode !== 'ambient') setMode('ambient');
+    else if (!livePref() && state.mode === 'ambient') setMode('ptt');
+  }
+  function syncPatience() {
+    var on = state.party.length ? state.party : (state.connectedId ? [state.connectedId] : []);
+    var quickest = on.map(function (id) { return (state.contacts[id] || {}).patience || 0; }).filter(Boolean);
+    ConsoleMic.setPatience(quickest.length ? Math.min.apply(null, quickest) : 0);
+  }
+  var captioning = false;
+  function captionPartial(pcm) {
+    if (captioning || state.mode !== 'ambient' || !state.connectedId) return;
+    captioning = true;
+    fetch('/api/transcribe?partial=1', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: pcm.buffer })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (ConsoleMic.isSpeaking && d.text) {
+          showHeard(d.text.trim() + '…');
+          el.heard.classList.add('is-live');
+        }
+      }).catch(function () {}).then(function () { captioning = false; });
+  }
+  function clearCaption() { el.heard.classList.remove('is-live'); }
 
   function setMode(mode) {
     state.mode = mode;
@@ -3250,6 +3298,7 @@
     ConsoleMic.setMode(mode).catch(function () {
       if (mode === 'ambient') setMode('ptt');
     });
+    paintLive();
   }
 
   /* --- wiring ------------------------------------------------------------- */
@@ -3577,6 +3626,7 @@
   var bedTimer = null;
   function syncBeds() {
     clearTimeout(bedTimer);
+    syncPatience();
     var live = state.connectedId && state.ringingId !== state.connectedId;
     // One phone per room: someone on another's speaker is in that room, not one of their own.
     var on = live ? (state.party.length ? state.party.slice() : [state.connectedId])
@@ -3631,6 +3681,13 @@
       if (ConsoleAudio.isPlaying) state.takeHeardVoice = true;      // their voice was in the room during his take
     });
     ConsoleMic.on('onUtterance', submitAudio);
+    ConsoleMic.on('onPartial', captionPartial);
+    el['live-mic'].addEventListener('click', function () {
+      setLivePref(!livePref());
+      if (state.connectedId) setMode(livePref() ? 'ambient' : 'ptt');
+      paintLive();
+    });
+    paintLive();
     // Hands-free: he's started speaking — listen, and read ahead while he does.
     ConsoleMic.on('onSpeechStart', function () {
       state.takeHeardVoice = !!ConsoleAudio.isPlaying;

@@ -644,6 +644,7 @@
   ],
   "home_sound": "safehouse",
   "home": "Randy's apartment",
+  "patience_ms": 720,
   "bond": {
     "toward_him": {
       "warmth": 0,
