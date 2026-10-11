@@ -18,7 +18,7 @@ import time
 import uuid
 
 from .. import paths
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json
 from . import places
 
 _lock = threading.Lock()
@@ -43,7 +43,7 @@ def _path():
 
 def all_plans():
     try:
-        return json.loads(read_text(_path()) or "{}").get("plans", [])
+        return read_json(_path(), {}).get("plans", [])
     except ValueError:
         return []
 
@@ -108,7 +108,8 @@ _read = {}
 
 def read_once(text, invited, model, options, now=None):
     """`read`, once per thing he said: on a group call, everyone hears the same plan."""
-    key = (text, tuple(sorted(invited)))
+    # Per hour as well as per words: "dinner tonight at 8, everyone?" said again on Friday is Friday's plan.
+    key = (text, tuple(sorted(invited)), time.strftime("%Y-%m-%d %H", time.localtime(now or time.time())))
     if key not in _read:
         if len(_read) > 40:
             _read.clear()

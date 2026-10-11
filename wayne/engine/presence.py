@@ -31,6 +31,7 @@ And intentions — "I'll call you when I'm out", "text me when it's done",
 "report back" — are kept here with the time they fall due. The console's
 pulse carries them out (see `Console.pulse`).
 """
+import datetime
 import hashlib
 import json
 import math
@@ -406,28 +407,31 @@ class Presence:
         # A day sketched at midnight doesn't reach back over the evening already had:
         # before the plan was made, what happened was what the routine had them doing.
         plans = {key: blocks for key, blocks in (self._state.get("plans") or {}).items() if t >= made.get(key, 0)}
-        for began in (t, t - 86400):            # a night may have begun yesterday
-            key = time.strftime("%Y-%m-%d", time.localtime(began))
+        # Today, and yesterday for a night that began then — by the calendar, not "24 hours ago", which on the
+        # night the clocks change landed on the day before yesterday and lost the night's patrol.
+        today = datetime.date.fromtimestamp(t)
+        days = ((today, 0), (today - datetime.timedelta(days=1), 24))
+        for day, carry in days:
+            key = day.isoformat()
             for block in plans.get(key) or []:
                 start, end = block["from"], block["to"]
                 if end <= start:
                     end += 24
-                at = hour + (24 if began < t - 1 else 0)
+                at = hour + carry
                 if start <= at < end:
                     return block
         # A day with no plan of its own runs on their week: the gym on a Monday,
         # golf on a Saturday morning, dinner at the Manor every other Sunday.
-        if not plans.get(time.strftime("%Y-%m-%d", time.localtime(t))):
+        if not plans.get(today.isoformat()):
             habit = week.block(self.contact, t)
             if habit:
                 return habit
         for index, block in enumerate(getattr(self.contact, "routine", ()) or ()):
-            for began in (t, t - 86400):        # a night may have begun yesterday
-                day = time.localtime(began)
-                key = time.strftime("%Y-%m-%d", day)
+            for day, carry in days:             # a night may have begun yesterday
+                key = day.isoformat()
                 if plans.get(key):
                     continue    # they planned that day themselves; the routine is only a fallback
-                if "days" in block and day.tm_wday not in block["days"]:
+                if "days" in block and day.weekday() not in block["days"]:
                     continue
                 if _draw(self.contact.id, index, key) >= block.get("chance", 1.0):
                     continue     # not that day
@@ -436,7 +440,7 @@ class Presence:
                 end = block.get("to", 0) + (_draw(self.contact.id, index, key, "end") - 0.5) * 2 * drift
                 if end <= start:
                     end += 24                   # runs past midnight
-                at = hour + (24 if began < t - 1 else 0)
+                at = hour + carry
                 if start <= at < end:
                     return block
         return None
@@ -767,7 +771,8 @@ class Presence:
                 live, how = self._glimpsed(now)
             if live:
                 out.update(spot=live, where=live["name"], seen_live=True, doing="working a case" if how.startswith("seen working") else "")
-                self._state["seen"] = {"where": live["name"], "x": live["x"], "y": live["y"], "at": now, "how": how}
+                with self._lock:        # read on threads now: never a change mid-save
+                    self._state["seen"] = {"where": live["name"], "x": live["x"], "y": live["y"], "at": now, "how": how}
                 return out
             seen = self._state.get("seen")
             if seen and (t or time.time()) - seen.get("at", 0) < 48 * 3600:
@@ -781,10 +786,13 @@ class Presence:
             shown["spot"] = self.spot(where, t)
             shown["where"] = self.label(where)
             trip = self.trip(where, shown["spot"], t)
+            beside = None if trip else self._beside(t or time.time())
             if trip:
                 here = travel.position(trip, t or time.time())
                 shown["route"] = {"pts": trip["pts"], "start": trip["start"], "end": trip["end"], "from": trip.get("from", ""),
                                   "by": travel.crossing(*here) or trip.get("by", "")}
+            elif beside:
+                shown["spot"] = {**(shown["spot"] or {}), "x": beside[0], "y": beside[1]}
             else:
                 walking = self.patrolling(where, t)
                 if walking:
@@ -825,10 +833,29 @@ class Presence:
         trip = self.trip(where, spot, t)
         if trip:
             return travel.position(trip, t)
+        beside = self._beside(t)
+        if beside:
+            return beside
         walking = self.patrolling(where, t)
         if walking:
             return (walking["x"], walking["y"])
         return (spot["x"], spot["y"])
+
+    def _beside(self, t):
+        """
+        Gone to be with one of them and got there: at their side, wherever they are along their own way —
+        not parked at the middle of the district while they walk the roofs half a kilometre off.
+        """
+        activity = self._activity_at(t)
+        if not activity or not activity.get("follow"):
+            return None
+        target = self._follow_target(activity, t)
+        if target is None or target is self:
+            return None
+        there = target.position(t)
+        if there is None:
+            return None
+        return (round(there[0] + 0.22, 2), round(there[1] + 0.14, 2))
 
     # Who spots them, now and then, going about a life they keep to themselves.
     _SPOTTERS = ("Barbara caught them on a traffic camera", "Dick saw them on a rooftop", "a GCPD patrol called it in",
@@ -940,9 +967,14 @@ class Presence:
             here = (spot["x"], spot["y"])
             if trip and trip.get("to") == where:
                 return trip if t < trip["end"] else None
+            seen = trip
         left_at, before = self._set_off(where, t)
         with self._lock:
             trip = self._state.get("trip")
+            if trip is not seen and trip and trip.get("to") == where:
+                # Decided elsewhere while this was being worked out — a lift, a pursuit (set_trip): that's the
+                # journey. Overwritten, the Batwing lift became "on the bike".
+                return trip if t < trip["end"] else None
             if left_at is None:
                 self._state["trip"] = {"to": where, "pts": [list(here)], "start": t, "end": t}
                 self.save()

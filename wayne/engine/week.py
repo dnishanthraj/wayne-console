@@ -31,8 +31,7 @@ def _this_week(contact, habit, day):
     every = max(1, int(habit.get("every", 1)))
     if every == 1:
         return True
-    iso = day.isocalendar()
-    week = iso[0] * 53 + iso[1]
+    week = day.toordinal() // 7         # a week count that runs on across year ends (iso year*53 skipped one)
     phase = habit.get("phase")
     if phase is None:
         phase = int(_draw(contact.id, habit.get("doing", ""), "phase") * every)

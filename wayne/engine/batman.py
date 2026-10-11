@@ -16,7 +16,7 @@ import threading
 import time
 
 from .. import paths
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json
 from . import places, travel
 
 HOME = "Wayne Manor"
@@ -30,7 +30,7 @@ def _path():
 
 def _load():
     try:
-        return json.loads(read_text(_path()) or "{}")
+        return read_json(_path(), {})
     except ValueError:
         return {}
 
@@ -95,6 +95,9 @@ def go(where, x=None, y=None, case="", t=None):
     there = places.resolve(where) if x is None else {"name": where, "x": x, "y": y}
     if here is None or there is None:
         return None
+    from . import jet
+    if jet.busy(t):
+        jet.let_go(t)           # changing course mid-flight: down where it is, then the new way (and never booked twice)
     suited = bool(case) or night(t)
     goal = (there["x"], there["y"])
     if suited:
@@ -125,13 +128,20 @@ def ferry(name, drop, trip, t=None):
 
 
 def _with(contact_id, t):
-    """Where one of them is, for going with them — only if they let him see it."""
+    """
+    Where one of them is, for going with them — only if they let him see it, and only while it makes sense:
+    gone to sleep, or half a day on, he isn't still at their side (he was, next morning, in Dick's flat).
+    """
     from ..contacts import directory
     from . import presence
     contact = directory().get(contact_id)
     if contact is None or not getattr(contact, "shares_location", True):
         return None
-    return presence.of(contact).position(t)
+    them = presence.of(contact)
+    since = _load().get("follow_since") or t
+    if t - since > 12 * 3600 or them._situation(t)[0].get("status") == presence.OFFLINE:
+        return None
+    return them.position(t)
 
 
 def join(contact_id, t=None):
@@ -156,6 +166,7 @@ def join(contact_id, t=None):
     with _lock:
         data = _load()
         data["follow"] = contact_id
+        data["follow_since"] = t
         atomic_write(_path(), json.dumps(data, ensure_ascii=False))
     return trip
 
@@ -190,8 +201,11 @@ def leave_case_for(t=None):
 
 def halt(t=None):
     """Off the case: he stops where he's got to — on the roofs, in the car — and that's where he is."""
+    from . import jet
     t = t or time.time()
     here = position(t)
+    if jet.busy(t):
+        jet.let_go(t)           # stopped mid-flight: set down here, not flown on without him
     with _lock:
         data = _load()
         if here is not None:
@@ -219,4 +233,6 @@ def note(t=None):
     if s.get("route"):
         left = max(1, round((s["route"]["end"] - t) / 60))
         return f"Bruce: on his way to {s['where']}, {s['route'].get('by', 'travelling')}, about {left} min out"
-    return f"Bruce: at {s['where']}" + (" — suited up" if s["suit"] and s["where"] != HOME else "")
+    where = s["where"] or HOME
+    at = where if where.lower().startswith(("with ", "at ", "on ", "in ")) else f"at {where}"
+    return f"Bruce: {at}" + (" — suited up" if s["suit"] and where != HOME else "")

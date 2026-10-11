@@ -27,7 +27,7 @@ import threading
 import time
 
 from .. import paths
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json
 
 FIELD = ("nightwing", "robin", "batgirl", "orphan", "redhood", "batwing")
 # How long after closing a case stays on the board (and in their mind).
@@ -42,7 +42,7 @@ def _path():
 
 def everything():
     try:
-        return json.loads(read_text(_path()) or "[]")
+        return read_json(_path(), [])
     except ValueError:
         return []
 

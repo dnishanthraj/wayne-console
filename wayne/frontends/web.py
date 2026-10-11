@@ -55,7 +55,7 @@ from ..engine.session import ASKS_REACTION
 from ..memory import groups as group_store
 from ..memory import migrate_legacy
 from ..memory.history import describe_gap
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json, read_text
 from ..memory.texts import TextLog, quoted_by
 from ..paths import WEB_DIR
 from .groupchats import GroupChats
@@ -162,6 +162,7 @@ class Console(GroupChats):
         # cut him off or merely followed him.
         self.voice_busy = False
         self._heard_upto = None     # the last sentence he heard begin, when he cut in (see _remember_heard)
+        self._plan_backoff = {}     # contact id -> not before: a day plan that failed waits its turn again
         self._last_said = None
         self.boot_task = None
         self._release = None   # pending model release after a hang-up
@@ -2704,18 +2705,23 @@ class Console(GroupChats):
         if (self._writing_lines or not self.clients or self.current_id or self._texters
                 or self.turn_lock.locked()):
             return
-        waiting = [c for c in self.directory if not presence.of(c).has_plan()]
+        now = time.time()
+        backoff = self._plan_backoff
+        waiting = [c for c in self.directory if not presence.of(c).has_plan() and backoff.get(c.id, 0) <= now]
         if not waiting or not await asyncio.to_thread(_model_loaded, waiting[0].model):
             return
         self._writing_lines = True
         try:
             contact = waiting[0]
-            plan = await asyncio.to_thread(initiative.day_plan, contact, None,
+            plan = await asyncio.to_thread(initiative.day_plan, contact, now,
                                            self._plans_so_far(contact), list(self.directory))
             if plan:
-                presence.of(contact).set_plan(plan)
+                # For the day it was sketched on: begun at 23:59, it was filed under tomorrow when it finished.
+                presence.of(contact).set_plan(plan, t=now)
                 log.info("%s planned the day: %d blocks", contact.id, len(plan))
                 await self._presence_changed(contact)
+            else:
+                backoff[contact.id] = now + 10 * 60      # try again later, and the others meanwhile
         finally:
             self._writing_lines = False
 
@@ -2740,9 +2746,12 @@ class Console(GroupChats):
         return "\n".join(lines[:14])
 
     async def _presence_changed(self, contact):
-        shown = presence.of(contact).public()
-        # Where they are counts: a patrol moving along its beat is news to the map.
-        key = (shown["status"], shown["doing"], shown.get("line", ""), shown.get("where"))
+        # Worked out on a thread: a journey not yet worked out costs a road route or two, and nine of them on
+        # the event loop at the turn of a watch held a call's voice up for most of a second.
+        shown = await asyncio.to_thread(presence.of(contact).public)
+        # Where they are counts: a patrol moving along its beat is news to the map — and who they're with.
+        key = (shown["status"], shown["doing"], shown.get("line", ""), shown.get("where"),
+               tuple(shown.get("with") or ()))
         if self._shown_presence.get(contact.id) != key:
             self._shown_presence[contact.id] = key
             await self.broadcast({"type": "presence", "speaker": contact.id, "presence": shown})
@@ -3310,7 +3319,7 @@ def mutes(now=None):
     """
     now = now or time.time()
     try:
-        kept = json.loads(read_text(_mutes_path()) or "{}")
+        kept = read_json(_mutes_path(), {})
     except ValueError:
         kept = {}
     out = {}
@@ -3332,7 +3341,7 @@ def _pins_path():
 
 def _load_pins():
     try:
-        return json.loads(read_text(_pins_path()) or "[]")
+        return read_json(_pins_path(), [])
     except ValueError:
         return []
 

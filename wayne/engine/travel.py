@@ -39,7 +39,9 @@ ROOF_RANGE = 9.0                      # the furthest anyone runs the roofs when 
 # Batwing is Bruce's alone to fly; the rest ride in it only when he gives them a lift (see jet.lift).
 SUITED = {"bruce": ("rooftops", "batmobile", "jet"), "nightwing": ("rooftops", "bike"),
           "robin": ("rooftops", "bike"), "batgirl": ("rooftops", "bike"),
-          "orphan": ("rooftops",), "redhood": ("rooftops", "bike"), "batwing": ("flight",)}
+          "orphan": ("rooftops", "bike"), "redhood": ("rooftops", "bike"), "batwing": ("flight",)}
+# (Cass rides too, for the long way across the city: on foot only, she went sixteen kilometres in twenty-seven
+# minutes "on foot".)
 # Taken over the roads or the roofs only if it's clearly quicker: a quarter off, and three minutes.
 JET_BETTER = (0.75, 3.0)
 

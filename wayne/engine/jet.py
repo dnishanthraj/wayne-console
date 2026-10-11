@@ -22,7 +22,7 @@ import threading
 import time
 
 from .. import paths
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json
 from . import places
 
 SPEED = 45.0            # map units a minute: ~400 km/h low over the roofs — faster than any airliner on approach
@@ -44,7 +44,7 @@ def _path():
 
 def _load():
     try:
-        return json.loads(read_text(_path()) or "{}")
+        return read_json(_path(), {})
     except ValueError:
         return {}
 
@@ -240,6 +240,34 @@ def lift(passenger, bruce_at, them_at, drop_at, t=None, then=None):
     theirs = {"pts": across["pts"], "start": aboard, "end": across["end"], "by": "on the Batwing, with him",
               "pickup": aboard - PICKUP * 60}
     return his, theirs
+
+
+def let_go(t=None):
+    """
+    He's off it mid-flight — gone somewhere else, or stopped where he is: it
+    sets him down where it is now and the rest of the flight goes. With him
+    aboard, it sweeps the city from there as a drone, as after any drop; on its
+    way to him, it turns for home. Without this a jet flew the old route "with
+    him at the controls" while his dot drove on — and booked twice, couldn't be
+    booked again. True if there was a flight to let go of.
+    """
+    t = t or time.time()
+    with _lock:
+        data = _load()
+        legs = data.get("legs") or []
+        current = next((leg for leg in legs if leg["start"] <= t < leg["end"]), None)
+        if current is None and not any(leg["start"] > t for leg in legs):
+            return False
+        x, y, _h, _leg = where(t)
+        kept = [leg for leg in legs if leg["end"] <= t]
+        if current is not None:
+            kept.append({**current, "pts": [current["pts"][0], [round(x, 2), round(y, 2)]], "end": t})
+            if current["kind"] != "flying":
+                kept.append(_flight((x, y), home(), t, "home"))
+        data["legs"] = kept[-8:]
+        data.pop("waiting", None)
+        _save(data)
+        return True
 
 
 def summon(who, a, t=None):

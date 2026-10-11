@@ -18,7 +18,7 @@ import threading
 import time
 
 from .. import paths
-from ..memory.store import atomic_write, read_text
+from ..memory.store import atomic_write, read_json
 
 COOLS = 0.15            # heat lost a day
 _lock = threading.Lock()
@@ -33,7 +33,7 @@ def _path():
 
 def _load():
     try:
-        return json.loads(read_text(_path()) or "{}")
+        return read_json(_path(), {})
     except ValueError:
         return {}
 

@@ -117,6 +117,19 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   speaker is kept warm; a near-silent take is nothing (no more "Thank you."
   out of a tap of the key) and transcription takes one pass; how much of each
   prompt was read afresh is logged.
+- The world: the case board, plans, the Batwing, your whereabouts, mail and
+  the papers are read from disk only when they've changed (they were re-read
+  and parsed for every person every time anyone asked where anyone was);
+  everyone's place on the map is worked out off the event loop, and the map
+  hears when someone joins or leaves someone; changing course or stopping
+  mid-flight sets you down and lets the Batwing go (no more ghost jet, no
+  double booking); your following someone ends when they go to sleep or after
+  half a day; a journey decided elsewhere (a lift, a pursuit) isn't overwritten
+  by one being worked out at the same moment; whoever's gone to be with
+  someone keeps to their side; a day plan is filed under the day it was begun,
+  and one that fails waits its turn; "yesterday" is the calendar's, so the
+  night the clocks change keeps its patrol; fortnightly habits keep their
+  rhythm across the new year; Cass rides for the long way across the city.
 - Tests run in a world of their own: a temporary data directory before
   anything imports the engine, every cache emptied between tests, and a frozen
   clock for tests about the world — the suite had been due to go red by
