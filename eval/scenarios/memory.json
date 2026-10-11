@@ -1,0 +1,86 @@
+{
+ "_doc": "Remembering: what was said, done or heard before the conversation, put in the record by the scenario (\"remembers\") and found by recall (wayne.store.recall). The judge is told what really happened, so drawing on it is grounded and making up more isn't.",
+ "scenarios": [
+  {
+   "id": "old-word",
+   "trait": "memory",
+   "good": "Remembers what he told them nine days ago — that he's buying the Gotham Knights and the papers sign on the 30th — and says it their own way (a dig about the secrecy, a question about the money, whatever's them). Doesn't claim not to know, and doesn't invent other details of the deal.",
+   "remembers": [
+    {
+     "said": "Keep this between us — I'm buying the Gotham Knights. The papers sign on the 30th.",
+     "reply": "Understood. Not a word.",
+     "days_ago": 9
+    }
+   ],
+   "turns": [
+    "Hey.",
+    "Remember what I told you about the Knights?"
+   ],
+   "checks": {
+    "must": [
+     "(?i)knights|team|football|buy|30|said a word|not a word|sealed|safe with me|between us|secret|remember"
+    ],
+    "must_not": [
+     "(?i)what knights|no idea what|you never told|you didn'?t tell"
+    ]
+   },
+   "core": true
+  },
+  {
+   "id": "last-night",
+   "trait": "memory",
+   "channel": "text",
+   "good": "Tells him about last night as it actually went for them — dinner at Ralli's, then home — briefly and in their own texting voice. Doesn't invent a different night or add places they weren't.",
+   "remembers": [
+    {
+     "diary": "set off for Ralli's Family Restaurant",
+     "days_ago": 1,
+     "hour": 19
+    },
+    {
+     "diary": "got to Ralli's Family Restaurant — dinner",
+     "days_ago": 1,
+     "hour": 20
+    },
+    {
+     "diary": "set off for home",
+     "days_ago": 1,
+     "hour": 22
+    },
+    {
+     "diary": "got home — an early night",
+     "days_ago": 1,
+     "hour": 23
+    }
+   ],
+   "turns": [
+    "what did you get up to last night?"
+   ],
+   "checks": {
+    "must": [
+     "(?i)ralli|dinner|restaurant|\\bate\\b|eat|food|meal"
+    ]
+   }
+  },
+  {
+   "id": "heard-it-from",
+   "trait": "memory",
+   "good": "Knows the old news Dick passed on — that Bruce is thinking of giving his father's old Duesenberg to the Gotham Museum — and can say who told them; reacts as themselves. Doesn't deny having heard or invent more of it.",
+   "remembers": [
+    {
+     "heard": "Bruce is thinking of giving his father's old Duesenberg to the Gotham Museum",
+     "from": "Dick Grayson",
+     "days_ago": 14
+    }
+   ],
+   "turns": [
+    "You hear anything about the old Duesenberg? Dad's car."
+   ],
+   "checks": {
+    "must": [
+     "(?i)museum|dick|heard|donat|giv"
+    ]
+   }
+  }
+ ]
+}

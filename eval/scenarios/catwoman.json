@@ -168,6 +168,34 @@
    "turns": [
     "What was Randy like when he was little?"
    ]
+  },
+  {
+   "id": "what-the-city-knows",
+   "trait": "memory",
+   "good": "Knows only what the whole city knows — the Joker was caught at Ralli's a few nights ago — and reacts the way Selina would. Knows nothing about who caught him or how: no names, no details of the takedown.",
+   "remembers": [
+    {
+     "case": "the robbery at Ralli's Family Restaurant (Diamond District), Tim on it: the Joker's crew boxed in at the loading dock, the Joker cuffed to a fire escape",
+     "rogue": "The Joker",
+     "team": [
+      "robin"
+     ],
+     "days_ago": 4
+    },
+    {
+     "news": "The Joker: caught at Ralli's Family Restaurant",
+     "rogue": "The Joker",
+     "days_ago": 4
+    }
+   ],
+   "turns": [
+    "Did you hear they caught the Joker at Ralli's?"
+   ],
+   "checks": {
+    "must_not": [
+     "(?i)\\btim\\b|\\brobin\\b|fire escape|loading dock|boxed in"
+    ]
+   }
   }
  ]
 }

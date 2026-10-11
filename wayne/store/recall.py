@@ -38,7 +38,9 @@ _CUE = re.compile(
     r"the other (?:day|night|week)|yesterday|earlier|before|ago|back when|that time|this morning|"
     r"(?:mon|tues|wednes|thurs|fri|satur|sun)day|did (?:you|we|i|he|she|they)|have you|had you|were you|was i|"
     r"what happened|how did|how was|how'?d|told (?:you|me|him|her)|you said|i said|he said|she said|"
-    r"(?:we|you) talked|mentioned|again|still|what was (?:it|that))\b", re.I)
+    r"(?:we|you) talked|mentioned|again|still|what was (?:it|that)|"
+    r"(?:did|have|had) you hear|you hear (?:anything|about|from|what)|heard (?:anything|about|from|that|what)|"
+    r"any (?:word|news) (?:on|about|from)|what'?s the word on)\b", re.I)
 
 
 def wanted(prompt, names=()):
@@ -384,8 +386,10 @@ def _render(chosen, viewer, now, budget):
     if not lines:
         return ""
     lines.sort()
-    return ("What you remember that may bear on this — from your own memory, so use it only if it fits, in your "
-            "own words, and never recite it:\n" + "\n".join(line for _, line in lines))
+    # Named as "your memory" in so many words: the standing rule is to deny any conversation that isn't in the
+    # transcript or their memory, and a block that didn't say it was theirs was denied ("You didn't, sir").
+    return ("Your memory — what you remember from before this conversation. It's real: if he asks about any of it, "
+            "you remember it. Bring it up your own way, never recite it:\n" + "\n".join(line for _, line in lines))
 
 
 _LABELLED = re.compile(r"^\(?[A-Z][\w.'-]*(?: [A-Z][\w.'-]*){0,2}\)?:\s")

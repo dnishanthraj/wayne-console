@@ -1378,6 +1378,8 @@ class ContactSession:
         """
         messages = self.history.messages
         since = self.history._window_start or (messages[0].get("at") if messages else None)
+        if since is None:
+            since = time.time()
         try:
             return recall.block(self.contact, prompt, said_since=since, outsider=guarded)
         except Exception:
@@ -1425,6 +1427,15 @@ class ContactSession:
                            "seeing them now" + (f" — you've been {state['doing']}." if state["doing"] else "."))
         elif state["doing"]:
             context.append(f"Right now you're {state['doing']}.")
+        # Someone in the chat reaching back — "remember the docks?" — and what they'd remember of it. With
+        # someone outside the secret in the group, nothing of the masks comes back.
+        asked_back = " ".join(m["text"] for m in (unread or [])[-3:] if m.get("from") != self.contact.id
+                              and m.get("kind") != "system")
+        if asked_back:
+            outsiders = any(groupchat.outside(m) for m in group.members if m != self.contact.id)
+            memory = self._remembered(asked_back, guarded=outsiders)
+            if memory:
+                context.append(memory)
         lately = culture.note(self.contact, " ".join(m["text"] for m in unread[-4:]) if unread else (opening or ""))
         if lately:
             context.append(lately)

@@ -185,3 +185,24 @@ def test_new_things_are_found_without_building_again(book, clock):
     History("robin").record_exchange("The zeppelin over Gotham Harbor is Lex's", "Of course it is.")
     clock.at(clock() + 3 * DAY)
     assert "zeppelin" in recall.block(tim, "Remember the thing about the zeppelin?", said_since=time.time())
+
+
+def test_a_group_chat_reaching_back_gets_it_and_not_with_selina_in_the_room(book, clock, monkeypatch):
+    from wayne.engine import ContactSession
+    session = ContactSession(book.get("robin"))
+    seen = {}
+
+    def chat(payload, **kw):
+        seen["prompt"] = payload[-1]["content"]
+        return "yeah"
+    monkeypatch.setattr(session, "_chat_once", chat)
+    clock.at(clock() - 6 * DAY)
+    History("robin").record_exchange("The Penguin's guns go through the Iceberg Lounge on Friday", "On it.")
+    clock.at(clock() + 6 * DAY)
+    asked = "Remember what Bruce said about the Penguin's guns?"
+    family = group_store.create("Family", ["robin", "nightwing"])
+    session.group_post(family, [{"id": "a", "from": "nightwing", "text": asked, "at": time.time()}], must=True)
+    assert "Iceberg Lounge" in seen["prompt"]
+    dinner = group_store.create("Dinner", ["robin", "catwoman"])
+    session.group_post(dinner, [{"id": "b", "from": "catwoman", "text": asked, "at": time.time()}], must=True)
+    assert "Iceberg Lounge" not in seen["prompt"]

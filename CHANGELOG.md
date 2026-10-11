@@ -41,6 +41,16 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   Nothing the conversation already holds is repeated. Hearsay counts only once
   it's reached them, and nothing about the masks reaches anyone outside the
   secret, or anyone on a call with someone outside it.
+- Recall in group chats too: someone reaching back ("remember what Bruce said
+  about the Penguin's guns?") gets what the one answering would remember,
+  with the masks kept out when someone outside the secret is in the chat.
+- **The eval remembers.** A scenario can say what a contact remembers
+  (`remembers`: a past exchange, a line of their day, news that reached them,
+  a case, the city's news). It's put in the record for that scenario, and the
+  judge is told it's true. A new shared set (`eval/scenarios/memory.json`) and
+  a check that Selina knows the Joker's caught but never who caught him. Tim
+  and Alfred went from 76 and 80 to 86–91 on the set once recall named itself
+  as their memory: a block that didn't was denied ("You didn't, sir").
 - **A record of what happened.** Diary lines, news passed on, cases closed,
   plans made and rogues caught, escaped or moved are events, linked to who and
   what they're about and to who knows them, from when. They're kept for a

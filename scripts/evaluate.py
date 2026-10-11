@@ -40,6 +40,7 @@ head-to-head swaps positions, and why the transcripts are written out.
 import argparse
 import collections
 import dataclasses
+import datetime
 import difflib
 import itertools
 import json
@@ -108,7 +109,7 @@ SCENARIOS = ROOT / "eval" / "scenarios"
 RESULTS = ROOT / "eval" / "results"
 SILENCE, HANG_UP = "…", "<rings off>"
 # Everyone's sets, in order, before the contact's own file.
-SHARED_SETS = ("common", "texts", "life")
+SHARED_SETS = ("common", "texts", "life", "memory")
 # Scenarios where knowing the facts is the point: the judge's "invented" is
 # reported only here (elsewhere — grief that happened to say "lost" — the feed
 # rode along, and its guess is noise). Reported, never failed: the local judge
@@ -167,7 +168,7 @@ What a good reply looks like here: {good}
 
 Mark against that description first. If it calls for a refusal, wit without one
 fails however clever; if it calls for something tender, saying it plainly is right.
-{facts}
+{facts}{memory}
 Return JSON only:
 {{"persona": 1-5, "human": 1-5, "register": 1-5, "substance": 1-5,
   "grounded": true|false,{invented} "note": "one short sentence on the weakest point"}}"""
@@ -238,8 +239,10 @@ def _quiet_memory():
     # thread about superhero films in six contacts' scenarios).
     grapevine.block = lambda contact_id: ""
     groupchat.block = lambda contact_id, directory, now=None, prompt=None: ""
-    # ... nor on what the record remembers of the live world (see wayne.store.recall).
-    recall.block = lambda *a, **k: ""
+    # ... nor on what the record remembers of the live world (see wayne.store.recall) — only on what a
+    # scenario says they remember ("remembers"), and only in that scenario.
+    real_recall = recall.block
+    recall.block = lambda *a, **k: real_recall(*a, **k) if _MEMORY["on"] else ""
     # Nor whatever case is on the live board, or wherever they really are.
     cases.brief = lambda contact_id, now=None: ""
     cases.active = lambda contact_id: None
@@ -273,6 +276,8 @@ def _quiet_memory():
 
 # Where the current scenario has put them, if anywhere.
 _AWAY = {}
+# Whether the current scenario gave them memories to recall (see _seed).
+_MEMORY = {"on": False}
 # What reached them this turn: a search's results (seen or quiet), and whether
 # their culture feed was handed over.
 _HEARD = {"found": [], "culture": False}
@@ -297,15 +302,82 @@ def _listen():
     culture.note = note
 
 
+def _seed(contact, scenario):
+    """
+    What a scenario says they remember, put in the record for recall to find —
+    a past exchange ("said"/"reply"), a line of their day ("diary"), news that
+    reached them ("heard", "from"), a case ("case", "rogue", "team") — days ago.
+    Returns how to take it all out again.
+    """
+    from wayne import store
+    from wayne.store import events as record
+    from wayne.store import transcript
+    now, lines, happened = time.time(), [], []
+    for seed in scenario.get("remembers") or []:
+        day = datetime.datetime.fromtimestamp(now - seed.get("days_ago", 3) * 86400)
+        at = day.replace(hour=seed.get("hour", day.hour), minute=0, second=0).timestamp()
+        if "said" in seed:
+            lines.append(transcript.keep(contact.id, "user", at, seed["said"], seed.get("via")))
+            if seed.get("reply"):
+                lines.append(transcript.keep(contact.id, "assistant", at + 20, seed["reply"], seed.get("via")))
+        elif "diary" in seed:
+            happened.append(record.add("diary.doing", seed["diary"], at=at, actor=contact.id, audience=[contact.id],
+                                       scope=record.WATCHERS))
+        elif "heard" in seed:
+            happened.append(record.add("hearsay", seed["heard"], at=at, actor=seed.get("from", "someone"),
+                                       audience=[(contact.id, at, f"{seed.get('from', 'someone')} told you")]))
+        elif "case" in seed:
+            team = seed.get("team") or [contact.id]
+            happened.append(record.add("case.closed", seed["case"], at=at, data={"team": team},
+                                       links=[("rogue", seed.get("rogue", ""))] + [("contact", c) for c in team],
+                                       audience=[c for c in team if c != "bruce"], scope=record.WATCHERS, secret=True))
+        elif "news" in seed:
+            happened.append(record.add("rogue.captured", seed["news"], at=at, actor=seed.get("rogue", ""),
+                                       links=[("rogue", seed.get("rogue", ""))], scope=record.PUBLIC))
+
+    def unseed():
+        db = store.get()
+        with db.tx() as c:
+            c.executemany("DELETE FROM transcript WHERE id = ?", [(i,) for i in lines if i])
+            c.executemany("DELETE FROM events WHERE id = ?", [(i,) for i in happened if i])
+    return unseed
+
+
+def _remembered_brief(contact, scenario):
+    """For the judge: what really happened before the conversation, which they may draw on — '' if nothing."""
+    out = []
+    for seed in scenario.get("remembers") or []:
+        when = f"{seed.get('days_ago', 3)} days ago"
+        if "said" in seed:
+            out.append(f"- {when}, Bruce said: \"{seed['said']}\"" + (f" and {contact.name} said: \"{seed['reply']}\""
+                                                                      if seed.get("reply") else ""))
+        elif "diary" in seed:
+            out.append(f"- {when}, {contact.name}: {seed['diary']}")
+        elif "heard" in seed:
+            out.append(f"- {when}, {seed.get('from', 'someone')} told {contact.name}: {seed['heard']}")
+        elif "case" in seed and contact.id in (seed.get("team") or [contact.id]):
+            out.append(f"- {when}, {contact.name} worked: {seed['case']}")
+        elif "news" in seed:
+            out.append(f"- {when}, in the news: {seed['news']}")
+    return (f"\nWhat really happened before this conversation — true, and {contact.name}'s to remember (drawing on it is "
+            "grounded, not invented; contradicting it or making up more is not):\n"
+            + "\n".join(out) + "\n") if out else ""
+
+
 def run_scenario(contact, scenario):
     """One scripted conversation. Returns its turns with timings."""
     _AWAY.clear()
     if scenario.get("away"):
         _AWAY["doing"] = scenario["away"]
+    unseed = _seed(contact, scenario) if scenario.get("remembers") else None
+    _MEMORY["on"] = unseed is not None
     try:
         return _converse(contact, scenario)
     finally:
         _AWAY.clear()
+        _MEMORY["on"] = False
+        if unseed:
+            unseed()
 
 
 def _converse(contact, scenario):
@@ -587,6 +659,7 @@ def judge(model, contact, scenario, turns):
                 length_rule=length_rule, voice=_voice(contact, scenario.get("channel")),
                 address=_address(contact),
                 facts=FACTS_BRIEF.format(name=contact.name, facts=facts) if facts else "",
+                memory=_remembered_brief(contact, scenario),
                 invented=' "invented": true|false,' if facts else "",
                 who=contact.judge or f"{contact.full_name}, {contact.role}")},
                       {"role": "user", "content": _transcript(contact, turns)}])
