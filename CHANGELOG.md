@@ -144,6 +144,15 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   clock for tests about the world — the suite had been due to go red by
   itself from mid-October, and wrote into the real data. The evaluation runs
   on a copy of the data and a quiet city, and never keeps a plan.
+- The page: it catches up after the server restarts (texts, groups, mail,
+  where everyone is); a group thread, its badges and the toasts keep their own
+  colour instead of flickering through whoever's speaking; Mail's columns
+  follow the room it has, not the window's; the Codex header wraps instead of
+  pushing its buttons off; your own marker opens your own card; the bar shows
+  which view is up; no scanlines over the whole console (they made a moiré
+  over the map's at night) and no glow on disabled buttons or bare emoji; one
+  focus ring for everything reached by keyboard; tooltips are readable
+  sentences, not 9px capitals.
 - Mail and your position update without a call up; message tabs survive a
   reload; Escape closes Mail and the Codex; Space presses a button you've
   tabbed to; the call card stays over Mail and lifts the person card clear;

@@ -1206,6 +1206,12 @@
 
   function renderCard(id) {
     var card = $('.gm-card');
+    if (id === 'bruce') return renderMine(card);
+    // Every action back for whoever's card this is (his own hides the ones that make no sense for him).
+    ['message', 'call'].forEach(function (act) {
+      var b = card.querySelector('[data-act="' + act + '"]');
+      if (b) b.hidden = false;
+    });
     var c = opts.contacts()[id];
     // Gone from the map — asleep, out of reach, hidden — and their trail and card go too.
     if (!c || !c.presence || (!c.presence.spot && !c.presence.last_seen)) { if (selected === id) deselect(); else card.hidden = true; return; }
@@ -1249,6 +1255,27 @@
       join.querySelector('span').textContent = withThem ? 'With ' + c.name : 'Go to';
       join.querySelector('.gm-btn__bat').innerHTML = ARKHAM_BAT;
     }
+  }
+
+  // His own card: where he is and how he's getting about — clicking his marker used to do nothing at all.
+  function renderMine(card) {
+    var me = opts.bruce && opts.bruce();
+    var p = me && me.presence;
+    if (!p || !p.spot) { if (selected === 'bruce') deselect(); else card.hidden = true; return; }
+    card.hidden = false;
+    card.style.setProperty('--accent', '#e8c86a');
+    opts.portrait(card.querySelector('.gm-card__face'), me);
+    card.querySelector('.gm-card__name').textContent = p.suit ? 'You — Batman' : 'You — Bruce Wayne';
+    card.querySelector('.gm-card__status').textContent = p.on_scene ? 'On a case' : p.route ? 'On the move' : 'Here';
+    var route = travelling(me);
+    card.querySelector('.gm-card__where').textContent = route ? routeText(me, route) : (p.where || p.spot.name || '');
+    ['message', 'call', 'join', 'lift'].forEach(function (act) {
+      var b = card.querySelector('[data-act="' + act + '"]');
+      if (b) b.hidden = true;
+    });
+    var follow = card.querySelector('[data-act="follow"]');
+    follow.hidden = false;
+    follow.classList.toggle('is-on', following === 'bruce');
   }
 
   function showTrail(id) {

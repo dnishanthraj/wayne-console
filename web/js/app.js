@@ -1870,6 +1870,7 @@
       var g = state.groups[id];
       var li = document.createElement('li');
       li.className = 'book__item groups__item';
+      li.style.setProperty('--contact-accent', 'var(--primary)');      // a group's badge isn't the speaker's colour
       li.dataset.thread = state.groupOpen === id && !el.messages.hidden ? '1' : '0';
       var row = document.createElement('button');
       row.type = 'button';
@@ -1918,7 +1919,9 @@
     delete state.pinged[groupKey(id)];
     clearToasts('g:' + id);       // its notifications have done their job
     updateInbox();
-    el.messages.style.removeProperty('--contact-accent');
+    // A group's own colour, fixed: left to inherit, it took the colour of whoever was speaking on a call,
+    // sentence by sentence — the send button, the receipts, the tab.
+    el.messages.style.setProperty('--contact-accent', 'var(--primary)');
     stackPortraits(el['messages-avatar'], g.members);
     el['messages-name'].textContent = g.name;
     paintHeadMute();
@@ -2386,6 +2389,7 @@
   function notifyMail(m) {
     var card = document.createElement('div');
     card.className = 'toast toast--mail';
+    card.style.setProperty('--contact-accent', 'var(--primary)');
     var icon = document.createElement('span');
     icon.className = 'bubble__avatar toast__mail';
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
@@ -2410,6 +2414,7 @@
   function notifyCase(e) {
     var card = document.createElement('div');
     card.className = 'toast toast--case';
+    card.style.setProperty('--contact-accent', 'var(--primary)');
     card.dataset.grade = e.grade || '';
     var icon = document.createElement('span');
     icon.className = 'bubble__avatar toast__case';
@@ -3060,6 +3065,7 @@
       if (state.connectedId) hangUp();
       state.typing = {};
       if (state.thread) renderThread();
+      catchUp();
     };
 
     // Note: no auto-connect here. The socket being up is not the same as
@@ -3740,6 +3746,25 @@
   }
   function loadBruce() {
     fetch('/api/bruce').then(function (r) { return r.json(); }).then(setBruce).catch(function () {});
+  }
+
+  // Back after the line dropped (the server restarted): whatever arrived meanwhile — a text, a group's chatter,
+  // mail, where everyone's got to — fetched now, not left until he happens to reopen it.
+  function catchUp() {
+    fetch('/api/session').then(function (r) { return r.json(); }).then(function (info) {
+      state.mutes = info.mutes || state.mutes;
+      setMailCount(info.mail_unread || 0);
+      (info.contacts || []).forEach(function (contact) {
+        if (state.order.indexOf(contact.id) === -1) state.order.push(contact.id);
+        state.contacts[contact.id] = contact;
+      });
+      renderDirectory();
+    }).catch(function () {});
+    loadGroups();
+    if (state.messagesWith) openMessages(state.messagesWith);
+    else if (state.groupOpen) openGroup(state.groupOpen);
+    if (window.Mail) Mail.refresh();
+    if (window.GothamMap) { GothamMap.refreshPeople(); GothamMap.refreshCases(); }
   }
 
   function loadSession() {
