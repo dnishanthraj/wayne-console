@@ -66,6 +66,26 @@ def people(directory):
     return out
 
 
+def who_is_who():
+    """
+    Gotham's real people by what they do — the commissioner is Gordon, the mayor Nakano — and the rogues, who are
+    criminals and never an official, a host or a guest (Harvey Dent is Two-Face): for anything written about the
+    city, so it never makes up a "Commissioner Harvey Dent". Anyone else, it invents.
+    """
+    from . import incidents
+    # The city's public faces — not the thief or the Demon's heir, who are in the Codex for other reasons.
+    private = {"gordon", "selina", "talia", "kate", "duke", "steph", "bernard", "haley", "tanya", "luke"}
+    public = [p for p in _data().get("people", []) if p.get("group") == "Gotham" and p.get("occupation")
+              and p["id"] not in private]
+    lines = ["Commissioner James Gordon (GCPD)", "Lucius Fox (CEO, Wayne Enterprises)"] + \
+        [f"{p['name']} ({p['occupation']})" for p in public]
+    villains = [f"{g['name']}" + (f" ({g['real']})" if g.get("real") and g["real"] != "Unknown" else "")
+                for g in incidents.rogues()]
+    return ("Gotham's real people, for anyone real you name: " + "; ".join(lines[:16]) + ". The rogues are criminals — "
+            "never an official, a host, a guest or a colleague, by their names or their real ones: "
+            + ", ".join(villains[:28]) + ". Anyone else you need, invent.")
+
+
 def rogues():
     """The rogues, as the scanner knows them, with what's on file — and whether he's crossed paths with them."""
     from . import incidents

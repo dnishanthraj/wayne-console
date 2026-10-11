@@ -200,3 +200,11 @@ def test_hosting_asks_them_in_a_chat_of_its_own_and_its_in_the_diary(clock, monk
     assert row["source"] == "plan" and row["what"] == "A party at the Manor"
     assert said and "I'm hosting. You're all invited." in said[0][1]
     assert [p["name"] for p in engagements.entry(row)["who"]] == ["Dick", "Barbara"]
+
+
+def test_gotham_is_who_it_is_when_anything_names_its_people():
+    from wayne.engine import codex
+    said = codex.who_is_who()
+    assert "Commissioner James Gordon" in said and "Christopher Nakano (Mayor of Gotham City)" in said
+    assert "Two-Face (Harvey Dent)" in said.split("The rogues are criminals")[1]       # a rogue, never an official
+    assert "Selina Kyle" not in said

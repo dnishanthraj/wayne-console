@@ -5,6 +5,16 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-10-11
+
+### Fixed
+
+- **Gotham is who it is.** Your day and the mail are written knowing the
+  city's real people by role (Commissioner Gordon, Mayor Nakano, DA Van
+  Dorn, Lucius Fox at Wayne Enterprises, the Gazette's reporters). The rogues
+  are criminals, never an official, a host or a guest, by their names or
+  their real ones, so no more "Commissioner Harvey Dent".
+
 ## [0.32.0] - 2026-10-11
 
 ### Added

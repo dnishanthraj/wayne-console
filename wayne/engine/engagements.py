@@ -451,7 +451,7 @@ def write_day(model_name, options, day, now=None):
         "with Lucius at Wayne Tower, a lunch where a deal or a favour is, a Foundation visit, a fitting, a photograph, a "
         "charity's committee — specific, with who it's with. Already in his diary that day (keep clear of it): "
         f"{busy}." + (f" This morning's papers: {papers}." if papers else "") + " "
-        + inbox._real_places() + 'JSON only: {"day": [{"what": "...", "where": "a place from the list, by its exact '
+        + inbox._real_places() + inbox._who() + ' JSON only: {"day": [{"what": "...", "where": "a place from the list, by its exact '
         'name", "from": "HH:MM", "to": "HH:MM", "with": "who, in a few words", "notes": "a line, or empty"}]}')
     try:
         reply = llm.ask(model_name, [{"role": "user", "content": instruction}],
@@ -553,9 +553,10 @@ def at_his(day, now=None):
     Their habits that are at his — dinner at the Manor with whoever's coming this week — as diary rows for `day`,
     read-only: theirs, kept with him. [entry-shaped dicts]
     """
+    import re as _re
+
     from ..contacts import directory
     from . import week
-    import re as _re
     noon = time.mktime((day.year, day.month, day.day, 12, 0, 0, 0, 0, -1))
     social = _re.compile(r"(?i)dinner|lunch|brunch|family|party|movie|film|game|poker|chess|birthday|sunday")
     found = {}

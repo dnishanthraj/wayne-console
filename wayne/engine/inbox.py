@@ -519,7 +519,7 @@ def _invitation(model, options, now):
                  "box at the Knightsdome, the mayor's fundraiser, a gallery opening on Museum Mile, a dinner Vicki Vale "
                  "insists on, an old Gotham family's anniversary. From whoever would send it, with the date (within the "
                  f"next two weeks, after {soon.isoformat()}), the time, the place, the dress, an RSVP. " + _real_places()
-                 + _FACTS_ONLY + " " + _MAIL_SHAPE[:-1]
+                 + _who() + _FACTS_ONLY + " " + _MAIL_SHAPE[:-1]
                  + ', "event": {"what": "the occasion, in a few words", "where": "the place", "date": "YYYY-MM-DD", '
                  '"time": "HH:MM, 24-hour", "dress": "black tie, cocktail…", "host": "who\'s hosting"}}', "an invitation")
     if not found or not found.get("subject"):
@@ -563,8 +563,7 @@ def _engagement_letter(model, options, event, now):
         evening = _ask(model, options, _context(now) + f"Bruce Wayne went to {event.get('what')}"
                        + (f" at {event['where']}" if event.get("where") else "") + f", hosted by {host}. In a line or two: "
                        "what happened there that would lead somewhere — who cornered him, what was asked of him, a "
-                       "rumour, a favour, a rival's move, a spark with someone. Names only of real Gotham figures (the "
-                       "mayor, the council, Saint, Daggett, Vicki Vale) or invented guests. JSON only: "
+                       "rumour, a favour, a rival's move, a spark with someone." + _who() + " JSON only: "
                        '{"story": "..."}', "the evening")
         story = str((evening or {}).get("story") or "").strip()
         if story:
@@ -711,7 +710,7 @@ def _correspondent(model, options, now, rng=random):
     found = _ask(model, options, _context(now) + _press() + history
                  + f"Write one email to Bruce Wayne from {name}, {who}. About something specific and real in their "
                  "life or Gotham's week that they'd actually write to him about — never the vigilantes as if he were "
-                 "one of them. " + _real_places() + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a letter from {name}")
+                 "one of them. " + _real_places() + _who() + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a letter from {name}")
     if not found or not found.get("subject"):
         return None
     return deliver(cid, found["subject"], found.get("body", ""), folder="inbox", kind="letter", name=name,
@@ -801,6 +800,15 @@ def _from_event(model, options, event, now):
 
 _FACTS_ONLY = (" Use only the names given here for anyone real; never invent a name for a rogue, a victim or an "
                "officer. No 'URGENT' in the subject unless it truly is.")
+
+
+def _who():
+    """Who's who in Gotham, for anything that names its people (engine.codex.who_is_who) — '' if it can't be read."""
+    from . import codex
+    try:
+        return " " + codex.who_is_who()
+    except Exception:
+        return ""
 
 
 def _standing_with_gcpd():
