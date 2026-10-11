@@ -115,7 +115,8 @@ def test_the_toll_is_the_same_every_time_and_the_dead_are_known_by_the_time_it_i
 
 def test_a_monsters_signature_crime_needs_the_monster_out(monkeypatch):
     from wayne.engine import codex
-    monkeypatch.setattr(codex, "rogue_status", lambda name, now=None: "locked up")
+    monkeypatch.setattr(codex, "where", lambda rogue, now=None: {"status": "locked up", "held": "Arkham Asylum",
+                                                                  "since": 0, "how": ""})
     kinds = {r["kind"] for r in _reports(range(0, 24, 3), days=3)}
     assert kinds and not kinds & incidents.ROGUE_ONLY
     assert not any(r.get("suspect") for r in _reports([1], days=2))

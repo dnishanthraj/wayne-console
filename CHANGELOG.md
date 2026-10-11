@@ -85,6 +85,20 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   everything a case brings (letters, a rogue's run, you off it); nobody's sent
   to a case that's over; a case ending shows a notification; when the server
   ends a call the page rings off too.
+- The crime model holds still: catching a rogue no longer redraws the
+  night's calls (each call has its own seed, and whose work it was is judged
+  by who was loose at the time); a turn is decided once, on who was there when
+  it would have happened (no more flip-flopping between kinds); help arriving
+  never pushes a case back into "gone wrong"; only whoever got there is graded
+  or hurt; the odds stay down once a case has gone wrong; comebacks don't come
+  from a cell; failed chases and recaptures stay faded on the map; cases end on
+  time during calls and with nobody watching; a rogue's run isn't hot on days
+  before it began (share prices no longer change after the fact); mail isn't
+  lost when a letter fails to write; Jason's own cases stay out of your mail;
+  the morning papers wait for the morning; the hurt work at less than full
+  strength and sit out the next call; a fire with nobody behind it has no
+  "whoever did it" to get away; one failing step no longer stops the pulse,
+  and the map's calls are worked out off the event loop.
 - Mail and your position update without a call up; message tabs survive a
   reload; Escape closes Mail and the Codex; Space presses a button you've
   tabbed to; the call card stays over Mail and lifts the person card clear;

@@ -129,15 +129,29 @@ def queue(event):
 
 
 def _take_event():
+    """The oldest event waiting — looked at, not taken: it's only gone once its mail is (see _done_event)."""
+    with _lock:
+        events = _load().get("events") or []
+        return dict(events[0]) if events else None
+
+
+def _done_event(event, tried=False):
+    """
+    An event dealt with: its mail written, or tried twice and given up on. Taken off the queue before the
+    model ran, a failed write lost the case's mail for good.
+    """
     with _lock:
         data = _load()
         events = data.get("events") or []
-        if not events:
-            return None
-        event = events.pop(0)
+        for i, e in enumerate(events):
+            if e.get("id") == event.get("id") and e.get("kind") == event.get("kind"):
+                if tried and not e.get("tried"):
+                    events[i] = {**e, "tried": True}        # one more go, later
+                else:
+                    events.pop(i)
+                break
         data["events"] = events
         _save(data)
-        return event
 
 
 # --- the night report: assembled, not written --------------------------------------
@@ -156,7 +170,8 @@ def night_report(day=None, now=None):
     start = end - 12 * 3600
     book = directory()
     names = {c.id: c.name for c in book} | {"bruce": "you"}
-    worked = [c for c in cases.everything() if start <= c.get("opened_at", 0) < end]
+    # What he'd know of: Jason working something on his own is Jason's business, here as on the board.
+    worked = [c for c in cases.everything() if start <= c.get("opened_at", 0) < end and cases.known(c)]
     lines = ["# Night report", f"**{datetime.date.fromtimestamp(start).strftime('%A %-d %B')} into "
              f"{day.strftime('%A %-d %B %Y')}**, 18:00–06:00", ""]
     lines.append(f"## Cases ({len(worked)})")
@@ -295,7 +310,9 @@ def write_one(model, options, now=None):
     now = now or time.time()
     event = _take_event()
     if event:
-        return _from_event(model, options, event, now)
+        made = _from_event(model, options, event, now)
+        _done_event(event, tried=not made)
+        return made
     hour = time.localtime(now).tm_hour
     day = datetime.date.fromtimestamp(now).isoformat()
     sent = [m for m in mail() if datetime.date.fromtimestamp(m["at"]).isoformat() == day]

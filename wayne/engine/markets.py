@@ -13,6 +13,7 @@ the reasons a broker would give.
 import datetime
 import hashlib
 import math
+import re
 
 # (ticker, company, opening price this year, daily nerves, what it is)
 LISTED = [
@@ -49,7 +50,9 @@ def _pushes(day):
         out["DGTI"] = (-0.006, "the audit into the Narrows contracts")
     lines = " ".join(gazette.storylines(day))
     if "Nakano" in lines:
-        nakano = next((int(w.rstrip("%")) for w in lines.split() if w.endswith("%")), 44)
+        # His number, not whichever percentage came first ("46%," was skipped and Grange's 39% read as his).
+        polled = re.search(r"Nakano\D{0,40}?(\d{1,2})\s*%", lines)
+        nakano = int(polled.group(1)) if polled else 44
         out["SNTI"] = (0.0015 * (nakano - 43), "Nakano's numbers — Saint's his biggest donor")
     joker = arcs.heat("The Joker", datetime.datetime.combine(day, datetime.time(16)).timestamp())
     if joker > 0.2:

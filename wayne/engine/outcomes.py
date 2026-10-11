@@ -210,11 +210,26 @@ def needs(kind):
 
 
 def fit(member, kind):
-    """How well one of them suits this call, 0–1."""
+    """How well one of them suits this call, 0–1 — less, carrying an injury from the last one."""
     ratings = RATINGS.get(member)
     if not ratings:
         return 0.4
-    return sum(w * ratings.get(skill, 0.5) for skill, w in needs(kind).items())
+    return sum(w * ratings.get(skill, 0.5) for skill, w in needs(kind).items()) * (0.7 if _hurt(member) else 1.0)
+
+
+def _hurt(member):
+    """Whether they're still carrying an injury (a cracked rib heals in a day and a half, not three hours)."""
+    if member == "bruce":
+        return False
+    import time as _time
+
+    from ..contacts import directory
+    from . import presence
+    found = directory().get(member)
+    if found is None:
+        return False
+    hurt = presence.of(found).get("hurt") or {}
+    return hurt.get("until", 0) > _time.time()
 
 
 def team_fit(members, kind):
@@ -306,7 +321,8 @@ def decide(case, now=None):
     Seeded by the case: the same ending however often it's asked.
     """
     from . import cases, incidents
-    members = cases.team(case)
+    members = present(case)
+    case = {**case, "team": members}
     sort = family(case["kind"])
     if case["kind"] in incidents.MOVING:
         return _chase_ending(case, members)
@@ -364,6 +380,14 @@ def decide(case, now=None):
         if "redhood" in members and sort == "street" and not suspect and _roll(case, "jason") < 0.3:
             how, culprit, line = "killed", "dead", "the man responsible didn't survive Jason — GCPD found what was left"
         return _ending(how, lives, culprit, sort, line, p, caught=suspect if (took and suspect) else "", hurt=hurt)
+    if sort == "disaster" and not suspect:
+        # A fire, a spill, a collapse with nobody behind it: there's no "whoever did it" to get away.
+        if middling:
+            return _ending("contained", "hurt", "none", sort, "it was contained, but not before people were hurt", p,
+                           hurt=hurt)
+        lost = _roll(case, "dead") < 0.35
+        return _ending("worse", "lost" if lost else "hurt", "none", sort,
+                       f"it got worse before it was over — people {'died' if lost else 'were hurt'}", p, hurt=hurt)
     if middling:
         if sort == "hunt":
             return _ending("cold", "safe", "escaped", sort, f"it went nowhere — no one for it yet, {who} still out there",
@@ -377,6 +401,20 @@ def decide(case, now=None):
             "worse": f"it went bad — more people {'died' if lives == 'lost' else 'hurt'} before it was over, and {who} got away",
             "got away": f"{who} got away"}[how]
     return _ending(how, lives, "escaped", sort, line, p, hurt=hurt)
+
+
+def present(case):
+    """
+    Whoever was actually there before it ended — the ones it's graded on, and the only ones who can come
+    away hurt. Tim, still driving when it closed, came out of a car crash he was never at.
+    """
+    from . import cases
+    team = cases.team(case)
+    members = case.get("members") or {}
+    due = case.get("due") or 0
+    there = [m for m in team if (members.get(m) or {}).get("status") == "on scene"
+             or not due or (members.get(m) or {}).get("joined", 0) + (members.get(m) or {}).get("travel", 9) * 60 <= due + 60]
+    return there or team
 
 
 def baseline(case):
@@ -479,7 +517,10 @@ def estimate(case, now=None, projected=False):
         late = too_late(case)
         if late and sort in ("street", "petty"):
             return baseline(case)                # over before anyone's there: GCPD's, as if nobody went
-        shown_wrong = case.get("status") == "on scene" and cases.phase(case, now)[0] == "gone wrong"
+        # Once it's gone wrong it stays gone wrong — the ending keeps the penalty, so the odds do too
+        # (they dipped during "gone wrong" and bounced back while it wrapped up).
+        shown_wrong = (case.get("status") == "on scene" and cases.goes_wrong(case)
+                       and cases.phase(case, now)[0] in ("gone wrong", "wrapping up"))
         p = chance(trial, gone_wrong=shown_wrong, backup=len(team) > 1, late=late)
         if late:
             p = max(baseline(case), p - 0.2)

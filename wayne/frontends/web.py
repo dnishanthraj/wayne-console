@@ -1609,25 +1609,41 @@ class Console(GroupChats):
                 # themselves gets seen now and then: a sighting on the scanner.
                 where, _ = presence.of(contact).whereabouts(now)
                 presence.of(contact).seen_at(where, "a sighting on the scanner", now)
-        await asyncio.to_thread(self._observe_all, now)
-        await self._write_status_lines()
-        await self._keep_up()
-        await self._write_day_plans()
-        await self._write_gazette()
-        await self._write_mail()
-        await self._write_dispatches()
+        # Each step on its own: one that keeps failing (the mail, the papers) no longer takes the cases and
+        # comms down with it every pulse.
+        await self._step("diary", asyncio.to_thread(self._observe_all, now))
+        for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
+                           ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
+                           ("mail", self._write_mail), ("dispatches", self._write_dispatches)):
+            await self._step(name, step())
         if not self.clients:
-            return      # nobody at the console to hear about it
+            # Nobody at the console to hear about it — but the night goes on: cases still end when they end.
+            await self._step("cases", self._advance_cases(now))
+            return
         for contact in self.directory:
             for intent in presence.of(contact).due(now):
                 # Spawned, not awaited: one contact typing out a long reply
                 # stalled every dot and every other promise behind it.
                 presence.of(contact).postpone(intent["id"], 120, count=False)  # claimed
                 self._spawn(self._carry_out(contact, intent))
-        await self._maybe_reach_out(now)
-        await self._group_tick(now)
-        await self._case_tick(now)
-        await self._comms_tick(now)
+        await self._step("reaching out", self._maybe_reach_out(now))
+        await self._step("groups", self._group_tick(now))
+        await self._step("cases", self._case_tick(now))
+        await self._step("comms", self._comms_tick(now))
+
+    async def _step(self, name, awaitable):
+        try:
+            await awaitable
+        except Exception as exc:
+            log.warning("pulse (%s): %s", name, str(exc)[:200])
+
+    async def _advance_cases(self, now):
+        """Cases reaching their scenes and their ends with nobody watching — closed in the odds' own words."""
+        from ..engine import cases
+        for case in cases.advance(now, arrived=self._on_scene):
+            if case["id"] not in self._closing:
+                self._closing.add(case["id"])
+                self._spawn(self._close_case(case, write=False))
 
     def _observe_all(self, now):
         """Each of them: whatever's changed since the last pulse goes in their diary (see engine.diary)."""
@@ -2323,9 +2339,13 @@ class Console(GroupChats):
                 company = whereabouts.whereabouts(now)[1]       # before the case takes them off on their own
                 await self.assign_case(what["id"], cid, by="self")
                 busy.add(cid)
-                # Whoever they're with comes too: Dick and Tim drop the controllers together.
+                # Whoever they're with comes too: Dick and Tim drop the controllers together — unless they're
+                # hurt, or just back from one.
                 for friend in company:
-                    if friend in cases.FIELD and friend not in busy and friend not in self._members():
+                    pal = self.directory.get(friend)
+                    resting = pal is not None and (now < (presence.of(pal).get("case_rest") or 0)
+                                                   or (presence.of(pal).get("hurt") or {}).get("until", 0) > now)
+                    if friend in cases.FIELD and friend not in busy and friend not in self._members() and not resting:
                         await self.assign_case(what["id"], friend, by="self")
                         busy.add(friend)
         # A case gone bad: whoever's in it may call for help — a text, or for the
@@ -2358,11 +2378,12 @@ class Console(GroupChats):
                 if not held.get("caught") and now > held.get("at", 0):
                     cases.mark(case["id"], due=now)          # it's gone: nothing left to do but say so
         for case in cases.advance(now, arrived=self._on_scene):
-            if self.current_id:
-                break           # he's on a call: the write-up waits, rather than taking the model from it
             if case["id"] not in self._closing:
+                # On a call, or nobody at the console: it still ends when it ends — in a line of the odds'
+                # own rather than written up, so the model stays with the call. Waiting, overdue cases sat on
+                # "any moment" taking new members who were never in the result.
                 self._closing.add(case["id"])
-                self._spawn(self._close_case(case))
+                self._spawn(self._close_case(case, write=not self.current_id and bool(self.clients)))
 
     def _on_scene(self, case, who=None):
         """
@@ -2385,7 +2406,7 @@ class Console(GroupChats):
                 self._spawn(self._send_unprompted(contact, f"the {case['kind'].lower()} at {case['place']}",
                                                   "case_arrived"))
 
-    async def _close_case(self, case):
+    async def _close_case(self, case, write=True):
         """
         It's run its course: how it went is decided by the odds (who was on it,
         what it was, who was behind it — see engine.outcomes), and whoever led it
@@ -2399,7 +2420,7 @@ class Console(GroupChats):
             result = outcomes.decide(case)
             writer = next((self.directory.get(m) for m in cases.team(case) if self.directory.get(m)), None)
             outcome = ""
-            if writer is not None:
+            if writer is not None and write:
                 session = self.session_for(writer.id)
                 async with self.turn_lock:
                     loop = asyncio.get_running_loop()
@@ -2416,9 +2437,12 @@ class Console(GroupChats):
                 batman.off_case(closed["id"])
             from ..engine import arcs, inbox
             back = arcs.record(closed, result)        # one of them got away: they'll be back, worse
-            inbox.queue({"kind": "case", "id": closed["id"], "how": result.get("how", ""), "caught": result.get("caught", ""),
-                         "suspect": closed.get("suspect", ""), "place": closed["place"], "what": closed["kind"].lower(),
-                         "severity": closed.get("severity", 2), "chase": bool(closed.get("chase"))})
+            if cases.known(closed):
+                # Letters about it — Gordon, a thank-you, the insurer — only about what he'd know of.
+                inbox.queue({"kind": "case", "id": closed["id"], "how": result.get("how", ""),
+                             "caught": result.get("caught", ""), "suspect": closed.get("suspect", ""),
+                             "place": closed["place"], "what": closed["kind"].lower(),
+                             "severity": closed.get("severity", 2), "chase": bool(closed.get("chase"))})
             if back:
                 log.info("%s will be back: %s at %s", back["suspect"], back["kind"], back["place"])
             now = time.time()
@@ -2594,6 +2618,9 @@ class Console(GroupChats):
     async def _write_gazette(self):
         """This morning's Gotham news, once a day, while the model's loaded and nothing else is happening."""
         from ..engine import gazette
+        local = time.localtime()
+        if local.tm_hour < 5 or (local.tm_hour == 5 and local.tm_min < 30):
+            return          # the morning's papers go to bed after the night's over, not at midnight
         if (self._writing_lines or not self.clients or self.current_id or self._texters
                 or self.turn_lock.locked() or gazette.written()):
             return
@@ -3313,9 +3340,15 @@ async def delete_pin(pin_id: str):
 @app.get("/api/map/incidents")
 async def map_incidents():
     """What the scanner says is happening in the city right now — who's on what, and where the jet is."""
-    from ..engine import cases, incidents, jet
+    # Worked out off the event loop: a quarter of a second of drawing the night's calls, every twenty
+    # seconds per window and on every broadcast, was a quarter second a call's voice waited behind.
+    return JSONResponse(await asyncio.to_thread(_map_incidents, time.time()))
+
+
+def _map_incidents(now):
+    from ..engine import cases, incidents, jet, outcomes
     by_id = {c["id"]: c for c in cases.board()}
-    reports, now = [], time.time()
+    reports = []
 
     def with_case(r):
         case = by_id.get(r["id"])
@@ -3342,18 +3375,28 @@ async def map_incidents():
     for r in incidents.ended(now):
         if r["id"] in shown:
             continue
+        shown.add(r["id"])
         item = with_case(r)
         if item.get("case") and item["case"] != "closed":
             # GCPD have cleared off, but the family are still on it: it isn't over till they are.
             reports.append({**item, "status": "contained"})
         elif not item.get("case"):
             # Nobody from the family on it: how GCPD did on their own.
-            from ..engine import outcomes
             ended = outcomes.gcpd(r)
             reports.append({**item, "done": True, "ok": ended["ok"], "grade": ended["grade"], "result": ended["how"]})
         else:
             reports.append({**item, "done": True})
-    return JSONResponse({"incidents": reports, "jet": jet.state()})
+    # The family's own endings the scanner has lost — a getaway gone clean away, a breakout ended in a
+    # cell — still belong to tonight: the most dramatic ones were the ones that vanished.
+    tonight = incidents.night_began(now)
+    for case in by_id.values():
+        if case["id"] in shown or case["status"] != "closed" or case.get("closed_at", 0) < tonight:
+            continue
+        reports.append(with_case({"id": case["id"], "kind": case["kind"], "severity": case.get("severity", 2),
+                                  "place": case["place"], "area": case.get("area", ""), "x": case["x"], "y": case["y"],
+                                  "at": case.get("began", case.get("opened_at", now)), "status": "resolved",
+                                  "suspect": case.get("suspect", ""), "dispatch": case.get("dispatch", "")}))
+    return {"incidents": reports, "jet": jet.state()}
 
 
 @app.get("/api/cases")
@@ -3434,8 +3477,9 @@ async def report_odds(report_id: str):
                "projected": outcomes.estimate(base, now, projected=True) if cases.team(base) else None,
                "gcpd": outcomes.baseline(base), "threat": outcomes.threat(base), "with": {},
                # Whoever's on it got there after it was over: it's gone however GCPD's night went.
-               "late": bool(cases.team(base) and outcomes.too_late(base)
-                            and outcomes.family(report["kind"]) in ("street", "petty"))}
+               "late": bool(cases.team(base) and (
+                   (not base.get("chase")) if report["kind"] in incidents.MOVING
+                   else outcomes.too_late(base) and outcomes.family(report["kind"]) in ("street", "petty")))}
         goal = (report["x"], report["y"])
         free = [m for m in cases.FIELD if m not in busy and console.directory.get(m)]
         if "bruce" not in busy and not batman.committed():

@@ -170,3 +170,51 @@ def test_a_getaway_that_ran_out_ends_as_a_chase_never_as_the_robbery(monkeypatch
     console._turned(cases.for_report("t-get"), {**report, "kind": "Armed robbery", "fled": True, "was": []}, time.time())
     after = cases.for_report("t-get")
     assert after["kind"] == "Vehicle pursuit" and after["due"] <= time.time() + 1
+
+
+def test_catching_a_rogue_doesnt_redraw_the_night():
+    """One capture rewrote sixteen of the night's reports — the case just won, marked on a different crime."""
+    from wayne.engine import codex, incidents
+    t = time.time()
+    before = {r["id"]: (r["kind"], r["place"]) for r in incidents.at(t) + incidents.ended(t)}
+    for g in incidents.rogues()[:6]:
+        codex.capture(g["name"], "caught on a test")
+    after = {r["id"]: (r["kind"], r["place"]) for r in incidents.at(t) + incidents.ended(t)}
+    assert before and before == {k: v for k, v in after.items() if k in before}
+
+
+def test_help_on_the_way_never_pushes_a_case_back():
+    report = {"id": "t-back", "kind": "Armed robbery", "severity": 3, "place": "Crime Alley", "area": "Crime Alley",
+              "x": 40.0, "y": 50.0, "at": time.time() - 900}
+    case = cases.assign(report, "nightwing", by="self", travel=1)
+    now = time.time()
+    cases.mark(case["id"], status="on scene", updated_at=now - 1200, due=now + 120)
+    after = cases.assign(report, "orphan", by="self", travel=20)
+    assert after["due"] <= now + 121
+
+
+def test_only_whoever_got_there_is_graded_or_hurt():
+    now = time.time()
+    case = {"id": "t-present", "kind": "Armed robbery", "severity": 3, "team": ["nightwing", "robin"],
+            "members": {"nightwing": {"joined": now - 1800, "travel": 2, "status": "on scene"},
+                        "robin": {"joined": now - 60, "travel": 30, "status": "assigned"}}, "due": now}
+    assert outcomes.present(case) == ["nightwing"]
+
+
+def test_a_run_that_started_today_isnt_hot_yesterday():
+    from wayne.engine import arcs
+    case = {"id": "t-run", "suspect": "The Joker", "kind": "Laughing-gas attack", "place": "Ace Chemicals",
+            "severity": 4}
+    arcs.record(case, {"how": "got away", "ok": False})
+    assert arcs.heat("The Joker") > 0 and arcs.heat("The Joker", time.time() - 86400) == 0.0
+
+
+def test_mail_isnt_lost_when_the_model_fails_to_write_it(monkeypatch):
+    from wayne.engine import inbox
+    inbox.queue({"kind": "case", "id": "t-mail", "how": "caught", "caught": "", "suspect": "", "place": "Crime Alley",
+                 "what": "mugging", "severity": 2, "chase": False})
+    monkeypatch.setattr(inbox, "_from_event", lambda *a, **k: None)
+    inbox.write_one("m", {})
+    assert inbox._take_event() is not None              # kept for another go
+    inbox.write_one("m", {})
+    assert inbox._take_event() is None                  # tried twice: let go

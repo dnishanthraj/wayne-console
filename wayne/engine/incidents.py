@@ -172,22 +172,36 @@ def _rate(t):
     return 1.7 if night else (1.3 if 17 <= hour < 20 else 0.95)
 
 
-def _slot(slot, spots, weights, weighted, written):
-    """Every report drawn in one ten-minute slot, whatever time it is now — seeded by the slot alone."""
+def _slot(slot, spots, weights, weighted, written, rogues=None):
+    """
+    Every report drawn in one ten-minute slot, whatever time it is now — seeded
+    by the slot, each report by its own stream. One stream for the whole slot,
+    with the rogues loose *now* in its weights, meant catching the Joker redrew
+    the night: his hostage-taking turned into Scarecrow's gas under the same id,
+    the case just won marked on a different crime, places moved.
+    """
     seed = int(hashlib.sha1(f"gotham-scanner-2:{slot}".encode()).hexdigest()[:12], 16)
     r = random.Random(seed)
     start = slot * SLOT
     count = sum(1 for _ in range(4) if r.random() < _rate(start) / 4)
+    rogues = rogues if rogues is not None else _rogue_states()
     out = []
     for i in range(count):
+        r = random.Random(f"{seed}:{i}")
         place, level, _ = r.choices(spots, weights=weights)[0]
         # The worst of it comes after dark.
         dark = time.localtime(start).tm_hour >= 21 or time.localtime(start).tm_hour < 4
-        kind, severity, _, home = r.choices(weighted, weights=[
-            w * (level if s >= 3 else 1) * ((5 if place["area"] in home else 0.3) if home else 1)
-            * (1.8 if dark and s >= 3 else 1)
-            for _, s, w, home in weighted])[0]
+
+        def odds(table, level=level, area=place["area"], dark=dark):
+            return [w * (level if s >= 3 else 1) * ((5 if area in home else 0.3) if home else 1)
+                    * (1.8 if dark and s >= 3 else 1) for _, s, w, home in table]
+        kind, severity, _, home = r.choices(weighted, weights=odds(weighted))[0]
         began = start + r.uniform(0, SLOT)
+        if kind in ROGUE_ONLY and not _loose_kinds_at(rogues, began).intersection({kind}):
+            # Their work, on a night none of them was out: an ordinary call in its place, drawn on a stream
+            # of its own so nothing else shifts.
+            plain = [row for row in weighted if row[0] not in ROGUE_ONLY]
+            kind, severity, _, home = random.Random(f"{seed}:{i}:plain").choices(plain, weights=odds(plain))[0]
         # Cleared faster by day, with more cars out; slower where the district
         # is already stretched; the serious ones go to backup first.
         hour = time.localtime(began).tm_hour
@@ -210,11 +224,38 @@ def _slot(slot, spots, weights, weighted, written):
             report["suspect"] = CATWOMAN
             out.append(report)
             continue
-        suspect = _suspect(kind, place["area"], r)
+        suspect = _suspect(kind, place["area"], random.Random(f"{seed}:{i}:who"), rogues, began)
         if suspect:
             report["suspect"] = suspect
         out.append(report)
     return out
+
+
+def _rogue_states():
+    """Every rogue's standing as of now — read once per look at the scanner, not once per report."""
+    from . import codex
+    return {g["name"]: codex.where(g) for g in _rogues()}
+
+
+def _loose_at(state, t):
+    """
+    Whether they were out at t, from how they stand now: loose since before it; or caught (by the family,
+    by GCPD) only after it; or transferred after the day in custody that followed a capture after it.
+    """
+    from . import codex
+    status, since, how = state.get("status"), state.get("since") or 0, state.get("how") or ""
+    if status == "at large":
+        return t >= since
+    if since <= t:
+        return False
+    if how.startswith("transferred"):
+        return t < since - codex.TRANSFER
+    return how.startswith(("caught", "picked up"))
+
+
+def _loose_kinds_at(rogues, t):
+    """The crimes someone out at t does."""
+    return {k for g in _rogues() if _loose_at(rogues.get(g["name"]) or {}, t) for k in g["kinds"]}
 
 
 def _selina_out(t):
@@ -231,10 +272,9 @@ def _selina_out(t):
 
 
 def _tables():
+    """The spots, their weights, and every kind at its own weight — fixed, whoever's loose (see _slot)."""
     spots = _spots()
-    out_now = _loose_kinds()
-    weighted = [(k, sv, w if k not in ROGUE_ONLY or k in out_now else 0.0, home) for k, sv, w, home in KINDS]
-    return spots, [weight for _, _, weight in spots], weighted
+    return spots, [weight for _, _, weight in spots], list(KINDS)
 
 
 def _finish(report, t, cased):
@@ -255,9 +295,10 @@ def at(t=None):
     spots, weights, weighted = _tables()
     written = dispatches()          # read once, not once per report
     cased = _cases_now()
+    rogues = _rogue_states()
     open_now = []
     for slot in range(int(t // SLOT) - LONGEST * 60 // SLOT, int(t // SLOT) + 1):
-        for report in _slot(slot, spots, weights, weighted, written):
+        for report in _slot(slot, spots, weights, weighted, written, rogues):
             if not report["at"] <= t < report["ends"]:
                 continue
             report = _finish(report, t, cased)
@@ -272,7 +313,10 @@ def _comebacks(t, cased):
     """The rogues who got away coming back, worse, as their runs have it (see engine.arcs)."""
     from . import arcs
     out = []
+    rogues = _rogue_states()
     for c in arcs.coming(t):
+        if c.get("suspect") and not _loose_at(rogues.get(c["suspect"]) or {}, c["at"]):
+            continue            # caught since they got away: no comeback from a cell
         crew = c.get("crew", 1)
         report = _finish({**c, "_backup": True}, t, cased)
         if report is not None:
@@ -307,9 +351,10 @@ def ended(t=None, hours=None):
     spots, weights, weighted = _tables()
     written = dispatches()
     cased = _cases_now()
+    rogues = _rogue_states()
     out = []
     for slot in range(int(since // SLOT) - LONGEST * 60 // SLOT, int(t // SLOT) + 1):
-        for report in _slot(slot, spots, weights, weighted, written):
+        for report in _slot(slot, spots, weights, weighted, written, rogues):
             if not since <= report["ends"] < t:
                 continue
             final = _finish(report, report["ends"] - 1, cased)
@@ -319,6 +364,8 @@ def ended(t=None, hours=None):
         out.append({**report, "status": "resolved", "done_at": report["ends"]})
     from . import arcs
     for c in arcs.came(since, t):
+        if c.get("suspect") and not _loose_at(rogues.get(c["suspect"]) or {}, c["at"]):
+            continue            # never happened: they were caught first
         final = _finish({**c, "_backup": True}, c["ends"] - 1, cased)
         if final is not None:
             out.append({**final, "crew": c.get("crew", 1), "comeback": c.get("after", ""), "status": "resolved",
@@ -423,11 +470,36 @@ def turns(report, case=None):
         stages.append((when, into, max(stages[-1][2], SEVERITY.get(into, 2))))
     landed = _landed(case)
     if case and landed is not None:
-        from . import outcomes
         for i, (when, _kind, _sev) in enumerate(stages[1:], 1):
-            if landed < when and _draw(report["id"], "held", i) < outcomes.chance(case) * 0.9:
+            if landed < when and _held(report, case, stages, i):
                 return stages[:i]            # they were there: it never got that far
     return stages
+
+
+_holds = {}
+
+
+def _held(report, case, stages, i):
+    """
+    Whether whoever had got there by the time it would have turned stopped it — judged once, on what it
+    was then and who was there then, and remembered. Judged on the case as it stood at every look (its
+    kind rewritten by the turn itself, whoever had joined since), a laughing-gas attack and a hostage-
+    taking swapped back and forth every half minute.
+    """
+    from . import outcomes
+    when, (_at, kind, severity) = stages[i][0], stages[i - 1]
+    there = sorted(m for m, v in (case.get("members") or {}).items()
+                   if v.get("joined", 0) < when and v.get("joined", 0) + v.get("travel", 9) * 60 <= when)
+    key = (report["id"], i, tuple(there))
+    if key not in _holds:
+        if not there:
+            return False
+        trial = {**case, "kind": kind, "severity": severity, "team": there,
+                 "members": {m: v for m, v in (case.get("members") or {}).items() if m in there}}
+        _holds[key] = _draw(report["id"], "held", i) < outcomes.chance(trial) * 0.9
+        if len(_holds) > 4000:
+            _holds.clear()
+    return _holds[key]
 
 
 def _draw(*parts):
@@ -617,10 +689,13 @@ def _rogues():
     return json.loads((Path(__file__).with_name("rogues.json")).read_text())["rogues"]
 
 
-def _suspect(kind, area, r):
-    """Whose work it looks like: one of theirs, done where they work, by someone who's out."""
-    from . import codex
-    loose = [g for g in _rogues() if kind in g["kinds"] and codex.rogue_status(g["name"]) == "at large"]
+def _suspect(kind, area, r, rogues=None, t=None):
+    """Whose work it looks like: one of theirs, done where they work, by someone who was out then."""
+    rogues = rogues if rogues is not None else _rogue_states()
+    t = t or time.time()
+    # Every rogue who does it, in a fixed order, so who's out doesn't change what's drawn for whom.
+    able = [g for g in _rogues() if kind in g["kinds"]]
+    loose = [g for g in able if _loose_at(rogues.get(g["name"]) or {}, t)]
     if not loose:
         return ""
     local = [g for g in loose if area in g["haunts"]]

@@ -129,7 +129,12 @@ def assign(report, contact_id, by="him", travel=0):
             # team, and no sooner than they can get there.
             began = case.get("updated_at", now) if case["status"] == "on scene" else now
             left = outcomes.work(case, case["team"]) - (now - began) / 60
-            case["due"] = max(now + (travel + 4) * 60, min(case.get("due", now), now + max(3, left) * 60))
+            if case["status"] == "on scene":
+                # Under way already: help can only bring the end closer. Pushed back for Cass's twenty minutes
+                # out, a case wrapping up went back to "gone wrong" and its bar ran backwards.
+                case["due"] = min(case.get("due", now), max(now + (travel + 4) * 60, now + max(3, left) * 60))
+            else:
+                case["due"] = max(now + (travel + 4) * 60, min(case.get("due", now), now + max(3, left) * 60))
         case["log"].append({"at": now, "text": f"{'assigned to' if first else 'joined by'} {contact_id} "
                                                f"({'by him' if by == 'him' else 'took it'})"})
         _save(cases)

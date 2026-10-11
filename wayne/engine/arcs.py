@@ -43,11 +43,25 @@ def _save(data):
 
 
 def heat(rogue, t=None):
-    """How hot a rogue's run is right now, 0–1, cooled by the days since it last moved."""
+    """
+    How hot a rogue's run was at t, 0–1, cooled by the days since it last moved before then. Asked about a
+    day before the run began it's cold: read as "now", a Joker run started today crashed Ace Chemicals'
+    close on every past day the market was worked out again.
+    """
     t = t or time.time()
     run = (_load().get("runs") or {}).get(rogue) or {}
-    days = max(0.0, (t - run.get("at", t)) / 86400)
-    return max(0.0, min(1.0, run.get("heat", 0.0) - COOLS * days))
+    history = run.get("history")
+    if history is not None:
+        before = [point for point in history if point[0] <= t]
+        if not before:
+            return 0.0
+        at, hot = before[-1]
+    else:
+        if run.get("at", 0) > t:
+            return 0.0
+        at, hot = run.get("at", t), run.get("heat", 0.0)
+    days = max(0.0, (t - at) / 86400)
+    return max(0.0, min(1.0, hot - COOLS * days))
 
 
 def streak(rogue):
@@ -74,7 +88,7 @@ def record(case, result, t=None):
         coming = None
         if result.get("caught"):
             run = {"heat": 0.0, "streak": 0, "at": t, "last": f"caught at {case['place']}"}
-        elif result.get("ok"):
+        elif result.get("ok") or how == "recovered":       # Selina's haul back where it belongs is a win
             run = {"heat": max(0.0, now_heat - LOWER), "streak": 0, "at": t, "last": f"stopped at {case['place']}"}
         else:
             run = {"heat": min(1.0, now_heat + RAISE.get(how, 0.2)), "streak": run.get("streak", 0) + 1, "at": t,
@@ -82,6 +96,8 @@ def record(case, result, t=None):
             coming = _comeback(rogue, case, run, t)
             if coming:
                 data.setdefault("coming", []).append(coming)
+        # How hot it was, and since when: so the run can be asked about any moment, not just now.
+        run["history"] = list((runs.get(rogue) or {}).get("history") or [])[-11:] + [[t, run["heat"]]]
         runs[rogue] = run
         data["coming"] = [c for c in data.get("coming") or [] if c["ends"] > t - 86400][-30:]
         _save(data)
