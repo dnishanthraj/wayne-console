@@ -1287,6 +1287,29 @@ html[data-rail="compact"] .lock::before { content: "⏻"; font-size: 13px; }
   color: var(--text-dim); font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
   text-transform: uppercase; cursor: var(--cursor-pointer); }
 .modal__btn--go { border-color: var(--primary-dim); color: var(--primary); }
+.modal__btn--danger { border-color: rgba(224, 87, 79, 0.45); color: var(--alert); }
+.modal__btn--danger:not(:disabled):hover { color: var(--alert) !important; border-color: var(--alert) !important;
+  background: rgba(224, 87, 79, 0.1); }
+/* Settings: a restart, and starting over — the second set apart, and asked twice. */
+.settings.modal__card { width: min(440px, calc(100% - 32px)); }
+.settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0 16px;
+  border-bottom: 1px solid var(--hairline); }
+.settings__name { margin: 0 0 3px; font-size: 14px; color: var(--text); }
+.settings__note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-faint); }
+.settings__over { padding-top: 2px; }
+.settings__over .modal__label { color: var(--alert); }
+.settings__scopes { display: grid; gap: 6px; margin: 12px 0; }
+.settings__scopes label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--hairline);
+  cursor: var(--cursor-pointer); }
+.settings__scopes label:has(input:checked) { border-color: rgba(224, 87, 79, 0.45); background: rgba(224, 87, 79, 0.06); }
+.settings__scopes input { accent-color: var(--alert); margin: 2px 0 0; }
+.settings__scopes span { font-size: 12px; color: var(--text-faint); line-height: 1.45; }
+.settings__scopes b { display: block; font-weight: 500; font-size: 13px; color: var(--text); }
+/* While it restarts: the console dimmed, and why. */
+.restarting { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(5, 7, 11, 0.82);
+  backdrop-filter: blur(6px); }
+.restarting span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--primary); animation: gm-me 1.4s ease-in-out infinite; }
 .modal__btn:disabled { opacity: 0.4; cursor: default; }
 .modal__btn:not(:disabled):hover { color: var(--text); border-color: var(--text-faint); }
 .modal__btn--go:not(:disabled):hover { color: var(--primary-lit, var(--primary)); border-color: var(--primary); background: rgba(79, 168, 224, 0.07); }

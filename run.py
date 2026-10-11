@@ -9,6 +9,7 @@ Entry point.
     python run.py --new-key        # generate a memory encryption key
 """
 import argparse
+import os
 import sys
 import threading
 import webbrowser
@@ -47,13 +48,21 @@ def main():
         from wayne.frontends.cli import main as cli_main
         return cli_main(args.contact)
 
+    # A fresh start asked for from Settings: done now, before anything's running that could write the old
+    # world straight back (see wayne.store.reset).
+    from wayne.store import reset
+    started_over = reset.pending()
+    if started_over:
+        print(f"Started over ({started_over['scope']}): the old data is in data/{started_over['backup']}")
+
     from wayne.frontends.web import serve
 
     url = f"http://{config.WEB_HOST}:{config.WEB_PORT}"
     print(f"WayneTech console → {url}")
     print("Press Ctrl+C to shut down.\n")
 
-    if not args.no_open:
+    # Restarted from Settings, the page that asked is still open: no second window.
+    if not args.no_open and not os.environ.get("WAYNE_RESTARTED"):
         # Give uvicorn a moment to bind before the browser asks for the page.
         threading.Timer(1.2, webbrowser.open, args=(url,)).start()
 

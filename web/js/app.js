@@ -4017,9 +4017,79 @@
     if (window.GothamMap) { GothamMap.refreshPeople(); GothamMap.refreshCases(); }
   }
 
+  /* Settings: restart the console, or start Gotham over (backed up first). Either way the console restarts
+     itself, and the page waits for it to come back, then loads afresh. */
+  function wireSettings() {
+    var box = $('settings'), confirm = $('settings-confirm'), go = $('settings-reset');
+    $('settings-open').addEventListener('click', function () {
+      confirm.value = '';
+      go.disabled = true;
+      box.hidden = false;
+    });
+    $('settings-close').addEventListener('click', function () { box.hidden = true; });
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); box.hidden = true; } });
+    confirm.addEventListener('input', function () { go.disabled = confirm.value.trim().toUpperCase() !== 'RESET'; });
+    $('settings-restart').addEventListener('click', function () {
+      fetch('/api/admin/restart', { method: 'POST' }).then(function () { comeBack('Restarting the console\u2026'); })
+        .catch(function () {});
+    });
+    go.addEventListener('click', function () {
+      var scope = (box.querySelector('input[name="reset-scope"]:checked') || {}).value || 'all';
+      go.disabled = true;
+      fetch('/api/admin/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ scope: scope }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (!d.error) comeBack('Backing up, and starting over\u2026'); })
+        .catch(function () {});
+    });
+  }
+
+  function comeBack(what) {
+    $('settings').hidden = true;
+    if (state.connectedId) hangUp({ quiet: true });
+    var veil = document.createElement('div');
+    veil.className = 'restarting';
+    veil.innerHTML = '<span></span>';
+    veil.querySelector('span').textContent = what;
+    document.body.appendChild(veil);
+    var down = false, tries = 0;
+    (function poll() {
+      tries += 1;
+      fetch('/api/identity', { cache: 'no-store' }).then(function (r) {
+        if (r.ok && (down || tries > 8)) location.reload();
+        else setTimeout(poll, 500);
+      }).catch(function () { down = true; setTimeout(poll, 500); });
+    })();
+  }
+
+  /* After a fresh start from Settings: said once, with where the old data went. */
+  function startedOver(done) {
+    var card = document.createElement('div');
+    card.className = 'toast toast--mail';
+    card.style.setProperty('--contact-accent', 'var(--primary)');
+    var words = document.createElement('div');
+    var who = document.createElement('span');
+    who.className = 'toast__name';
+    who.textContent = { all: 'A fresh start', chats: 'Conversations cleared', world: 'The world reset' }[done.scope] || 'A fresh start';
+    var line = document.createElement('span');
+    line.className = 'toast__text';
+    line.textContent = 'The old data is backed up in data/' + done.backup;
+    words.appendChild(who);
+    words.appendChild(line);
+    card.appendChild(words);
+    showToast(card, 'reset', 12000);
+  }
+
   function loadSession() {
     return fetch('/api/session').then(function (r) { return r.json(); }).then(function (info) {
       state.map = info.map || null;
+      if (info.reset_done) {
+        // Said once he's in — not over the lock screen, where it would come and go unseen.
+        (function wait() {
+          if (document.documentElement.dataset.phase === 'live') setTimeout(function () { startedOver(info.reset_done); }, 1200);
+          else setTimeout(wait, 700);
+        })();
+      }
       state.operatorPortrait = info.operator_portrait || '';
       state.mutes = info.mutes || {};
       setMailCount(info.mail_unread || 0);
@@ -4131,6 +4201,7 @@
   paintMute();          // the mic drawn on both buttons from the start
   wireSystem();
   wireLayout();
+  wireSettings();
   wireSounds();
   wireKeyboardButtons();
   wireTips();

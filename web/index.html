@@ -77,6 +77,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span class="bar__count" id="inbox-count" hidden></span>
       </button>
+      <button class="bar__btn" id="settings-open" type="button" data-tip="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <span class="bar__clock" id="clock">--:--:--</span>
     </div>
   </header>
@@ -410,6 +413,39 @@
         <button class="modal__btn modal__btn--go" id="group-create" type="submit" disabled>Create</button>
       </div>
     </form>
+  </div>
+
+  <!-- Settings: restart the console, or start Gotham over — backed up first. -->
+  <div class="modal" id="settings" hidden role="dialog" aria-labelledby="settings-title">
+    <div class="modal__card settings">
+      <h2 class="modal__title" id="settings-title">Settings</h2>
+      <section class="settings__row">
+        <div>
+          <p class="settings__name">Restart the console</p>
+          <p class="settings__note">Everything read again from disk. Nothing's lost.</p>
+        </div>
+        <button class="modal__btn" id="settings-restart" type="button">Restart</button>
+      </section>
+      <section class="settings__over">
+        <p class="modal__label">Start over</p>
+        <p class="settings__note">Your data is backed up first (to data/_backup-…), then cleared. Kept either way: who
+          everyone is, your Codex, pins and photo framing, who knows what, mutes, and the sounds.</p>
+        <div class="settings__scopes" role="radiogroup" aria-label="What to clear">
+          <label><input type="radio" name="reset-scope" value="all" checked>
+            <span><b>Everything</b>every conversation, and the whole world</span></label>
+          <label><input type="radio" name="reset-scope" value="chats">
+            <span><b>Conversations</b>calls, texts, groups, memories, relationships</span></label>
+          <label><input type="radio" name="reset-scope" value="world">
+            <span><b>The world</b>whereabouts, cases, mail and the diary, the papers, the rogues</span></label>
+        </div>
+        <input class="modal__input" id="settings-confirm" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Type RESET to confirm">
+      </section>
+      <div class="modal__actions">
+        <button class="modal__btn" id="settings-close" type="button">Close</button>
+        <button class="modal__btn modal__btn--danger" id="settings-reset" type="button" disabled>Back up and start over</button>
+      </div>
+    </div>
   </div>
 
   <!-- A group's details: who's in it, who's around, and changes. -->

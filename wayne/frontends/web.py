@@ -4030,6 +4030,46 @@ async def index():
                     headers={"Cache-Control": "no-store"})
 
 
+def _restart_process():
+    """
+    The console started again in place — the same command, a fresh process — so everything's read anew from
+    disk (and a reset asked for in Settings is done before anything opens the database: see wayne.store.reset).
+    """
+    import os
+    import sys
+    log.info("restarting the console")
+    try:
+        store.close_all()
+    except Exception:
+        pass
+    os.environ["WAYNE_RESTARTED"] = "1"
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+@app.post("/api/admin/restart")
+async def admin_restart():
+    """Settings: restart the console. Nothing's lost; the page reconnects when it's back."""
+    asyncio.get_running_loop().call_later(0.5, _restart_process)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/admin/reset")
+async def admin_reset(request: Request):
+    """
+    Settings: start over — "all", "chats" or "world". Written down, the console restarts, and the reset is done as
+    it comes back up, with a backup first (see wayne.store.reset).
+    """
+    from ..store import reset
+    body = await request.json()
+    scope = str(body.get("scope", "all"))
+    if scope not in reset.SCOPES:
+        return JSONResponse({"error": "no such reset"}, status_code=400)
+    reset.request(scope)
+    log.info("reset (%s) asked for from Settings", scope)
+    asyncio.get_running_loop().call_later(0.5, _restart_process)
+    return JSONResponse({"ok": True, "scope": scope})
+
+
 @app.get("/api/session")
 async def session_info():
     """
@@ -4041,8 +4081,11 @@ async def session_info():
     all. Resolving the speech backend also costs a model load, which is a poor
     thing to pay for a readout nobody needs.
     """
+    from ..store import reset
     return JSONResponse({
         "operator": wayne_operator.full_name(),
+        # A fresh start from Settings, said once: what went, and where the old data is.
+        "reset_done": reset.done(),
         # His own face and framing, from the Codex — his marker on the map.
         "operator_portrait": codex.portrait_of("bruce"),
         "operator_frame": codex.frames().get(codex.frame_key("bruce")) or {},

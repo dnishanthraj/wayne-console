@@ -5,6 +5,24 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-11
+
+### Added
+
+- **Settings** (the gear in the top bar):
+  - **Restart the console** reads everything again from disk. Nothing's
+    lost, and the page waits and comes back on its own.
+  - **Start over** clears everything, just the conversations (calls, texts,
+    groups, memories, relationships), or just the world (whereabouts, cases,
+    mail and the diary, the papers, the rogues). Your data is backed up
+    first to `data/_backup-<when>/`, and you confirm by typing RESET. The
+    console restarts and does the reset as it comes back up, before anything
+    could write the old world back, then tells you where the backup went.
+  - Kept either way: who everyone is, your Codex, pins and photo framing,
+    who knows what, mutes, and the sounds.
+  - `scripts/reset_world.py` uses the same list of what goes, which now also
+    covers relationships, tastes, engagements and passed-on word.
+
 ## [0.24.0] - 2026-10-11
 
 ### Added
