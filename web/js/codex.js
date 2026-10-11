@@ -622,7 +622,8 @@
     load().then(function () {
       if (focus) { tab = focus.tab || tab; picked[tab] = focus.name; render(); }
     });
-    setTimeout(function () { $('.cx-search').focus(); }, 60);
+    // The search waits to be asked for (click it, or press /): focused on open, it took every key — D for the diary
+    // typed a "d" into it instead of switching.
   }
 
   function close() {
@@ -645,5 +646,8 @@
     root.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
   }
 
-  window.Codex = { init: init, open: open, close: close, isOpen: function () { return !!root && !root.hidden; } };
+  function search() { if (root && !root.hidden) $('.cx-search').focus(); }
+
+  window.Codex = {
+    search: search, init: init, open: open, close: close, isOpen: function () { return !!root && !root.hidden; } };
 })();

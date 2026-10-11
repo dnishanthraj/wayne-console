@@ -5,6 +5,25 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-10-11
+
+### Fixed
+
+- **Screens switch cleanly.** The map, Codex, Mail and Diary are tabs of one
+  place: opening any of them now puts all the others away. Before, opening the
+  Codex or the map left the Diary open behind it, which is why a screen would
+  sometimes not switch or stay hidden.
+- **Shortcuts work from every screen.** The call's message box kept the
+  cursor even when a screen covered it, so D, C, M and E typed into a box you
+  couldn't see. A covered box no longer takes the keys, and the Codex's search
+  waits to be asked for: click it, or press /.
+- **Full screen from the call card** takes you back to the call from any
+  screen, not only the map.
+- **The call card shows words as they're said,** timed to the voice like the
+  full call view. Cutting someone off stops their words where they were, so
+  the card never shows what wasn't said. In Live mode, what you're saying
+  shows on the card as you say it.
+
 ## [0.31.0] - 2026-10-11
 
 ### Added

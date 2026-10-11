@@ -175,6 +175,9 @@
       if (said) seat.line.textContent = said + '—';
       seat.fresh = true;
     }
+    // And on the call card: stopped where they were.
+    var card = callbar && !callbar.root.hidden && callbar.line.querySelector('.said');
+    if (card && card.textContent.trim()) card.textContent = card.textContent.replace(/[\s—-]+$/, '') + '—';
     state.fresh = true;
   }
 
@@ -245,7 +248,7 @@
     delete state.pending[key];
     var opensReply = !!state.freshKeys[key];
     delete state.freshKeys[key];
-    callbarSaid(speaker, text);        // and over the map, if it's open on the call
+    callbarSaid(speaker, text, durationMs, timings);   // and over the map (or any screen), word by word too
 
     // On a call with company, a new voice starts a new line, labelled with who
     // it is, and the instrument takes their colour.
@@ -3351,6 +3354,7 @@
         if (ConsoleMic.isSpeaking && d.text) {
           showHeard(d.text.trim() + '…');
           el.heard.classList.add('is-live');
+          callbarMe(d.text.trim() + '\u2026', true);     // on the call card too, as he says it
         }
       }).catch(function () {}).then(function () { captioning = false; });
   }
@@ -3441,7 +3445,10 @@
     callbar.viz.setMode(document.documentElement.dataset.state || 'idle');
     root.querySelector('.gm-call__end').innerHTML = ICONS.end;
     root.querySelector('.gm-call__end').addEventListener('click', function () { if (state.connectedId) hangUp(); });
-    root.querySelector('.gm-call__back').addEventListener('click', function () { GothamMap.close(); });
+    // Back to the call, full screen — from the map, the Codex, mail or the diary: whatever's over it goes.
+    root.querySelector('.gm-call__back').addEventListener('click', function () {
+      screens().forEach(function (s) { if (s[1].isOpen()) s[1].close(); });
+    });
     callbar.talk.addEventListener('click', function (e) { e.preventDefault(); toggleMute(); });
     root.querySelector('.gm-call__live').addEventListener('click', function (e) { e.preventDefault(); toggleLive(); });
     dragCallbar(root);
@@ -3545,7 +3552,10 @@
     bar.who.dataset.many = ids.length > 1 ? '1' : '0';
   }
 
-  function callbarSaid(speaker, text) {
+  /* The line on the call card: the sentence being said, its words released as they're spoken (typeWords, the same
+     timers as the full view — so a cut-off stops them where they were, and the card never shows words that were
+     never said). */
+  function callbarSaid(speaker, text, durationMs, timings) {
     var bar = callbarEl();
     if (!bar || bar.root.hidden) return;
     var contact = state.contacts[speaker || state.connectedId];
@@ -3557,7 +3567,11 @@
       who.style.color = contact.accent;
       bar.line.appendChild(who);
     }
-    bar.line.appendChild(document.createTextNode(text));
+    var said = document.createElement('span');
+    said.className = 'said';
+    bar.line.appendChild(said);
+    if (durationMs) typeWords(said, text, durationMs, timings);
+    else said.textContent = text;
     var lit = seatOwner(speaker) || speaker || state.connectedId;
     Object.keys(bar.faces).forEach(function (id) {
       bar.faces[id].dataset.speaking = id === lit ? '1' : '0';
@@ -3607,6 +3621,9 @@
       if (document.documentElement.dataset.phase !== 'live') return;
       if (e.defaultPrevented) return;         // a picker or a field already dealt with it
       var typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+      // The call's box keeps the caret even with a screen over it: covered, a letter there is a shortcut, not typing —
+      // D from the Codex typed a "d" into a box nobody could see, and nothing switched.
+      if (typing && e.target === el.input && screens().some(function (s) { return s[1].isOpen(); })) typing = false;
       // A dialog or the personnel file up: the views' letters stay put behind it.
       var over = !!document.querySelector('.modal:not([hidden])') || !el.dossier.hidden;
       if (over && e.key !== 'Escape' && !PTT_CODES[e.code]) return;
@@ -3634,6 +3651,11 @@
       if (!typing && e.key === '/' && window.GothamMap && GothamMap.isOpen()) {
         e.preventDefault();
         GothamMap.search();
+        return;
+      }
+      if (!typing && e.key === '/' && window.Codex && Codex.isOpen() && Codex.search) {
+        e.preventDefault();
+        Codex.search();
         return;
       }
       if (e.key === 'Escape') {
@@ -3908,12 +3930,25 @@
       // The Codex and the map are two tabs of one screen: opening one puts the other away.
       toggled: function (open) {
         $('codex-open').classList.toggle('is-on', open);
-        if (open && window.GothamMap && GothamMap.isOpen()) GothamMap.close();
-        if (open && window.Mail && Mail.isOpen()) Mail.close();
+        if (open) onlyScreen('codex');
         renderCallbar();
       }
     });
     $('codex-open').addEventListener('click', function () { if (Codex.isOpen()) Codex.close(); else Codex.open(); });
+  }
+
+  /* The stage's screens — the map, the Codex, mail, the diary — are tabs of one place: whichever opens, the
+     others are put away. One rule, kept here: each screen's own list of the others went out of date the moment a
+     new one came, and two open at once left one stuck behind the other. */
+  function screens() {
+    return [['map', window.GothamMap], ['codex', window.Codex], ['mail', window.Mail], ['diary', window.Diary]]
+      .filter(function (s) { return s[1]; });
+  }
+  function onlyScreen(name) {
+    screens().forEach(function (s) {
+      if (s[0] !== name && s[1].isOpen()) s[1].close();
+    });
+    if (document.activeElement === el.input) el.input.blur();      // a covered box doesn't keep the keys
   }
 
   /* Mail: one of the stage's screens, like the Codex and the map — opening it puts them away. */
@@ -3930,9 +3965,7 @@
       unread: setMailCount,
       toggled: function (open) {
         $('mail-open').classList.toggle('is-on', open);
-        if (open && window.GothamMap && GothamMap.isOpen()) GothamMap.close();
-        if (open && window.Codex && Codex.isOpen()) Codex.close();
-        if (open && window.Diary && Diary.isOpen()) Diary.close();
+        if (open) onlyScreen('mail');
         renderCallbar();
       }
     });
@@ -3945,9 +3978,7 @@
       root: $('diary'),
       toggled: function (open) {
         $('diary-open').classList.toggle('is-on', open);
-        if (open && window.GothamMap && GothamMap.isOpen()) GothamMap.close();
-        if (open && window.Codex && Codex.isOpen()) Codex.close();
-        if (open && window.Mail && Mail.isOpen()) Mail.close();
+        if (open) onlyScreen('diary');
         renderCallbar();
       },
       portrait: function (node, id) { if (state.contacts[id]) portraitStyle(node, state.contacts[id], 'center 22%'); },
@@ -4013,8 +4044,7 @@
       call: function (id) { placeCall(id); setTimeout(renderCallbar, 60); },
       toggled: function (open) {
         $('map-open').classList.toggle('is-on', open);
-        if (open && window.Codex && Codex.isOpen()) Codex.close();
-        if (open && window.Mail && Mail.isOpen()) Mail.close();
+        if (open) onlyScreen('map');
         renderCallbar();
       }
     });
