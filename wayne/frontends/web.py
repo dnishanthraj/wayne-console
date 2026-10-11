@@ -3144,8 +3144,9 @@ class Console(GroupChats):
         due (put together, not written), then — while the model's loaded and idle —
         one more piece of whatever life would send him.
         """
-        from ..engine import inbox, incidents
+        from ..engine import engagements, inbox, incidents
         now = time.time()
+        engagements.settle(now)                 # the evenings that are over: went, or didn't — notes to come
         for made in (inbox.write_night_report(now), inbox.write_briefing(now), inbox.write_market_close(now)):
             if made:
                 await self.broadcast({"type": "mail", "message": made, "unread": inbox.unread()})
@@ -4271,6 +4272,18 @@ async def reply_mail(message_id: str, request: Request):
     if mine is None:
         return JSONResponse({"error": "that one can't be answered"}, status_code=400)
     return JSONResponse({"message": mine, "unread": inbox.unread()})
+
+
+@app.post("/api/mail/{message_id}/rsvp")
+async def rsvp_mail(message_id: str, request: Request):
+    """He accepts an invitation, or declines it — Alfred answers for him, and it's in the diary."""
+    from ..engine import inbox
+    body = await request.json()
+    done = inbox.rsvp(message_id, bool(body.get("accept")))
+    if done is None:
+        return JSONResponse({"error": "no event in that one"}, status_code=400)
+    row, note = done
+    return JSONResponse({"engagement": row, "message": note, "unread": inbox.unread()})
 
 
 @app.post("/api/mail/{message_id}")

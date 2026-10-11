@@ -5,6 +5,19 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-11
+
+### Added
+
+- **Invitations you answer.** An invitation shows its evening at a glance
+  (when, where, the dress, the host) with Accept and Decline. Alfred keeps
+  your diary: he answers for you in the thread ("accepts with pleasure", or
+  your regrets), knows what's coming, and may remind you. When the evening's
+  over it's settled the honest way. If you were out as Batman when you
+  should have been there, you missed it, and the host's note the morning
+  after says so as they would. Sometimes Vicki Vale wants to know where you
+  were. If you went, you get a thank-you.
+
 ## [0.22.0] - 2026-10-11
 
 ### Added

@@ -76,7 +76,7 @@ def _delivered(key):
 
 
 def deliver(sender, subject, body, folder=None, at=None, name=None, address=None, kind="", key=None,
-            thread=None, reply_to=None):
+            thread=None, reply_to=None, extra=None):
     """
     A message arrives. `sender` is one of SENDERS or free text; `key` keeps the
     same thing from arriving twice (the night report for a date, a case's thanks).
@@ -94,6 +94,8 @@ def deliver(sender, subject, body, folder=None, at=None, name=None, address=None
         message["thread"] = thread or message["id"]
         if reply_to:
             message["reply_to"] = reply_to
+        if extra:
+            message.update(extra)
         box = _mail()
         with store.get().tx():
             box.put(message["id"], message)
@@ -108,7 +110,7 @@ def deliver(sender, subject, body, folder=None, at=None, name=None, address=None
 
 
 def update(message_id, **fields):
-    """Read it, file it, bin it."""
+    """Read it, file it, bin it — or note how he answered an invitation."""
     with _lock:
         m = _mail().get(message_id)
         if m is None:
@@ -117,8 +119,43 @@ def update(message_id, **fields):
             m["folder"] = fields["folder"]
         if "read" in fields:
             m["read"] = bool(fields["read"])
+        if fields.get("rsvp") in ("accepted", "declined"):
+            m["rsvp"] = fields["rsvp"]
         _mail().put(message_id, m)
         return m
+
+
+def rsvp(message_id, accept, now=None):
+    """
+    He accepts an invitation, or declines it — and Alfred, who keeps his diary, answers for him in the thread;
+    the host writes back in their own time. Returns (the engagement, Alfred's note), or None if it isn't one.
+    """
+    from . import engagements
+    now = now or time.time()
+    message = _mail().get(message_id)
+    if message is None or not message.get("engagement"):
+        return None
+    row = engagements.answer(message, accept, now)
+    if row is None:
+        return None
+    update(message_id, rsvp=row["status"])
+    when_ = time.strftime("%A %-d %B at %-I:%M %p", time.localtime(row["at"]))
+    body = ((f"Mr. Wayne thanks you for your kind invitation and accepts with pleasure — {when_}" +
+             (f", {row['where']}" if row["where"] else "") + ".") if accept else
+            "Mr. Wayne thanks you for your kind invitation, and regrets that a prior engagement prevents him from "
+            "attending.") + "\n\nWith his compliments,\n\nA. Pennyworth\nfor Bruce Wayne"
+    thread_id = message.get("thread") or message["id"]
+    note = {"id": uuid.uuid4().hex[:12], "at": now, "sender": "me", "from": "Alfred Pennyworth, for Bruce Wayne",
+            "address": "household@waynemanor.com", "to": message["from"], "to_address": message.get("address", ""),
+            "subject": ("Re: " + message["subject"])[:160] if not message["subject"].lower().startswith("re:")
+            else message["subject"], "body": body, "folder": "sent", "read": True, "kind": "sent",
+            "thread": thread_id, "reply_to": message_id}
+    with _lock:
+        _mail().put(note["id"], note)
+    if accept:
+        lo, hi = _ANSWERS_DEFAULT
+        queue({"kind": "reply", "id": note["id"], "thread": thread_id, "due": now + random.uniform(lo, hi) * 60})
+    return row, note
 
 
 def delete(message_id):
@@ -399,14 +436,53 @@ def _company(model, options, now):
 
 
 def _invitation(model, options, now):
+    soon = datetime.date.fromtimestamp(now)
     found = _ask(model, options, _context(now) + "Write one invitation to Bruce Wayne — a gala, a charity auction, a "
                  "box at the Knightsdome, the mayor's fundraiser, a gallery opening on Museum Mile, a dinner Vicki Vale "
-                 "insists on, an old Gotham family's anniversary. From whoever would send it, with the date, the place "
-                 "(somewhere real in Gotham), the dress, an RSVP." + _FACTS_ONLY + " " + _MAIL_SHAPE, "an invitation")
+                 "insists on, an old Gotham family's anniversary. From whoever would send it, with the date (within the "
+                 f"next two weeks, after {soon.isoformat()}), the time, the place (somewhere real in Gotham), the dress, "
+                 "an RSVP." + _FACTS_ONLY + " " + _MAIL_SHAPE[:-1]
+                 + ', "event": {"what": "the occasion, in a few words", "where": "the place", "date": "YYYY-MM-DD", '
+                 '"time": "HH:MM, 24-hour", "dress": "black tie, cocktail…", "host": "who\'s hosting"}}', "an invitation")
     if not found or not found.get("subject"):
         return None
+    from . import engagements
+    event = found.get("event") if isinstance(found.get("event"), dict) else None
+    extra = {"engagement": {k: str(event.get(k) or "")[:120] for k in ("what", "where", "date", "time", "dress", "host")}} \
+        if event and engagements.when_from(event, now) else None
     return deliver(found.get("from_name") or "Invitation", found["subject"], found.get("body", ""), folder="inbox",
-                   kind="invitation", name=found.get("from_name"), address=found.get("from_address"))
+                   kind="invitation", name=found.get("from_name"), address=found.get("from_address"), extra=extra)
+
+
+def _engagement_letter(model, options, event, now):
+    """
+    The evening's over: the host's note after it — glad he came, or the empty chair noticed — and, now and then
+    when he didn't come, Vicki Vale wondering where Gotham's most eligible man was this time.
+    """
+    if event.get("kind") != "engagement":
+        return None
+    went = event.get("status") == "attended"
+    convo = thread(event.get("thread", ""))
+    theirs = next((m for m in convo if m.get("folder") != "sent"), None)
+    host = event.get("host") or (theirs or {}).get("from") or "the host"
+    found = _ask(model, options, _context(now) + f"Write one short email to Bruce Wayne from {host}, the morning after "
+                 f"{event.get('what')}" + (f" at {event['where']}" if event.get("where") else "") + ": "
+                 + ("he came — a thank-you, warm or formal as they are, with one specific thing about the evening."
+                    if went else "he accepted and never came — his chair empty all evening; they write as they would: "
+                    "gracious, wounded, pointed or amused.") + _FACTS_ONLY + " " + _MAIL_SHAPE, "an after-note")
+    made = None
+    if found and found.get("subject"):
+        made = deliver(host, found["subject"], found.get("body", ""), folder="inbox", kind="letter", name=host,
+                       address=(theirs or {}).get("address"), thread=event.get("thread"), key=f"after:{event.get('id')}")
+    if not went and "vicki" not in host.lower() and _draw("vicki", event.get("id")) < 0.4:
+        nosy = _ask(model, options, _context(now) + "Write one short, teasing email to Bruce Wayne from Vicki Vale, the "
+                    f"Gotham Gazette's investigative reporter (they dated once; she still suspects him of something): "
+                    f"he stood up {event.get('what')} last night and she wants to know where he was — flirtatious, "
+                    "sharp, fishing." + _FACTS_ONLY + " " + _MAIL_SHAPE, "Vicki's note")
+        if nosy and nosy.get("subject"):
+            made = deliver("Vicki Vale", nosy["subject"], nosy.get("body", ""), folder="inbox", kind="letter",
+                           name="Vicki Vale", address="vvale@gothamgazette.com", key=f"vicki-after:{event.get('id')}") or made
+    return made
 
 
 def _spam(model, options, now):
@@ -484,6 +560,8 @@ def _from_event(model, options, event, now):
     """What a night leaves in his mail — every letter it would bring, not just the first — or a reply he's owed."""
     if event.get("kind") == "reply":
         return _reply_letter(model, options, event, now)
+    if event.get("kind") == "engagement":
+        return _engagement_letter(model, options, event, now)
     made = None
     for writer in (_gordon_letter, _thanks_letter, _claim_letter, _arkham_letter):
         got = writer(model, options, event, now)

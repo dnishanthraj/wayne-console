@@ -166,6 +166,7 @@
     pane.innerHTML = '<header class="mx-read__head"><h2></h2><div class="mx-read__acts"></div></header>' +
                      '<div class="mx-thread"></div><div class="mx-reply" hidden></div>';
     pane.querySelector('h2').textContent = m.subject;
+    if (m.engagement) pane.querySelector('.mx-read__head').appendChild(eventCard(m));
     var thread = pane.querySelector('.mx-thread');
     thread.appendChild(letter(m, true));
     var acts = pane.querySelector('.mx-read__acts');
@@ -205,6 +206,48 @@
         thread.innerHTML = '';
         all.forEach(function (x, i) { thread.appendChild(letter(x, x.id === m.id || i === all.length - 1)); });
       }).catch(function () {});
+  }
+
+  /* An invitation's evening, at a glance — and his answer: Alfred answers for him, and it's in the diary. */
+  function eventCard(m) {
+    var e = m.engagement, card = document.createElement('div');
+    card.className = 'mx-event';
+    var when = '';
+    try {
+      var d = new Date(e.date + 'T' + (e.time || '20:00'));
+      when = d.toLocaleString(undefined, { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+    } catch (err) { when = e.date + ' ' + (e.time || ''); }
+    card.innerHTML = '<dl></dl><div class="mx-event__answer"></div>';
+    [['When', when], ['Where', e.where], ['Dress', e.dress], ['Host', e.host]].forEach(function (row) {
+      if (!row[1]) return;
+      var dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = row[0]; dd.textContent = row[1];
+      card.querySelector('dl').appendChild(dt); card.querySelector('dl').appendChild(dd);
+    });
+    var answer = card.querySelector('.mx-event__answer');
+    if (m.rsvp) {
+      answer.textContent = m.rsvp === 'accepted' ? 'In your diary \u2014 Alfred accepted for you.'
+                                                 : 'Declined \u2014 Alfred sent your regrets.';
+      answer.dataset.state = m.rsvp;
+    } else {
+      [['Accept', true], ['Decline', false]].forEach(function (b) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cx-btn' + (b[1] ? ' mx-event__yes' : '');
+        btn.textContent = b[0];
+        btn.addEventListener('click', function () {
+          fetch('/api/mail/' + m.id + '/rsvp', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ accept: b[1] }) })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d.error) return;
+              m.rsvp = b[1] ? 'accepted' : 'declined';
+              paint(m);
+            }).catch(function () {});
+        });
+        answer.appendChild(btn);
+      });
+    }
+    return card;
   }
 
   /* Writing back, under the letter: Send puts it in Sent, in the thread; theirs comes when they'd write it. */
