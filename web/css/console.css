@@ -2194,6 +2194,15 @@ input[type="text"], input[type="search"], input[type="password"], input:not([typ
 .messages__tab-x svg { width: 100%; height: 100%; display: block; }
 .messages__tab:hover .messages__tab-x, .messages__tab.is-on .messages__tab-x { opacity: 1; }
 .messages__tab-x:hover { color: var(--alert); }
+/* Too many to name: the others go down to their faces, the open one keeps its name (see fitTabs). */
+.messages__tabs.is-tight .messages__tab { min-width: 0; flex: 0 0 auto; padding: 9px 11px; }
+.messages__tabs.is-tight .messages__tab.is-on { flex: 1 1 auto; padding: 9px 8px 9px 12px; }
+.messages__tabs.is-tight .messages__tab:not(.is-on) .messages__tab-name,
+.messages__tabs.is-tight .messages__tab:not(.is-on) .messages__tab-x { display: none; }
+.messages__tabs.is-tight .messages__tab.is-unread:not(.is-on)::after { content: ""; position: absolute; top: 7px; right: 7px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+.messages__tabs.is-overflow { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 
 /* --- after dark: the console comes alight ------------------------------------
    --night runs from 0 by day to 1 at night, on the sun over Gotham (app.js,

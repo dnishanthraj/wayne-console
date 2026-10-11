@@ -7,6 +7,52 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-11
+
+### Changed
+
+- **A call with company is written as one scene.** With four people on the
+  line, each line used to be a different character's whole prompt (five
+  thousand tokens) read afresh before a word: two to eleven seconds a reply,
+  ten when someone joined. A pause lasted five to ten seconds before anyone
+  spoke into it, and often nobody did. On one call there were 24 seconds of
+  silence after Jason joined, then 41 seconds until you asked "Cass, what's
+  going on?".
+
+  Now the call is one prompt the model keeps hold of: the rules of the line,
+  a brief for each person in their own profile's words, and the call so
+  far.
+  - **Your lines:** each one starts a round. Whoever you spoke to answers
+    first, then whoever would come in, all in one stream, voiced line by
+    line as it's written, each in their own voice.
+  - **Pauses:** they carry on, a line or two each pause, with room left for
+    you to come back in. Once you've gone quiet a while, someone checks
+    you're there, and then it winds down.
+  - **Cutting in:** the stream stops. The call keeps only what you heard
+    ("…—"), so nobody remembers saying the lines you didn't hear, and the
+    next round starts from where the model already is.
+
+  On a test call: about half a second to the first line after you speak or
+  after a pause (it was two to eleven), and a round of two or three people
+  in one to three seconds. The first round of a call reads the whole call
+  prompt once, a few seconds. Each line still goes through its speaker:
+  their markers acted on, their forms of address kept, and with Jim on the
+  line nobody's face is said, not even in Jim's own lines. `WAYNE_GROUP_SCENE=0`
+  puts back a turn per person.
+- **Speech recognition goes back to the GPU between lines.** On a call it
+  had moved to the CPU entirely, where a take took one to two seconds. Now
+  it uses the CPU only while the model is actually reading or writing. The
+  rest of the time, including the moment you cut in (which stops the
+  model), it's on the GPU, at about a fifth of a second.
+
+### Fixed
+
+- **Open chat tabs fit the panel.** Six conversations open ran off the edge
+  of the side panel. When they don't fit, the others show as their faces
+  (named on hover, with an unread dot) and the one you're reading keeps its
+  name. Narrowed further, the strip fades at the edge and keeps the open
+  one in view.
+
 ## [1.2.0] - 2026-10-11
 
 ### Changed

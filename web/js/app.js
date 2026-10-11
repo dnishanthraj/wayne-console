@@ -97,8 +97,10 @@
   // lets it sit; the server decides which, and who.
   // On a call with company the next line comes quickly — a beat, not a silence
   // — while the call has go in it; the server decides whether anyone takes it.
-  var GROUP_LULL = [700, 1500];
-  var MAX_LULLS = 14;
+  // Written as one scene, a call with company has no dead air: the next line comes in a beat, and the server
+  // decides how long that runs before it winds down (see Console._scene_lull).
+  var GROUP_LULL = [450, 650];
+  var MAX_LULLS = 30;
 
   // When he says he needs a moment, he takes one — and comes back on his own.
   var HE_ASKED_FOR_TIME = /\b(give me|just|hold on|hang on|one|bear with)\s*(a\s*)?(moment|minute|second|sec|mo)\b|\blet me (think|check|see)\b/i;
@@ -386,7 +388,7 @@
     var closing = state.nudges >= MAX_NUDGES;
     var lull = state.party.length > 1 && (state.lulls || 0) < MAX_LULLS;
     // He's in the conversation: a pause is his to fill first — a few seconds, not under one, before anyone else does.
-    if (lull) { window_ = Date.now() - (state.heSpokeAt || 0) < 30000 ? [2600, 2400] : GROUP_LULL; closing = false; }
+    if (lull) { window_ = Date.now() - (state.heSpokeAt || 0) < 30000 ? [1300, 900] : GROUP_LULL; closing = false; }
     var wait = window_[0] + Math.random() * window_[1];
     var quietFor = state.quietUntil - Date.now();
     if (quietFor > 0) wait += quietFor;
@@ -1746,6 +1748,7 @@
       var name = document.createElement('span');
       name.className = 'messages__tab-name';
       name.textContent = contact ? contact.name : group.name;
+      tab.dataset.tip = name.textContent;            // shown when the strip's too tight for names (see fitTabs)
       var unread = isDm ? state.unread[tb.id] : (state.unread[groupKey(tb.id)] || state.pinged[groupKey(tb.id)]);
       if (unread && !on) tab.classList.add('is-unread');
       var x = document.createElement('button');
@@ -1761,6 +1764,25 @@
       tab.addEventListener('keydown', function (e) { if (e.key === 'Enter') tab.click(); });
       nav.appendChild(tab);
     });
+    fitTabs();
+  }
+
+  /* Six conversations open don't fit across the panel with their names: the others go down to their faces
+     (named on hover, an unread dot on the face) and the one he's reading keeps its name. Narrower still, the
+     strip scrolls — faded at the edge so it's plain there's more — and the open one is always in view. */
+  var tabsWatched = false;
+  function fitTabs() {
+    var nav = el['messages-tabs'];
+    if (nav && !tabsWatched && window.ResizeObserver) {
+      tabsWatched = true;                     // the panel resized (dragged wider, narrower): fitted again
+      new ResizeObserver(fitTabs).observe(nav);
+    }
+    if (!nav || nav.hidden || !nav.clientWidth) return;
+    nav.classList.remove('is-tight', 'is-overflow');
+    if (nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('is-tight');
+    if (nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('is-overflow');
+    var current = nav.querySelector('.messages__tab.is-on');
+    if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function openMessages(id) {

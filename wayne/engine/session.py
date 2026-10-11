@@ -51,6 +51,9 @@ from . import (
     prompting,
     world,
 )
+from .model import (
+    working as model_working,  # the model's busy: hearing him goes to the CPU meanwhile
+)
 from .search import format_search_results, google_search, is_factual_lookup, subject_of_a_take
 
 _log = logging.getLogger("wayne")
@@ -496,8 +499,9 @@ class ContactSession:
     def warm(self):
         """Load the model and read the stable prefix, generating one token."""
         payload = prompting.build_payload(self.contact, self.history.for_model(), ".")
-        ollama.chat(model=self.contact.model, messages=payload, stream=False,
-                    options=self._options(num_predict=1), **self._extra())
+        with model_working():
+            ollama.chat(model=self.contact.model, messages=payload, stream=False,
+                        options=self._options(num_predict=1), **self._extra())
 
     def _habits_note(self):
         """
@@ -544,8 +548,9 @@ class ContactSession:
         if not history or history[-1]["role"] != "assistant":
             return
         payload = prompting.build_payload(self.contact, history, "", texting=texting)[:-1]
-        ollama.chat(model=self.contact.model, messages=payload, stream=False,
-                    options=self._options(num_predict=1), **self._extra())
+        with model_working():
+            ollama.chat(model=self.contact.model, messages=payload, stream=False,
+                        options=self._options(num_predict=1), **self._extra())
 
     def cancel(self):
         """
@@ -571,8 +576,9 @@ class ContactSession:
 
         def parts():
             try:
-                yield from client.chat(model=self.contact.model, messages=payload, stream=True, options=options,
-                                       **extra)
+                with model_working():
+                    yield from client.chat(model=self.contact.model, messages=payload, stream=True, options=options,
+                                           **extra)
             except Exception:
                 if getattr(self, "_cancelled", 0) != mine:
                     return          # cut off by him: nothing more to say, and nothing wrong
@@ -1547,6 +1553,35 @@ class ContactSession:
             return ""
         text = re.sub(r"\[[^\]]*\]", "", text or "")
         return _unemoji(self._plain(text))
+
+    def scene_line(self, text, greeting=False, farewell=False):
+        """
+        A sentence of theirs the call's scene wrote (see engine.scene), said as they'd say it: what they'd do read
+        off as from their own reply — [hang up], [add: Tim], a step away, [take: …], [show: …] — their forms of
+        address kept, and nothing anyone listening mustn't hear. The scene's writer knows every face: with Jim on
+        the line, even Jim's own lines are kept to the masks. '' if nothing of it is left to say.
+        """
+        if _HANG_UP.search(text or ""):
+            self._hanging_up = True
+        added = [name.strip() for name in _CALL_ADD.findall(text or "")]
+        if added:
+            self._call_add = list(getattr(self, "_call_add", None) or []) + added
+        text = _CALL_ADD.sub("", text or "")
+        text = _call_moves(self, text)
+        text = _unemoji(self._read_markers(text))
+        if not text:
+            return ""
+        listening = [m.contact.id for m in self.call.members if m is not self] if self.call else []
+        guard = identity.guard_vocatives(self.contact.id, listening) if listening else ()
+        text = guards.strip_forbidden_address(text, tuple(self.contact.forbidden_address) + tuple(guard))
+        if identity.knows_faces(self.contact.id):
+            text = identity.scrub(text, self.contact.id, listening)
+        elif listening:
+            text = identity.scrub(text, "me", [self.contact.id])          # what they couldn't know, never said
+        text = guards.tidy_address(text)
+        if self.call:
+            text = " ".join(x for x in (self.call.own_words(self, y) for y in guards.split_sentences(text)) if x)
+        return text.strip()
 
     def utter(self, text, cut_off=False):
         """
@@ -3117,8 +3152,9 @@ class ContactSession:
         head = self._standing_head()
         self._prefetched = {"head": head, "at": time.time(), "history": self._history_mark()}
         payload = prompting.build_payload(self.contact, self.history.for_model(), prompting.reference_opening(head))
-        ollama.chat(model=self.contact.model, messages=payload, stream=False,
-                    options=self._options(num_predict=1), **self._extra())
+        with model_working():
+            ollama.chat(model=self.contact.model, messages=payload, stream=False,
+                        options=self._options(num_predict=1), **self._extra())
 
     def prefetch_call_turn(self):
         """
@@ -3130,8 +3166,9 @@ class ContactSession:
         # model resumes only where a request ended, so a stray last message would waste the whole read).
         payload = prompting.build_payload(self.contact, self.history.for_model(), "")[:-1]
         try:
-            ollama.chat(model=self.contact.model, messages=payload, stream=False,
-                        options=self._options(num_predict=1), **self._extra())
+            with model_working():
+                ollama.chat(model=self.contact.model, messages=payload, stream=False,
+                            options=self._options(num_predict=1), **self._extra())
         except Exception:
             pass
 

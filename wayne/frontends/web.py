@@ -78,6 +78,10 @@ RING_REMARK = 0.25
 # restores it, and it runs down — a few lines, a handful — never forever.
 LULL_DECAY = 0.82
 MOST_UNPROMPTED = 10
+# A call written as one scene carries on through pauses: this many with him in the conversation (twice as many once
+# he's gone quiet), at odds falling by this much each time anyone speaks into one.
+SCENE_PAUSES = 6
+SCENE_DECAY = 0.9
 if not log.handlers:
     paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     # A line per sentence adds up over months of evenings: two megabytes, then
@@ -279,6 +283,9 @@ class Console(GroupChats):
             cancel = getattr(member, "cancel", None)
             if cancel:
                 cancel()
+        scene = getattr(self.call, "_scene", None) if getattr(self, "call", None) else None
+        if scene is not None:
+            scene.cancel()                  # a call with company: the one stream everyone's lines come from
         return self.turn_epoch
 
     async def drive(self, generator, contact, epoch=None, release_at=None):
@@ -416,6 +423,7 @@ class Console(GroupChats):
             self.voice_busy = False
             if superseded() and said_now:
                 self._remember_heard(contact, said_now, started_wall)
+                self._scene_heard(said_now)
             # Written already but still playing on his speakers: if he cuts in now, it's trimmed then.
             self._last_said = (contact, dict(said_now), started_wall) if said_now else None
             if epoch is None or epoch == self.turn_epoch:
@@ -435,6 +443,8 @@ class Console(GroupChats):
         meanwhile goes first.
         """
         await asyncio.sleep(0.4)
+        if self._scened():
+            return          # one scene for the call: the round just written left the model where the next starts
         if self.call and self.call.is_group and getattr(self.call, "last_speaker", None):
             likeliest = self.call.last_speaker.contact.id
             voices = [likeliest] if likeliest in voices else list(voices)[:1]
@@ -466,6 +476,18 @@ class Console(GroupChats):
 
     def _can_speak(self, contact):
         return self.voice.available and contact.has_voice
+
+    def _scene_heard(self, said_now):
+        """
+        A call with company, cut in on: of the scene's last round only what he heard begin counts as said — the
+        lines written after it, never voiced, aren't remembered by anyone (see Scene.heard_only).
+        """
+        scene = getattr(self.call, "_scene", None) if self.call else None
+        upto = getattr(self, "_heard_upto", None)
+        if scene is None or not said_now:
+            return
+        keys = sorted(said_now)
+        scene.heard_only(len([k for k in keys if upto is None or k <= upto]))
 
     def _remember_heard(self, contact, said_now, started_wall):
         """
@@ -874,6 +896,8 @@ class Console(GroupChats):
         cid = self.current_id
         if not cid or self.voice_busy or cid not in self.sessions:
             return
+        if self._scened():
+            return          # the call's scene is already read, up to the last line said
         if self.call and self.call.is_group:
             # With company: whoever spoke last is likeliest to answer him — read ahead theirs.
             likely = self.call.last_speaker if self.call.last_speaker in self.call.members else None
@@ -4140,6 +4164,8 @@ class Console(GroupChats):
         call he's gone silent on drifts off rather than carrying on without him.
         """
         self._lulls += 1
+        if self._scened():
+            return await self._scene_lull()
         # While he's in the conversation, they don't run it without him: a line or two into a pause, then they leave
         # him room — a call where the two of them volleyed jabs for twenty lines was no call at all. Quiet for a
         # while, they carry it a little further, then let it drift.
@@ -4177,6 +4203,32 @@ class Console(GroupChats):
         if line:
             self._last_lull = member.contact.id
         self._lull_energy *= LULL_DECAY if line else 0.7
+        await self._hang_ups()
+        await self._call_moves()
+        await self._call_adds()
+
+    def _scened(self):
+        """Whether the call on is written as one scene (see engine.scene)."""
+        on = getattr(self.call, "scene_on", None) if getattr(self, "call", None) else None
+        return bool(on and on())
+
+    async def _scene_lull(self):
+        """
+        A pause on a call written as one scene: no dead air — the scene carries on, a line or two each pause, from
+        where the model already is. With him in it, they carry it a while and leave him room to come back in; gone
+        quiet a long time, someone checks he's there, and then it winds down rather than running on forever.
+        """
+        engaged = time.time() - getattr(self, "_him_at", 0) < 45
+        most = SCENE_PAUSES if engaged else SCENE_PAUSES * 2
+        if self._lulls > most or (self.call.waiting_on_him(within=4.0) and self._lulls <= 1) \
+                or random.random() >= self._lull_energy:
+            return await self.broadcast(events.turn_complete())
+        epoch = self.turn_epoch
+        async with self.turn_lock:
+            if epoch != self.turn_epoch or not self._scened():
+                return await self.broadcast(events.turn_complete())
+            line = await self._drive_for(self.call.lull(None, self._lulls), self.contact, epoch)
+        self._lull_energy *= SCENE_DECAY if line else 0.6
         await self._hang_ups()
         await self._call_moves()
         await self._call_adds()
@@ -5557,8 +5609,9 @@ async def transcribe(request: Request):
     else:
         _HEARING["waiting"] += 1
 
-    # On a call the GPU is the model's: heard on the CPU, so neither waits on the other (see stt._cpu).
-    on_call = bool(console.current_id) or llm.is_on_air()
+    # While the model's reading or writing, the GPU is its: heard on the CPU then, so neither waits on the other (see
+    # stt._cpu). The rest of the time — right after he's cut in, between lines — the GPU, a fifth of the time.
+    on_call = llm.generating()
 
     def hear():
         if partial and _HEARING["waiting"]:
@@ -5612,6 +5665,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     console._heard_upto = 0
                 console.interrupt()
                 if not console.voice_busy and getattr(console, "_last_said", None):
+                    console._scene_heard(console._last_said[1])        # a call with company: its scene too
                     console._remember_heard(*console._last_said)     # the reply was written; he heard part of it
                     console._last_said = None
             elif kind == "comms_call":

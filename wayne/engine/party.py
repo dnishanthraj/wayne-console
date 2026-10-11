@@ -90,6 +90,32 @@ class Call:
         self.muted = {}
         # Who's in the room but won't talk to him: {id: (whose room, why)} — covered for, or not.
         self.avoiding = {}
+        # With company, the call written as one scene: one stream for everyone on the line (see engine.scene).
+        self._scene = None
+
+    # --- the scene ---------------------------------------------------------------------------------------
+
+    def scene_on(self):
+        """Whether this call is written as one scene: company on the line, and not a case's comms."""
+        from .. import config
+        return bool(config.GROUP_SCENE and self.is_group and not self.comms)
+
+    def writer(self):
+        """The call's scene, begun the first time it's needed — knowing what's been said on the call so far."""
+        if self._scene is None:
+            from .scene import Scene
+            self._scene = Scene(self)
+            if self.transcript:
+                said = []
+                for who, text in self.transcript[-12:]:
+                    if who is None:
+                        said.append(text)
+                        continue
+                    member = next((m for m in self.members if m.contact.id == who), None)
+                    name = self._scene.him() if who == "me" else self._scene.label(member) if member else who
+                    said.append(f"{name}: {text}")
+                self._scene.seed = "The call so far:\n" + "\n".join(said)
+        return self._scene
 
     # --- membership ------------------------------------------------------
 
@@ -290,6 +316,18 @@ class Call:
         prompt = (prompt or "").strip()
         if not prompt:
             return
+        if self.scene_on():
+            said = yield from self.writer().respond(prompt, interrupted, talked_over)
+            if said is None:
+                # The scene couldn't be written this once (the model failed): whoever he spoke to answers the old way.
+                target = (self.addressed(prompt) or [self.last_speaker or self.members[0]])[0]
+                if target.heard and target.heard[-1] == self.heard_as("me", prompt, target):
+                    target.heard.pop()
+                reply = yield from self._speak(target, prompt, interrupted, confidence, False)
+                if reply:
+                    self.last_speaker = target
+                    self._heard_by_all(target, reply)
+            return
         yield events.message("user", prompt)
 
         over = next((m for m in self.members if m.contact.id == talked_over), None) if interrupted else None
@@ -384,6 +422,10 @@ class Call:
         Someone has just been added. They greet the call already in progress,
         and everyone else hears it.
         """
+        if self.scene_on():
+            unwilling = "" if willing else "if they'd genuinely rather not be on it at all, they say so and hang up"
+            yield from self.writer().greet(newcomer, "; ".join(x for x in (note, unwilling) if x))
+            return next((t for w, t in reversed(self.transcript) if w == newcomer.contact.id), "")
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(newcomer) + "\n[END REFERENCE]\n\n"
             f"You've just been patched into a call that's already going, with "
@@ -404,6 +446,9 @@ class Call:
 
     def farewell(self, member, why=None):
         """A contact leaving the call says a quick goodbye: let go by him, or `why` they're going themselves."""
+        if self.scene_on():
+            yield from self.writer().farewell(member, why or "")
+            return
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             + (f"{why} Say a quick goodbye down the line as you go — one line." if why else
@@ -418,6 +463,9 @@ class Call:
         Someone else on the call reacts to a change — a newcomer, someone who
         didn't pick up, someone leaving — in a line, or not at all.
         """
+        if self.scene_on():
+            yield from self.writer().react(identity.render(what_happened))
+            return next((t for w, t in reversed(self.transcript) if w not in (None, "me")), "")
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             f"{identity.render(what_happened, member.contact.id)} React the way you would, in a line — or if you wouldn't say "
@@ -432,6 +480,8 @@ class Call:
 
     def chime(self, member):
         """Jumping in on what's just been said, unasked — or staying out of it."""
+        if self.scene_on():
+            return ""                    # the scene's round already had whoever would come in
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             "Nobody asked you anything, but you're on this call and you heard that. Come in only if you've "
@@ -447,6 +497,9 @@ class Call:
 
     def ringing(self, member, name):
         """He's ringing someone into the call; while it rings, someone may say so. `name`: who, or a mention."""
+        if self.scene_on():
+            yield from self.writer().react(f"He's ringing {identity.render(name)} into the call — it's still ringing.")
+            return next((t for w, t in reversed(self.transcript) if w not in (None, "me")), "")
         name = identity.render(name, member.contact.id)
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
@@ -464,6 +517,9 @@ class Call:
         usually fills it — ribbing someone, picking a thread back up, asking
         the operator something — and sometimes the quiet just sits.
         """
+        if self.scene_on():
+            said = yield from self.writer().carry_on(quiet_for)
+            return next((t for w, t in reversed(self.transcript) if w not in (None, "me")), "") if said else ""
         line = yield from self._speak_aside(member, self._lull_instruction(member, quiet_for))
         if line:
             self._heard_by_all(member, line)
@@ -521,6 +577,8 @@ class Call:
         as it is on a real call. Falls back to an ordinary lull if either of
         them wouldn't have said anything anyway.
         """
+        if self.scene_on():
+            return (yield from self.lull(first, quiet_for))
         a = self._own(first, first.draft(self._lull_instruction(first, quiet_for)))
         b = self._own(second, second.draft(self._lull_instruction(second, quiet_for)))
         if not (a and b):
@@ -605,6 +663,8 @@ class Call:
         self.transcript.append((None, line))
         for member in self.members:
             member.heard.append(self.heard_as(None, line, member))
+        if self._scene is not None:
+            self._scene.note(identity.render(line))
 
     def _notice_asks(self, line):
         """A line that puts something to him by name — any he goes by — and the call holds a moment for his answer."""

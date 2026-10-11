@@ -14,6 +14,13 @@ def no_jumping_in(monkeypatch):
     monkeypatch.setattr(party, "CHIME", 0)
 
 
+@pytest.fixture(autouse=True)
+def a_turn_each(monkeypatch):
+    """The call taken a turn per person — the way it's written with GROUP_SCENE off (the scene: test_scene)."""
+    from wayne import config
+    monkeypatch.setattr(config, "GROUP_SCENE", False)
+
+
 class FakeMember:
     """A contact that replies with a scripted line and records what it heard."""
 

@@ -28,6 +28,28 @@ from .. import config
 log = logging.getLogger("wayne")
 
 _on_air = threading.Event()
+# How many requests the model is working on this moment — reading a prompt or writing a reply. Hearing him goes to
+# the CPU only while it is (see web.transcribe): the GPU is quicker the rest of the time, which on a call is most of it.
+_working = [0]
+_working_lock = threading.Lock()
+
+
+class working:
+    """`with working():` around anything the model's busy with."""
+
+    def __enter__(self):
+        with _working_lock:
+            _working[0] += 1
+
+    def __exit__(self, *exc):
+        with _working_lock:
+            _working[0] -= 1
+        return False
+
+
+def generating():
+    """Whether the model's reading or writing anything right now."""
+    return _working[0] > 0
 # However long a call runs, a pass that's waited this long goes ahead.
 MOST_WAIT = 45 * 60
 
@@ -73,7 +95,8 @@ def ask(model, messages, options=None, think=False, fmt=None, purpose="a backgro
         extra["format"] = fmt
     try:
         if not background:
-            return ollama.chat(model=model, messages=messages, options=options or {}, **extra)["message"]["content"]
+            with working():
+                return ollama.chat(model=model, messages=messages, options=options or {}, **extra)["message"]["content"]
         while True:
             _wait_off_air(purpose)
             reply = _written_unless_called(model, messages, options or {}, extra)
@@ -88,6 +111,11 @@ def ask(model, messages, options=None, think=False, fmt=None, purpose="a backgro
 def _written_unless_called(model, messages, options, extra):
     """The whole reply — or None if a call started while it was being written (the stream is dropped, and the
     model with it, so the call doesn't wait behind the rest)."""
+    with working():
+        return _stream_unless_called(model, messages, options, extra)
+
+
+def _stream_unless_called(model, messages, options, extra):
     response = ollama.chat(model=model, messages=messages, options=options, stream=True, **extra)
     if isinstance(response, dict):          # a fake that answers whole
         return response["message"]["content"]
