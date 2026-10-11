@@ -5,6 +5,19 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-11
+
+### Added
+
+- **Write back.** Mail has a Reply button. Your answer goes in a new Sent
+  folder, and the letter opens as its whole conversation: each letter in
+  turn, the earlier ones folded to a line, yours set in from the edge. Whoever
+  wrote answers in their own time (Oracle at once, Lucius between meetings,
+  Jim after a shift, a stranger in an hour or a day), replying to what you
+  actually said. On the secure line you write as "B", and Jim is never told
+  who he's writing to. The night report, the papers, the markets and spam
+  can't be answered.
+
 ## [0.21.1] - 2026-10-11
 
 ### Fixed

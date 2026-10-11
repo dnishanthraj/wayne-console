@@ -32,7 +32,14 @@ import uuid
 
 from .. import store
 
-FOLDERS = ("inbox", "secure", "spam", "archive")
+FOLDERS = ("inbox", "secure", "spam", "archive", "sent")
+# Mail nobody answers: the machine's report, the papers, the markets, the junk.
+_UNANSWERED = {"report", "briefing", "markets", "spam", "sent"}
+# How long each takes to write back, in minutes: Oracle at once, Lucius between meetings, Jim after a shift,
+# the board's office in its own time — and anyone else in an hour or a day.
+_ANSWERS_IN = {"oracle": (4, 30), "lucius": (15, 90), "pr": (30, 240), "foundation": (60, 600), "gordon": (60, 360),
+               "board": (120, 1440), "legal": (120, 1440)}
+_ANSWERS_DEFAULT = (60, 1200)
 KEEP = 400
 _lock = threading.Lock()
 
@@ -68,10 +75,12 @@ def _delivered(key):
     return bool(key) and key in store.space("mail_keys")
 
 
-def deliver(sender, subject, body, folder=None, at=None, name=None, address=None, kind="", key=None):
+def deliver(sender, subject, body, folder=None, at=None, name=None, address=None, kind="", key=None,
+            thread=None, reply_to=None):
     """
     A message arrives. `sender` is one of SENDERS or free text; `key` keeps the
     same thing from arriving twice (the night report for a date, a case's thanks).
+    `thread`: the conversation it belongs to, when it answers one of his (see reply).
     """
     known = SENDERS.get(sender)
     with _lock:
@@ -80,7 +89,11 @@ def deliver(sender, subject, body, folder=None, at=None, name=None, address=None
         message = {"id": uuid.uuid4().hex[:12], "at": at or time.time(),
                    "from": name or (known[0] if known else sender), "address": address or (known[1] if known else ""),
                    "subject": subject.strip()[:160], "body": body.strip()[:6000],
-                   "folder": folder or (known[2] if known else "inbox"), "read": False, "kind": kind}
+                   "folder": folder or (known[2] if known else "inbox"), "read": False, "kind": kind,
+                   "sender": sender}
+        message["thread"] = thread or message["id"]
+        if reply_to:
+            message["reply_to"] = reply_to
         box = _mail()
         with store.get().tx():
             box.put(message["id"], message)
@@ -113,6 +126,43 @@ def delete(message_id):
         _mail().drop(message_id)
 
 
+def thread(thread_id):
+    """A conversation, oldest first: what they wrote, and what he wrote back."""
+    return sorted((m for m in _mail().list() if (m.get("thread") or m["id"]) == thread_id), key=lambda m: m["at"])
+
+
+def answerable(message):
+    """Whether a letter's one he can answer — not the machine's report, the papers, the markets or the junk."""
+    return bool(message) and message.get("kind") not in _UNANSWERED and message.get("folder") not in ("spam", "sent")
+
+
+def reply(message_id, body, now=None):
+    """
+    He answers a letter. His reply goes in Sent, in its thread — from Bruce Wayne, or from "B" on the secure
+    line — and whoever wrote writes back in their own time (write_one): Oracle at once, Lucius between meetings,
+    Jim after a shift. Returns his message, or None if it isn't one to answer.
+    """
+    now = now or time.time()
+    original = _mail().get(message_id)
+    body = (body or "").strip()
+    if original is None or not body or not answerable(original):
+        return None
+    thread_id = original.get("thread") or original["id"]
+    secure = original.get("folder") == "secure"
+    subject = original["subject"] if original["subject"].lower().startswith("re:") else "Re: " + original["subject"]
+    mine = {"id": uuid.uuid4().hex[:12], "at": now, "sender": "me",
+            "from": "B" if secure else "Bruce Wayne",
+            "address": "b@cave.local" if secure else "bruce.wayne@wayne-enterprises.com",
+            "to": original["from"], "to_address": original.get("address", ""), "subject": subject[:160],
+            "body": body[:6000], "folder": "sent", "read": True, "kind": "sent", "thread": thread_id,
+            "reply_to": message_id, "secure": secure}
+    with _lock:
+        _mail().put(mine["id"], mine)
+    lo, hi = _ANSWERS_IN.get(original.get("sender"), _ANSWERS_DEFAULT)
+    queue({"kind": "reply", "id": mine["id"], "thread": thread_id, "due": now + random.uniform(lo, hi) * 60})
+    return mine
+
+
 def queue(event):
     """Something happened that'll bring mail: a case ended, someone broke out. Written when the model's free."""
     with _lock:
@@ -121,10 +171,14 @@ def queue(event):
         waiting.trim(41)
 
 
-def _take_event():
-    """The oldest event waiting — looked at, not taken: it's only gone once its mail is (see _done_event)."""
+def _take_event(now=None):
+    """
+    The oldest event waiting that's due — looked at, not taken: it's only gone once its mail is (see
+    _done_event). A reply he's owed isn't due till they'd have written it.
+    """
+    now = now or time.time()
     with _lock:
-        events = store.space("mail_events").list()
+        events = [e for e in store.space("mail_events").list() if e.get("due", 0) <= now]
         return dict(events[0]) if events else None
 
 
@@ -282,13 +336,18 @@ _MAIL_SHAPE = ('Return JSON only: {"from_name": "...", "from_address": "...", "s
                'headings only in a newsletter or a formal notice"}')
 
 
-def _context(now):
+def _context(now, secure=False):
+    """
+    The day as the mail knows it. On the secure line — Jim writing to Batman — nothing of Bruce Wayne: Jim
+    doesn't know who he's writing to.
+    """
     from . import gazette
     day = datetime.date.fromtimestamp(now)
     papers = "; ".join(f"“{i['headline']}”" for i in (gazette.today(day) or [])[:4])
+    who = ("" if secure else "Bruce Wayne is CEO-in-name of Wayne Enterprises and its public face (the city thinks "
+           "him a charming, unserious billionaire). ")
     return (f"It's {day.strftime('%A %-d %B %Y')}, {time.strftime('%H:%M', time.localtime(now))}, in Gotham City. "
-            f"Bruce Wayne is CEO-in-name of Wayne Enterprises and its public face (the city thinks him a "
-            f"charming, unserious billionaire). " + (f"This morning's papers: {papers}. " if papers else ""))
+            + who + (f"This morning's papers: {papers}. " if papers else ""))
 
 
 def write_one(model, options, now=None):
@@ -298,7 +357,7 @@ def write_one(model, options, now=None):
     invitation, the spam. Blocking; run while the model's idle.
     """
     now = now or time.time()
-    event = _take_event()
+    event = _take_event(now)
     if event:
         made = _from_event(model, options, event, now)
         _done_event(event, tried=not made)
@@ -377,8 +436,54 @@ def _rogue_facts(name):
             + f"; goes to {'Arkham Asylum' if asylum else 'Blackgate Penitentiary'} once GCPD transfer them)")
 
 
+# Who they are when they write back — the company's people as _company has them, Jim and Barbara on the secure
+# line; anyone else, as they wrote before.
+_VOICES = {
+    "lucius": "Lucius Fox, Wayne Enterprises' president and CEO — dry, exact, quietly amused by Bruce",
+    "board": "the board office's secretary — formal, calendar-driven",
+    "pr": "WE Communications, the PR team that manages Bruce Wayne's image — brisk, a little exasperated",
+    "legal": "WE Legal — careful, clause-heavy, never committal",
+    "foundation": "the Wayne Foundation's director — warm, practical, always a cause in hand",
+    "gordon": "Commissioner James Gordon, on the secure line to Batman — weary, decent, few words, signed 'Jim' or "
+              "'G'; he doesn't know who Batman is",
+    "oracle": "Oracle — Barbara Gordon at the Clocktower: fast, exact, dry, never his assistant",
+}
+
+
+def _reply_letter(model, options, event, now):
+    """
+    They write back to what he wrote — in the thread, as themselves, answering what he actually said. Nothing's
+    owed if they've written again since.
+    """
+    if event.get("kind") != "reply":
+        return None
+    convo = thread(event.get("thread", ""))
+    theirs = next((m for m in reversed(convo) if m.get("folder") != "sent"), None)
+    if not convo or theirs is None or convo[-1].get("folder") != "sent":
+        return None
+    secure = theirs.get("folder") == "secure"
+    him = "Batman" if theirs.get("sender") == "gordon" else "Bruce Wayne"
+    voice = _VOICES.get(theirs.get("sender")) or f"{theirs['from']}, writing as they did before"
+    lines = "\n\n".join(f"— {m['from']} ({time.strftime('%a %-d %b, %H:%M', time.localtime(m['at']))}):\n{m['body']}"
+                         for m in convo[-6:])
+    found = _ask(model, options, _context(now, secure=secure)
+                 + f"Here is an email conversation between {him} and {theirs['from']}:\n\n{lines}\n\n"
+                 f"Write {theirs['from']}'s reply to {him}'s last email, as {voice}. Answer what he actually wrote, "
+                 "keep to everything said above, and never put words in his mouth. If it needs no more than a line, "
+                 "a line is the reply." + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a reply from {theirs['from']}")
+    if not found or not str(found.get("body") or "").strip():
+        return None
+    subject = theirs["subject"] if theirs["subject"].lower().startswith("re:") else "Re: " + theirs["subject"]
+    return deliver(theirs.get("sender") or theirs["from"], subject, found["body"],
+                   folder=theirs["folder"] if theirs["folder"] in ("inbox", "secure") else "inbox",
+                   kind=theirs.get("kind") or "letter", name=theirs["from"], address=theirs.get("address"),
+                   thread=event["thread"], reply_to=convo[-1]["id"], key=f"reply:{event.get('id')}")
+
+
 def _from_event(model, options, event, now):
-    """What a night leaves in his mail — every letter it would bring, not just the first."""
+    """What a night leaves in his mail — every letter it would bring, not just the first — or a reply he's owed."""
+    if event.get("kind") == "reply":
+        return _reply_letter(model, options, event, now)
     made = None
     for writer in (_gordon_letter, _thanks_letter, _claim_letter, _arkham_letter):
         got = writer(model, options, event, now)
@@ -414,7 +519,7 @@ def _gordon_letter(model, options, event, now):
     place, what = event.get("place", ""), event.get("what", "")
     if not (event.get("caught") or how in ("lost", "worse", "killed", "costly") or event.get("severity", 0) >= 4):
         return None
-    found = _ask(model, options, _context(now) + "Write one email from Commissioner James Gordon to Batman, on their "
+    found = _ask(model, options, _context(now, secure=True) + "Write one email from Commissioner James Gordon to Batman, on their "
                  "secure line — weary, decent, few words, signed 'Jim' or 'G'. About last night: "
                  f"the {what} at {place}" + (f", {rogue} behind it{_rogue_facts(rogue)}" if rogue else "")
                  + f" — it ended: {how}" + (f"; {event['caught']} is in GCPD custody" if event.get("caught") else "")

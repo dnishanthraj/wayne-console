@@ -2350,6 +2350,27 @@ body { background:
 .mx-read__acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .mx-del:hover { color: var(--alert); border-color: rgba(224, 87, 79, 0.45); }
 .mx-read__body { font-size: 14px; line-height: 1.65; color: var(--text); max-width: 74ch; }
+/* A conversation: each letter in turn, the earlier ones folded to a line until he opens them; his own set in a
+   little from the edge, so who said what reads at a glance. */
+.mx-thread { display: flex; flex-direction: column; gap: 0; }
+.mx-letter { padding: 14px 0 16px; border-bottom: 1px solid var(--hairline); }
+.mx-letter:last-child { border-bottom: 0; }
+.mx-letter .mx-read__from { margin-bottom: 10px; }
+.mx-letter:not(.is-open) { cursor: var(--cursor-pointer); }
+.mx-letter:not(.is-open) .mx-read__body { color: var(--text-faint); font-size: 12.5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.mx-letter:not(.is-open):hover .mx-read__body { color: var(--text-dim); }
+.mx-letter.is-mine { padding-left: 18px; border-left: 2px solid var(--primary-dim); }
+.mx-letter.is-mine .mx-read__from b { color: var(--primary); font-weight: 400; }
+.mx-reply { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hairline-2); max-width: 74ch; }
+.mx-reply[hidden] { display: none; }
+.mx-reply__to { margin: 0 0 8px; font-size: 11.5px; color: var(--text-faint); }
+.mx-reply__text { width: 100%; box-sizing: border-box; resize: vertical; min-height: 110px; padding: 12px 14px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03)); border: 1px solid var(--hairline-2); color: var(--text);
+  font: inherit; font-size: 14px; line-height: 1.6; border-radius: 2px; }
+.mx-reply__text:focus { outline: none; border-color: var(--primary-dim); }
+.mx-reply__acts { display: flex; gap: 6px; margin-top: 10px; }
+.mx-reply__send { color: var(--primary); border-color: var(--primary-dim); }
 .mx-read__body p { margin: 0 0 12px; }
 .mx-read__body h3, .mx-read__body h4, .mx-read__body h5, .mx-read__body h6 { margin: 20px 0 8px; font-weight: 500; color: var(--text); }
 .mx-read__body h3 { font-size: 19px; }

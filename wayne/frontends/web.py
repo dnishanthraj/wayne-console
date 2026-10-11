@@ -4254,6 +4254,25 @@ async def get_mail(folder: str = "inbox"):
                          "counts": {f: sum(1 for m in inbox.mail(f) if not m.get("read")) for f in inbox.FOLDERS}})
 
 
+@app.get("/api/mail/thread/{thread_id}")
+async def mail_thread(thread_id: str):
+    """A conversation, oldest first — what they wrote and what he answered — and whether the last can be answered."""
+    from ..engine import inbox
+    found = inbox.thread(thread_id)
+    return JSONResponse({"thread": found, "answerable": [m["id"] for m in found if inbox.answerable(m)]})
+
+
+@app.post("/api/mail/{message_id}/reply")
+async def reply_mail(message_id: str, request: Request):
+    """He writes back: his reply in Sent, in the thread; theirs comes when they'd write it."""
+    from ..engine import inbox
+    body = await request.json()
+    mine = inbox.reply(message_id, str(body.get("body", "")))
+    if mine is None:
+        return JSONResponse({"error": "that one can't be answered"}, status_code=400)
+    return JSONResponse({"message": mine, "unread": inbox.unread()})
+
+
 @app.post("/api/mail/{message_id}")
 async def file_mail(message_id: str, request: Request):
     """Read, filed, binned: a message moved to a folder or marked."""

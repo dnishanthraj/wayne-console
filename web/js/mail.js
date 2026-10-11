@@ -11,7 +11,10 @@
   'use strict';
 
   var root = null, opts = null, folder = 'inbox', items = [], openId = null, counts = {};
-  var NAMES = { inbox: 'Inbox', secure: 'Secure', spam: 'Spam', archive: 'Archive' };
+  var NAMES = { inbox: 'Inbox', secure: 'Secure', sent: 'Sent', spam: 'Spam', archive: 'Archive' };
+  // What nobody answers: the machine's report, the papers, the markets, the junk — and his own.
+  var UNANSWERED = { report: 1, briefing: 1, markets: 1, spam: 1, sent: 1 };
+  function answerable(m) { return m && !UNANSWERED[m.kind] && m.folder !== 'spam' && m.folder !== 'sent'; }
 
   function $(sel) { return root.querySelector(sel); }
 
@@ -108,7 +111,8 @@
     if (!items.length) {
       var empty = document.createElement('li');
       empty.className = 'mx-list__empty';
-      empty.textContent = folder === 'spam' ? 'Nothing caught.' : folder === 'archive' ? 'Nothing filed.' : 'Nothing new.';
+      empty.textContent = folder === 'spam' ? 'Nothing caught.' : folder === 'archive' ? 'Nothing filed.' :
+                          folder === 'sent' ? 'Nothing sent.' : 'Nothing new.';
       list.appendChild(empty);
     }
     items.forEach(function (m) {
@@ -118,7 +122,7 @@
       li.tabIndex = 0;
       li.innerHTML = '<span class="mx-item__top"><b></b><time></time></span><span class="mx-item__subject"></span>' +
                      '<span class="mx-item__snip"></span>';
-      li.querySelector('b').textContent = m.from;
+      li.querySelector('b').textContent = m.folder === 'sent' ? 'To: ' + (m.to || '') : m.from;
       li.querySelector('time').textContent = when(m.at);
       li.querySelector('.mx-item__subject').textContent = m.subject;
       li.querySelector('.mx-item__snip').textContent = plain(m.body).slice(0, 110);
@@ -130,6 +134,28 @@
     paint(current || null);
   }
 
+  /* One letter of a conversation: open in full, or folded to its first line until clicked. */
+  function letter(m, open) {
+    var art = document.createElement('article');
+    art.className = 'mx-letter' + (open ? ' is-open' : '') + (m.folder === 'sent' ? ' is-mine' : '');
+    art.innerHTML = '<p class="mx-read__from"><b></b> <span></span><time></time></p><div class="mx-read__body"></div>';
+    art.querySelector('b').textContent = m.folder === 'sent' ? 'You' + (m.to ? ' \u2192 ' + m.to : '') : m.from;
+    art.querySelector('span').textContent = m.folder !== 'sent' && m.address ? '<' + m.address + '>' : '';
+    art.querySelector('time').textContent = new Date(m.at * 1000).toLocaleString(undefined,
+      { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    var body = art.querySelector('.mx-read__body');
+    if (open) body.innerHTML = md(m.body);
+    else {
+      body.textContent = plain(m.body).slice(0, 150);
+      art.addEventListener('click', function unfold() {
+        art.classList.add('is-open');
+        body.innerHTML = md(m.body);
+        art.removeEventListener('click', unfold);
+      });
+    }
+    return art;
+  }
+
   function paint(m) {
     var pane = $('.mx-read');
     pane.dataset.kind = m ? (m.kind || '') : '';
@@ -137,31 +163,79 @@
       pane.innerHTML = '<p class="mx-read__none">' + (items.length ? 'Pick something to read.' : '') + '</p>';
       return;
     }
-    pane.innerHTML = '<header class="mx-read__head"><h2></h2><p class="mx-read__from"><b></b> <span></span>' +
-      '<time></time></p><div class="mx-read__acts"></div></header><div class="mx-read__body"></div>';
+    pane.innerHTML = '<header class="mx-read__head"><h2></h2><div class="mx-read__acts"></div></header>' +
+                     '<div class="mx-thread"></div><div class="mx-reply" hidden></div>';
     pane.querySelector('h2').textContent = m.subject;
-    pane.querySelector('.mx-read__from b').textContent = m.from;
-    pane.querySelector('.mx-read__from span').textContent = m.address ? '<' + m.address + '>' : '';
-    pane.querySelector('time').textContent = new Date(m.at * 1000).toLocaleString(undefined,
-      { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    pane.querySelector('.mx-read__body').innerHTML = md(m.body);
+    var thread = pane.querySelector('.mx-thread');
+    thread.appendChild(letter(m, true));
     var acts = pane.querySelector('.mx-read__acts');
+    var target = answerable(m) ? m : null;
     var buttons = [];
-    if (m.folder !== 'archive') buttons.push(['Archive', { folder: 'archive' }]);
+    buttons.push(['Reply', { reply: true }]);
+    if (m.folder !== 'archive') { if (m.folder !== 'sent') buttons.push(['Archive', { folder: 'archive' }]); }
     else buttons.push(['Back to ' + (m.kind === 'report' || m.kind === 'gordon' ? 'Secure' : 'Inbox'),
                        { folder: m.kind === 'report' || m.kind === 'gordon' ? 'secure' : 'inbox' }]);
     if (m.folder === 'spam') buttons.push(['Not spam', { folder: 'inbox' }]);
-    else if (m.folder !== 'secure') buttons.push(['Spam', { folder: 'spam' }]);
-    buttons.push(['Mark unread', { read: false }]);
+    else if (m.folder !== 'secure' && m.folder !== 'sent') buttons.push(['Spam', { folder: 'spam' }]);
+    if (m.folder !== 'sent') buttons.push(['Mark unread', { read: false }]);
     buttons.push(['Delete', { delete: true }]);
+    var replyBtn = null;
     buttons.forEach(function (b) {
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'cx-btn' + (b[1].delete ? ' mx-del' : '');
+      btn.className = 'cx-btn' + (b[1].delete ? ' mx-del' : '') + (b[1].reply ? ' mx-reply-btn' : '');
       btn.textContent = b[0];
-      btn.addEventListener('click', function () { act(m, b[1]); });
+      if (b[1].reply) {
+        replyBtn = btn;
+        btn.hidden = !target;
+        btn.addEventListener('click', function () { if (target) compose(target, m); });
+      } else btn.addEventListener('click', function () { act(m, b[1]); });
       acts.appendChild(btn);
     });
+    // The whole conversation, oldest first — what they wrote and what he wrote back — the last of it open.
+    fetch('/api/mail/thread/' + encodeURIComponent(m.thread || m.id)).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (openId !== m.id) return;
+        var all = d.thread || [];
+        var ok = d.answerable || [];
+        var theirs = all.filter(function (x) { return ok.indexOf(x.id) !== -1; });
+        target = theirs.length ? theirs[theirs.length - 1] : null;      // answering their latest
+        if (replyBtn) replyBtn.hidden = !target;
+        if (all.length <= 1) return;
+        thread.innerHTML = '';
+        all.forEach(function (x, i) { thread.appendChild(letter(x, x.id === m.id || i === all.length - 1)); });
+      }).catch(function () {});
+  }
+
+  /* Writing back, under the letter: Send puts it in Sent, in the thread; theirs comes when they'd write it. */
+  function compose(target, shown) {
+    var box = $('.mx-reply');
+    box.hidden = false;
+    box.innerHTML = '<p class="mx-reply__to"></p><textarea class="mx-reply__text" rows="6" placeholder="Write back\u2026"></textarea>' +
+                    '<div class="mx-reply__acts"><button type="button" class="cx-btn mx-reply__send">Send</button>' +
+                    '<button type="button" class="cx-btn mx-reply__cancel">Cancel</button></div>';
+    box.querySelector('.mx-reply__to').textContent = 'To ' + target.from + (target.address ? ' <' + target.address + '>' : '');
+    var text = box.querySelector('textarea');
+    text.focus();
+    box.scrollIntoView({ block: 'nearest' });
+    function cancel() { box.hidden = true; box.innerHTML = ''; }
+    text.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send();
+    });
+    box.querySelector('.mx-reply__cancel').addEventListener('click', cancel);
+    box.querySelector('.mx-reply__send').addEventListener('click', send);
+    function send() {
+      var body = text.value.trim();
+      if (!body) return;
+      fetch('/api/mail/' + target.id + '/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ body: body }) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d.error) return;
+          cancel();
+          paint(shown);
+        }).catch(function () {});
+    }
   }
 
   function act(m, change) {
