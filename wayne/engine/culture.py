@@ -23,8 +23,7 @@ import re
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_text
+from .. import store
 from . import model
 from .search import google_search
 
@@ -70,37 +69,28 @@ def _their_words(contact):
     return words
 
 
-def _path():
-    return paths.DATA_DIR / "_culture.json"
-
-
-def _load():
-    try:
-        return json.loads(read_text(_path()) or "{}")
-    except ValueError:
-        return {}
+def _entry(contact_id):
+    """What they've seen lately and when they last looked: their row in the space "culture"."""
+    return store.space("culture").get(contact_id) or {}
 
 
 def seen(contact):
     """What they've seen lately in the things they follow: short factual lines, or []."""
-    return list((_load().get(contact.id) or {}).get("items") or [])
+    return list(_entry(contact.id).get("items") or [])
 
 
 def stale(contact, now=None):
     if not (contact.interests or {}).get("follows"):
         return False
-    entry = _load().get(contact.id) or {}
-    return (now or time.time()) - entry.get("at", 0) > STALE_AFTER
+    return (now or time.time()) - _entry(contact.id).get("at", 0) > STALE_AFTER
 
 
 def mark_tried(contact):
     """Came back empty: keep what they had, and don't look again for a few hours."""
     with _lock:
-        data = _load()
-        entry = data.get(contact.id) or {"items": []}
+        entry = _entry(contact.id) or {"items": []}
         entry["at"] = time.time() - STALE_AFTER + 4 * 3600
-        data[contact.id] = entry
-        atomic_write(_path(), json.dumps(data, ensure_ascii=False, indent=1))
+        store.space("culture").put(contact.id, entry)
 
 
 def about_culture(text, contact=None):
@@ -178,9 +168,7 @@ def refresh(contact, when=None):
         items += _condense(contact, topic, snippets, month)
     if items:
         with _lock:
-            data = _load()
-            data[contact.id] = {"at": time.time(), "items": items[:TOPICS_PER_REFRESH * ITEMS_PER_TOPIC]}
-            atomic_write(_path(), json.dumps(data, ensure_ascii=False, indent=1))
+            store.space("culture").put(contact.id, {"at": time.time(), "items": items[:TOPICS_PER_REFRESH * ITEMS_PER_TOPIC]})
     return items
 
 

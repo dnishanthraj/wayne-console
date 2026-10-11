@@ -11,8 +11,8 @@ ENV_FILE = ROOT_DIR / ".env"
 WEB_DIR = ROOT_DIR / "web"
 PROFILE_DIR = PACKAGE_DIR / "contacts" / "profiles"
 
-# Per-contact memory lives under data/<contact id>/. Everything in here is
-# personal and gitignored.
+# Everything the console remembers lives under data/: the database (see
+# db_file) and the audio caches. Everything in here is personal and gitignored.
 # WAYNE_DATA_DIR points it elsewhere — a sandbox to try things in without
 # writing into anyone's real memories. .env is read here, not only in config:
 # this module is imported first, and a sandbox set in .env that was decided
@@ -26,29 +26,18 @@ LEGACY_HISTORY_FILE = ROOT_DIR / "batcomputer_history.json"
 LEGACY_VAULT_FILE = ROOT_DIR / "batcomputer_vault.txt"
 
 
+def db_file():
+    """
+    The console's database (see wayne.store). A function, not a constant: tests
+    and the evaluator point DATA_DIR somewhere else after this module loads.
+    """
+    return DATA_DIR / "wayne.db"
+
+
 def contact_dir(contact_id):
     """
-    Where a contact's memory lives. Deliberately does not create the directory:
-    merely naming a path shouldn't leave a folder behind, which is what made
-    the test suite litter `data/` with every contact id it mentioned. The
-    directory is created when something is actually written.
+    Where an older console kept a contact's files (history.json, texts.json,
+    vault.txt, …) before the database — the layout the importer reads once and
+    an export for going back writes (see wayne.store.legacy).
     """
     return DATA_DIR / contact_id
-
-
-def history_file(contact_id):
-    return contact_dir(contact_id) / "history.json"
-
-
-def vault_file(contact_id):
-    return contact_dir(contact_id) / "vault.txt"
-
-
-def story_file(contact_id):
-    """Facts established in the game he plays as Bruce — never real life."""
-    return contact_dir(contact_id) / "story.txt"
-
-
-def bio_file(contact_id):
-    """Who this contact is to the operator, in the operator's own words."""
-    return contact_dir(contact_id) / "bio.txt"

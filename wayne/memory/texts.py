@@ -5,30 +5,33 @@ Texts are also written into the contact's conversation history, so they know
 what was texted when you next call — but that history is short by design and
 calls push old turns out of it. The thread is the thing you scroll back
 through, so it keeps its own record: every message, when it was sent, and when
-yours was read. Encrypted at rest like the rest of a contact's memory.
+yours was read. Kept in the database a row a message (see wayne.store.threads),
+sealed like the rest of a contact's memory.
 """
-import json
 import re
 import threading
 import time
 import uuid
 
-from .. import paths
-from .store import atomic_write, read_text
+from ..store.threads import Thread
 
 MAX_MESSAGES = 2000
 _lock = threading.Lock()
 
 
-def quote(messages, message_id):
-    """The message an answer is to, as the answer keeps it: who, and the start of what they said."""
-    if not message_id:
-        return None
-    found = next((m for m in messages if m.get("id") == message_id and not m.get("kind")), None)
-    if found is None:
+def quote_of(found):
+    """A message as an answer to it keeps it: who, and the start of what they said. None for none, or a line that isn't a message."""
+    if not found or found.get("kind"):
         return None
     text = found["text"]
     return {"id": found["id"], "from": found["from"], "text": text if len(text) <= 120 else text[:117] + "…"}
+
+
+def quote(messages, message_id):
+    """The message an answer is to, out of `messages`, quoted (see quote_of)."""
+    if not message_id:
+        return None
+    return quote_of(next((m for m in messages if m.get("id") == message_id and not m.get("kind")), None))
 
 
 def quoted_by(messages, words, fallback=False):
@@ -51,14 +54,11 @@ def quoted_by(messages, words, fallback=False):
 
 
 class TextLog:
-    def __init__(self, contact_id):
-        self.path = paths.contact_dir(contact_id) / "texts.json"
+    """One contact's thread, a row a message (see wayne.store.threads)."""
 
-    def _load(self):
-        try:
-            return json.loads(read_text(self.path) or "[]")
-        except ValueError:
-            return []
+    def __init__(self, contact_id):
+        self.contact_id = contact_id
+        self.thread = Thread(f"dm:{contact_id}")
 
     def add(self, sender, text, at=None, kind=None, origin=None, reply_to=None):
         """
@@ -74,77 +74,51 @@ class TextLog:
         if origin:
             message["origin"] = origin      # sent unprompted: "chase", "callback", ...
         with _lock:
-            messages = self._load()
-            quoted = quote(messages, reply_to)
+            quoted = quote_of(self.thread.get(reply_to)) if reply_to else None
             if quoted:
                 message["reply_to"] = quoted
-            messages = messages + [message]
-            atomic_write(self.path, json.dumps(messages[-MAX_MESSAGES:]))
+            self.thread.add(message, cap=MAX_MESSAGES)
         return message
 
     def mark_seen(self, at=None):
         """He's opened the thread: their messages are read — and they can tell."""
-        at = at or time.time()
-        with _lock:
-            messages = self._load()
-            fresh = [m for m in messages if m["from"] == "them" and not m.get("seen_at") and not m.get("kind")]
-            for m in fresh:
-                m["seen_at"] = at
-            if fresh:
-                atomic_write(self.path, json.dumps(messages))
-        return len(fresh)
+        return self.thread.mark("seen_at", at or time.time(),
+                                "sender = 'them' AND seen_at IS NULL AND kind IS NULL")
 
     def mark_read(self, ids, at=None):
         at = at or time.time()
-        with _lock:
-            messages = self._load()
-            for m in messages:
-                if m["id"] in ids and not m.get("read_at"):
-                    m["read_at"] = at
-            atomic_write(self.path, json.dumps(messages))
+        ids = list(ids)
+        if ids:
+            self.thread.mark("read_at", at, f"id IN ({','.join('?' * len(ids))}) AND read_at IS NULL", ids)
         return at
 
     def page(self, before=None, limit=40):
         """The newest `limit` messages older than `before`, oldest first."""
-        messages = self._load()
-        if before:
-            messages = [m for m in messages if m["at"] < before]
-        return messages[-limit:]
+        return self.thread.tail(limit, before)
 
     def unread(self):
         """His messages they haven't read yet — waiting, across a restart."""
-        return [m for m in self._load() if m["from"] == "me" and not m.get("read_at")
-                and not m.get("kind") and not m.get("ignored")]
+        return self.thread.where("sender = 'me' AND read_at IS NULL AND kind IS NULL AND ignored = 0")
 
     def ignore(self, ids):
         """Never opened, on purpose: left at Delivered for good."""
-        with _lock:
-            messages = self._load()
-            for m in messages:
-                if m["id"] in ids:
-                    m["ignored"] = True
-            atomic_write(self.path, json.dumps(messages))
+        ids = list(ids)
+        if ids:
+            self.thread.mark("ignored", 1, f"id IN ({','.join('?' * len(ids))})", ids)
 
     def react(self, message_id, who, emoji):
         """A tapback on a message ('me' or 'them'), or with no emoji, taken back. Returns it."""
-        with _lock:
-            messages = self._load()
-            for m in messages:
-                if m["id"] == message_id:
-                    reactions = m.setdefault("reactions", {})
-                    if emoji:
-                        reactions[who] = emoji
-                    else:
-                        reactions.pop(who, None)
-                    atomic_write(self.path, json.dumps(messages))
-                    return m
-        return None
+        def tap(m):
+            reactions = m.setdefault("reactions", {})
+            if emoji:
+                reactions[who] = emoji
+            else:
+                reactions.pop(who, None)
+        return self.thread.change(message_id, tap)
 
     def last(self):
         """The last real message in the thread, or None."""
-        messages = [m for m in self._load() if not m.get("kind")]
-        return messages[-1] if messages else None
+        return self.thread.last(real=True)
 
     def clear(self):
-        if self.path.exists():
-            self.path.unlink()
+        self.thread.clear()

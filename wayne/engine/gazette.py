@@ -20,8 +20,7 @@ import re
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
 
 _lock = threading.Lock()
 
@@ -96,15 +95,9 @@ def storylines(day=None):
     return out
 
 
-def _path():
-    return paths.DATA_DIR / "_gazette.json"
-
-
 def _load():
-    try:
-        return read_json(_path(), {})
-    except ValueError:
-        return {}
+    """The week's papers, {date: [stories]} — the space "gazette", a row a day."""
+    return store.space("gazette").dict()
 
 
 def today(day=None):
@@ -115,7 +108,7 @@ def today(day=None):
 
 
 def written(day=None):
-    return (day or datetime.date.today()).isoformat() in _load()
+    return (day or datetime.date.today()).isoformat() in store.space("gazette")
 
 
 def _happenings(now):
@@ -210,9 +203,9 @@ def write(model, options, now=None):
             break
     if items:
         with _lock:
-            data = _load()
-            data[day.isoformat()] = items
-            atomic_write(_path(), json.dumps(dict(sorted(data.items())[-7:]), ensure_ascii=False))
+            papers = store.space("gazette")
+            papers.put(day.isoformat(), items)
+            papers.drop(*sorted(papers.keys())[:-7])
     return items
 
 

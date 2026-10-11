@@ -29,9 +29,8 @@ import random
 import re
 import time
 
-from .. import delivery, operator, paths
+from .. import delivery, operator, store
 from ..memory import Story
-from ..memory.store import read_text
 from . import world
 
 # Replies are spoken aloud, so anything that only works on a page — markup,
@@ -560,7 +559,7 @@ def relationship(contact):
     Read on every call, so an edit takes effect immediately; it changes rarely
     enough that the cached prefix survives.
     """
-    text = (read_text(paths.bio_file(contact.id)) or contact.bio or "").strip()
+    text = (store.space("bio").get(contact.id) or contact.bio or "").strip()
     if not text:
         return ""
     return ("=== HOW HE DESCRIBES YOU ===\n"

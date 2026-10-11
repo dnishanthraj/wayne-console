@@ -67,7 +67,16 @@ def _scratch_world():
     real = ROOT / "data"
     scratch = Path(tempfile.mkdtemp(prefix="wayne-eval-")) / "data"
     if real.exists():
-        shutil.copytree(real, scratch, ignore=shutil.ignore_patterns("_backup-*", "ambience", "console.log"))
+        shutil.copytree(real, scratch, ignore=shutil.ignore_patterns("_backup-*", "_imported-*", "ambience", "console.log",
+                                                                     "wayne.db", "wayne.db-*", "wayne.failed-*"))
+        if (real / "wayne.db").exists():
+            # The database by SQLite's own backup: a copy taken while the console runs is still whole.
+            import sqlite3
+            source = sqlite3.connect(f"file:{real / 'wayne.db'}?mode=ro", uri=True)
+            copy = sqlite3.connect(str(scratch / "wayne.db"))
+            source.backup(copy)
+            copy.close()
+            source.close()
     else:
         scratch.mkdir(parents=True)
     os.environ["WAYNE_DATA_DIR"] = str(scratch)
@@ -93,6 +102,7 @@ from wayne.engine import (  # noqa: E402
     presence,
 )
 from wayne.memory import History, Story, Vault  # noqa: E402
+from wayne.store import recall  # noqa: E402
 
 SCENARIOS = ROOT / "eval" / "scenarios"
 RESULTS = ROOT / "eval" / "results"
@@ -228,6 +238,8 @@ def _quiet_memory():
     # thread about superhero films in six contacts' scenarios).
     grapevine.block = lambda contact_id: ""
     groupchat.block = lambda contact_id, directory, now=None, prompt=None: ""
+    # ... nor on what the record remembers of the live world (see wayne.store.recall).
+    recall.block = lambda *a, **k: ""
     # Nor whatever case is on the live board, or wherever they really are.
     cases.brief = lambda contact_id, now=None: ""
     cases.active = lambda contact_id: None

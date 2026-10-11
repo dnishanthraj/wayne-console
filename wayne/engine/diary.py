@@ -14,42 +14,50 @@ and Alfred and Barbara, who watch the screens, can read anyone's.
 
 Cheap by design: `observe` runs every pulse and before anyone's prompt is put
 together, and writes only when something differs from the last thing it saw;
-everything else is a one-line append where it happens.
+everything else is a one-line append where it happens — a row in the events
+table (see wayne.store.events), kept long after the day it was written for
+recall to find: "what were you doing Tuesday night?".
 """
-import json
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_text
+from .. import paths, store
+from ..store import events
 
-KEEP = 36 * 3600         # tonight, and last night for the morning after
+KEEP = 36 * 3600         # tonight, and last night for the morning after: what's kept to hand
 MOST = 240
 
 _lock = threading.Lock()
 _books = {}              # (data dir, contact id) -> {"entries": [...], "last": what observe last saw}
 
 
-def _path(contact_id):
-    return paths.contact_dir(contact_id) / "diary.json"
-
-
 def _book(contact_id):
+    """
+    Their diary as kept to hand: the last KEEP hours of it, read once from the
+    record — every line ever written is an event (kind diary.<what>), kept long
+    after it's dropped from here, for recall — and what observe last saw.
+    """
     key = (str(paths.DATA_DIR), contact_id)
     if key not in _books:
-        try:
-            got = json.loads(read_text(_path(contact_id)) or "{}")
-        except ValueError:
-            got = {}
-        _books[key] = {"entries": list(got.get("entries") or []), "last": dict(got.get("last") or {})}
+        lines = [{"at": e["at"], "kind": e["kind"][len("diary."):], "text": e["text"], **e["data"]}
+                 for e in events.of(contact_id, "diary.", since=time.time() - KEEP, limit=MOST)]
+        _books[key] = {"entries": lines, "last": store.space("diary_last").get(contact_id, {})}
     return _books[key]
 
 
-def _save(contact_id):
-    book = _book(contact_id)
-    cutoff = time.time() - KEEP
-    book["entries"] = [e for e in book["entries"] if e.get("at", 0) >= cutoff][-MOST:]
-    atomic_write(_path(contact_id), json.dumps(book, ensure_ascii=False))
+def _record(contact_id, entry):
+    """The line, kept for good: who it's about, and who else may read it (Alfred and Barbara, at their screens)."""
+    from ..contacts import directory
+    from .grapevine import _THE_WORK
+    contact = directory().get(contact_id)
+    extra = {k: v for k, v in entry.items() if k not in ("at", "kind", "text")}
+    who = extra.get("who")
+    who = [who] if isinstance(who, str) else list(who or [])
+    shown = getattr(contact, "shares_location", True) if contact else False
+    events.add(f"diary.{entry['kind']}", entry["text"], at=entry["at"], actor=contact_id, data=extra or None,
+               links=[("contact", contact_id)] + [("contact", c) for c in who], audience=[contact_id],
+               scope=events.WATCHERS if shown else events.PRIVATE,
+               secret=entry["kind"] == "case" or bool(_THE_WORK.search(entry["text"])))
 
 
 def write(contact_id, kind, text, at=None, **extra):
@@ -70,7 +78,9 @@ def write(contact_id, kind, text, at=None, **extra):
         entry = {"at": int(at * 10) / 10, "kind": kind, "text": text[:220], **extra}     # never later than it was
         entries.append(entry)
         entries.sort(key=lambda e: e["at"])
-        _save(contact_id)
+        cutoff = time.time() - KEEP
+        book["entries"] = [e for e in entries if e.get("at", 0) >= cutoff][-MOST:]
+        _record(contact_id, entry)
         return entry
 
 
@@ -207,7 +217,7 @@ def observe(whereabouts, t=None):
     if snap != last:
         with _lock:
             _book(cid)["last"] = snap
-            _save(cid)
+            store.space("diary_last").put(cid, snap)
     return made
 
 

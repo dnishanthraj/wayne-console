@@ -17,8 +17,8 @@ import threading
 import time
 import uuid
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
+from ..store import events
 from . import places
 
 _lock = threading.Lock()
@@ -38,21 +38,15 @@ RSVP = re.compile(r"\[\s*rsvp\s*:\s*(yes|no|maybe)\s*\]", re.I)
 ANSWERS = ("yes", "no", "maybe")
 
 
-def _path():
-    return paths.DATA_DIR / "_plans.json"
-
-
 def all_plans():
-    try:
-        return read_json(_path(), {}).get("plans", [])
-    except ValueError:
-        return []
+    """Every plan kept: the space "plans", a row a plan (see wayne.store.kv)."""
+    return store.space("plans").list()
 
 
 def _save(rows):
-    # The last few weeks' worth: a plan long past is only a memory.
+    # The last few weeks' worth: a plan long past is only a memory (and an event: see add).
     keep = [p for p in rows if p.get("until", 0) > time.time() - 14 * 86400][-60:]
-    atomic_write(_path(), json.dumps({"plans": keep}, ensure_ascii=False))
+    store.space("plans").replace({p["id"]: p for p in keep})
 
 
 def maybe_proposal(text):
@@ -130,7 +124,12 @@ def add(plan, made_in=""):
         plan = {**plan, "id": uuid.uuid4().hex[:10], "made_in": made_in, "made": time.time(), "answers": {}}
         rows.append(plan)
         _save(rows)
-        return plan
+    events.add("plan.made", f"Bruce asked {', '.join(plan['who'])} to {plan['what']}{_place(plan)}, "
+               f"{time.strftime('%A %-d %B at %H:%M', time.localtime(plan['at']))}",
+               data={"plan": plan["id"], "at": plan["at"], "until": plan["until"], "who": plan["who"]},
+               links=[("plan", plan["id"]), ("place", plan.get("where", ""))] + [("contact", c) for c in plan["who"]],
+               audience=list(plan["who"]))
+    return plan
 
 
 def answer(plan_id, contact_id, said, why=""):
@@ -228,7 +227,7 @@ def block(contact, t=None, lead_minutes=None):
     whoever else is going. None if nothing's on.
     """
     t = t or time.time()
-    for p in all_plans():
+    for p in store.space("plans").view():          # every routine, every pulse: looked at, never changed
         if contact.id not in p["who"] or not going(p, contact.id):
             continue
         lead = (lead_minutes(p) if lead_minutes else 30) * 60

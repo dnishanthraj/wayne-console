@@ -10,13 +10,11 @@ it, and the odds of it going well are better for it (see engine.outcomes).
 The family see where he is the way they'd know it: Alfred and Barbara on their
 screens, whoever's on a case with him because he's there.
 """
-import json
 import math
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
 from . import places, travel
 
 HOME = "Wayne Manor"
@@ -24,15 +22,12 @@ PILOT = "bruce"
 _lock = threading.Lock()
 
 
-def _path():
-    return paths.DATA_DIR / "_bruce.json"
-
-
 def _load():
-    try:
-        return read_json(_path(), {})
-    except ValueError:
-        return {}
+    return store.doc("bruce", {})
+
+
+def _save(data):
+    store.save_doc("bruce", data)
 
 
 def night(t=None):
@@ -113,7 +108,7 @@ def go(where, x=None, y=None, case="", t=None):
         data = _load()
         data.update({"where": there["name"], "x": there["x"], "y": there["y"], "trip": trip, "case": case,
                      "follow": ""})
-        atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+        _save(data)
     return trip
 
 
@@ -124,7 +119,7 @@ def ferry(name, drop, trip, t=None):
         data = _load()
         data.update({"where": name, "x": drop[0], "y": drop[1], "follow": "",
                      "trip": {**trip, "to": name, "from": "", "left": t, "suit": True}})
-        atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+        _save(data)
 
 
 def _with(contact_id, t):
@@ -167,7 +162,7 @@ def join(contact_id, t=None):
         data = _load()
         data["follow"] = contact_id
         data["follow_since"] = t
-        atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+        _save(data)
     return trip
 
 
@@ -214,7 +209,7 @@ def halt(t=None):
             if near:
                 data["where"] = near
         data.update({"trip": None, "case": "", "follow": ""})
-        atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+        _save(data)
 
 
 def off_case(case_id):
@@ -223,7 +218,7 @@ def off_case(case_id):
         data = _load()
         if data.get("case") == case_id:
             data["case"] = ""
-            atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+            _save(data)
 
 
 def note(t=None):

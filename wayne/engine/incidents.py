@@ -19,8 +19,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from .. import paths
-from ..memory.store import atomic_write, read_text
+from .. import store
 from . import places
 
 SLOT = 10 * 60          # new reports are drawn ten minutes at a time
@@ -293,7 +292,7 @@ def at(t=None):
     """The reports open at time t, newest first."""
     t = t or time.time()
     spots, weights, weighted = _tables()
-    written = dispatches()          # read once, not once per report
+    written = store.space("dispatch").view_dict()       # read once a pass, shared: only looked at
     cased = _cases_now()
     rogues = _rogue_states()
     open_now = []
@@ -349,7 +348,7 @@ def ended(t=None, hours=None):
     t = t or time.time()
     since = t - hours * 3600 if hours is not None else night_began(t)
     spots, weights, weighted = _tables()
-    written = dispatches()
+    written = store.space("dispatch").view_dict()
     cased = _cases_now()
     rogues = _rogue_states()
     out = []
@@ -435,7 +434,7 @@ def _crew(report):
 def _cases_now():
     """The cases on the scanner's reports — read once a pass, not once a report."""
     from . import cases
-    return {c["id"]: c for c in cases.everything()}
+    return {c["id"]: c for c in cases.peek()}
 
 
 def _landed(case):
@@ -775,20 +774,20 @@ def get(report_id, t=None):
 _lock = threading.Lock()
 
 
-def _dispatch_path():
-    return paths.DATA_DIR / "_dispatch.json"
-
-
 def dispatches():
-    try:
-        return json.loads(read_text(_dispatch_path()) or "{}")
-    except ValueError:
-        return {}
+    """{report id: the dispatch as it went out} — the space "dispatch", a row a call, the last 300 kept."""
+    return store.space("dispatch").dict()
+
+
+def _keep_dispatch(report_id, text):
+    space = store.space("dispatch")
+    space.put(report_id, text)
+    space.trim(300)
 
 
 def unwritten(t=None):
     """Open reports with no dispatch yet, the worst first."""
-    written = dispatches()
+    written = store.space("dispatch")
     return sorted((r for r in at(t) if r["id"] not in written and r["status"] != "resolved"),
                   key=lambda r: (-r["severity"], -r["at"]))
 
@@ -822,23 +821,14 @@ def write_dispatch(report, model, options):
     text = " ".join(reply.strip().strip('"').split())[:320]
     if text:
         with _lock:
-            data = dispatches()
-            data[report["id"]] = text
             # Only the recent ones: yesterday's calls are no use to anyone.
-            data = dict(list(data.items())[-300:])
-            atomic_write(_dispatch_path(), json.dumps(data, ensure_ascii=False))
+            _keep_dispatch(report["id"], text)
     return text
 
 
-def _log_path():
-    return paths.DATA_DIR / "_reportlog.json"
-
-
 def logs():
-    try:
-        return json.loads(read_text(_log_path()) or "{}")
-    except ValueError:
-        return {}
+    """{report id: its incident log} — the space "reportlog", the last 200 kept."""
+    return store.space("reportlog").dict()
 
 
 # What a log should say for how bad it is and how far it's got — no further.
@@ -854,7 +844,7 @@ STAGE = {"reported": "just called in: the call and the dispatch, nobody on scene
 
 def _stored(report_id):
     """A report's log as kept: {"entries": [...], "status": the status it was written up to}."""
-    kept = logs().get(report_id)
+    kept = store.space("reportlog").get(report_id)
     if isinstance(kept, list):          # the first logs were the entries alone
         kept = {"entries": kept, "status": ""}
     return kept or {"entries": [], "status": ""}
@@ -957,16 +947,13 @@ def write_log(report, model, options, now=None):
     entries = kept["entries"] + fresh
     if fresh:
         with _lock:
-            data = logs()
-            data[report["id"]] = {"entries": entries, "status": report["status"], "family": family_key}
-            data = dict(list(data.items())[-200:])
-            atomic_write(_log_path(), json.dumps(data, ensure_ascii=False))
+            kept_logs = store.space("reportlog")
+            kept_logs.put(report["id"], {"entries": entries, "status": report["status"], "family": family_key})
+            kept_logs.trim(200)
             # Logged before the dispatch was written: the log's own dispatch is it, so the two agree.
             said = next((e["text"] for e in fresh if e["who"].lower() == "dispatch"), "")
-            if said and not report.get("dispatch") and report["id"] not in dispatches():
-                written = dispatches()
-                written[report["id"]] = said[:320]
-                atomic_write(_dispatch_path(), json.dumps(dict(list(written.items())[-300:]), ensure_ascii=False))
+            if said and not report.get("dispatch") and report["id"] not in store.space("dispatch"):
+                _keep_dispatch(report["id"], said[:320])
     return entries
 
 

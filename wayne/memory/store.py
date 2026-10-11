@@ -1,5 +1,6 @@
 """
-On-disk helpers for contact memory: atomic writes, and encryption at rest.
+Encryption at rest for everything the console keeps — and atomic file writes,
+for the files that are still files (an export for an older console).
 
 Memory is the most personal thing this project stores — a running transcript
 plus a vault of facts someone deliberately confided. Left in plaintext it is
@@ -146,40 +147,3 @@ def read_text(path):
         except OSError:
             pass
     return text
-
-
-# --- hot reads ----------------------------------------------------------------
-
-_texts = {}
-_texts_lock = __import__("threading").Lock()
-
-
-def read_json(path, default):
-    """
-    A JSON file's contents, read from disk and decrypted only when the file has
-    changed since (its modification time and size) — then parsed from what was
-    kept, so every caller still gets its own copy to change. The case board and
-    the plans were read, decrypted and parsed whole for every person, every
-    time anyone asked where anyone was: hundreds of times a pulse.
-    """
-    import json
-    try:
-        stat = os.stat(path)
-    except OSError:
-        return json.loads(json.dumps(default))
-    stamp = (stat.st_mtime_ns, stat.st_size)
-    key = str(path)
-    with _texts_lock:
-        kept = _texts.get(key)
-    if kept is None or kept[0] != stamp:
-        text = read_text(path) or ""
-        kept = (stamp, text)
-        with _texts_lock:
-            _texts[key] = kept
-            if len(_texts) > 512:
-                _texts.pop(next(iter(_texts)))
-    try:
-        return json.loads(kept[1]) if kept[1] else json.loads(json.dumps(default))
-    except ValueError:
-        return json.loads(json.dumps(default))
-

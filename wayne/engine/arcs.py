@@ -7,18 +7,16 @@ and they come back within hours, worse than before — the Joker who walked away
 from a gas attack takes hostages next; Bane, slipped, brings more men to a
 riot. Bring them in and the run's over. Heat cools a little each day.
 
-Kept in DATA_DIR/_arcs.json. What comes back is on the scanner like any call
+Kept in the database (the document "arcs"). What comes back is on the scanner like any call
 (see incidents.at), the papers follow the run (see gazette), and the family
 know it — "that's the third time he's slipped us this week".
 """
 import hashlib
-import json
 import random
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
 
 COOLS = 0.15            # heat lost a day
 _lock = threading.Lock()
@@ -27,19 +25,12 @@ RAISE = {"got away": 0.25, "too late": 0.2, "cold": 0.2, "worse": 0.35, "lost": 
 LOWER = 0.35
 
 
-def _path():
-    return paths.DATA_DIR / "_arcs.json"
-
-
 def _load():
-    try:
-        return read_json(_path(), {})
-    except ValueError:
-        return {}
+    return store.doc("arcs", {})
 
 
 def _save(data):
-    atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+    store.save_doc("arcs", data)
 
 
 def heat(rogue, t=None):

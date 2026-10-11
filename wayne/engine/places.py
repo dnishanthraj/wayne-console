@@ -27,40 +27,24 @@ def gazetteer():
     return json.loads((Path(__file__).with_name("gotham.json")).read_text())
 
 
-_edits_cache = {"mtime": None, "edits": {}}
-
-
-def _edits_path():
-    from .. import paths
-    return paths.DATA_DIR / "_codex_places.json"
-
-
 def edits():
-    """His own descriptions of places, written in the Codex: {place: text}. Read again when the file changes."""
-    path = _edits_path()
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return {}
-    if mtime != _edits_cache["mtime"]:
-        try:
-            _edits_cache["edits"] = json.loads(path.read_text() or "{}")
-        except ValueError:
-            _edits_cache["edits"] = {}
-        _edits_cache["mtime"] = mtime
-    return _edits_cache["edits"]
+    """His own descriptions of places, written in the Codex: {place: text} — the space "place_edits"."""
+    from .. import store
+    return store.space("place_edits").dict()
+
+
+def _edit_of(name):
+    from .. import store
+    return store.space("place_edits").get(name)
 
 
 def edit(name, text):
     """Rewrite what Gotham knows of a place (empty text puts back what the map had)."""
-    from ..memory.store import atomic_write
-    current = dict(edits())
+    from .. import store
     if (text or "").strip():
-        current[name] = text.strip()[:1200]
+        store.space("place_edits").put(name, text.strip()[:1200])
     else:
-        current.pop(name, None)
-    atomic_write(_edits_path(), json.dumps(current, ensure_ascii=False))
-    _edits_cache["mtime"] = None
+        store.space("place_edits").drop(name)
 
 
 def _jitter(seed, spread):
@@ -158,7 +142,7 @@ def note(text, most=2, contact=None):
     # Not both a district and something inside it that only matched because of it.
     lines = []
     for place in found[:most]:
-        written = edits().get(place["name"])
+        written = _edit_of(place["name"])
         if not knows(contact, place):
             lines.append(f"{place['name']}: you don't know it — never been, never heard of it, as far as you "
                          "remember. Say so, or guess, as you would.")

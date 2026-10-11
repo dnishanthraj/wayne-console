@@ -8,7 +8,8 @@ in whatever order they ran — so the suite went red on its own, depending on
 the date, the hour and the order. Here:
 
   * the data directory is a fresh temporary one before anything imports the
-    engine, and each test gets its own under it;
+    engine, and each test gets its own under it — and with it a database of
+    its own (wayne.store refuses to open the real one under pytest);
   * the engine's in-memory caches start empty for every test;
   * `clock` freezes time at a fixed weekday noon for tests about the world.
 """
@@ -24,8 +25,10 @@ os.environ.setdefault("ELEVENLABS_API_KEY", "")
 
 
 def _forget_caches():
-    """Every module-level cache that remembers the last test's world."""
+    """Every module-level cache that remembers the last test's world — and its database, closed."""
+    from wayne import store
     from wayne.engine import diary, incidents, markets, patrols, plans, presence
+    store.close_all()
     presence._registry.clear()
     presence._LEADS.clear()
     diary.forget()

@@ -16,9 +16,9 @@ stops being true.
 """
 import re
 import time
+import uuid
 
-from .. import paths
-from .store import atomic_write, read_text
+from .. import store
 
 MAX_VAULT_ENTRIES = 200
 # Under this many facts, send the whole vault — selection can only lose.
@@ -46,9 +46,15 @@ def _terms(text):
 
 
 class Vault:
+    # Which space the facts are kept in: vault/<contact>, a row a fact, in the order they were told.
+    KIND = "vault"
+
     def __init__(self, contact_id):
         self.contact_id = contact_id
-        self.path = paths.vault_file(contact_id)
+
+    @property
+    def _space(self):
+        return store.space(f"{self.KIND}/{self.contact_id}")
 
     def entries(self):
         """
@@ -56,8 +62,13 @@ class Vault:
         stored. The date goes to the model too: "I moved to London" means
         something different learned last week than learned two years ago.
         """
-        return [line.lstrip("- ").strip()
-                for line in read_text(self.path).splitlines() if line.strip()]
+        return [e for e in self._space.list() if isinstance(e, str) and e.strip()]
+
+    def _add(self, entry):
+        """Keep one more fact; the oldest go past MAX_VAULT_ENTRIES."""
+        space = self._space
+        space.put(uuid.uuid4().hex[:12], entry)
+        space.trim(MAX_VAULT_ENTRIES)
 
     @staticmethod
     def _fact_only(entry):
@@ -125,14 +136,11 @@ class Vault:
         if clean.lower() in (self._fact_only(e).lower() for e in existing):
             return clean
 
-        dated = f"[{time.strftime('%Y-%m-%d')}] {clean}"
-        entries = (existing + [dated])[-MAX_VAULT_ENTRIES:]
-        atomic_write(self.path, "".join(f"- {e}\n" for e in entries))
+        self._add(f"[{time.strftime('%Y-%m-%d')}] {clean}")
         return clean
 
     def forget(self, needle):
         """Drop facts matching a phrase. Returns what was removed."""
-        entries = self.entries()
         needle_l = needle.lower().strip()
         wanted = _terms(needle)
 
@@ -148,15 +156,13 @@ class Vault:
             phrase = re.search(rf"\b{re.escape(needle_l)}\b", fact.lower())
             return bool(phrase) or wanted <= _terms(fact)
 
-        keep = [e for e in entries if not matches(e)]
-        removed = [self._fact_only(e) for e in entries if matches(e)]
-        if removed:
-            atomic_write(self.path, "".join(f"- {e}\n" for e in keep))
-        return removed
+        gone = [(key, entry) for key, entry in self._space.items() if isinstance(entry, str) and matches(entry)]
+        if gone:
+            self._space.drop(*[key for key, _ in gone])
+        return [self._fact_only(entry) for _, entry in gone]
 
     def clear(self):
-        if self.path.exists():
-            self.path.unlink()
+        self._space.clear()
 
 
 class Story(Vault):
@@ -169,9 +175,7 @@ class Story(Vault):
     and a real fact would become something to play with.
     """
 
-    def __init__(self, contact_id):
-        super().__init__(contact_id)
-        self.path = paths.story_file(contact_id)
+    KIND = "story"
 
     def memorize(self, text):
         """Store a story fact as given — the trigger phrase is stripped by the caller."""
@@ -182,6 +186,5 @@ class Story(Vault):
         existing = self.entries()
         if clean.lower() in (self._fact_only(e).lower() for e in existing):
             return clean
-        entries = (existing + [clean])[-MAX_VAULT_ENTRIES:]
-        atomic_write(self.path, "".join(f"- {e}\n" for e in entries))
+        self._add(clean)
         return clean

@@ -18,10 +18,10 @@ def private_data(tmp_path, monkeypatch):
     presence._registry.clear()
 
 
-def test_forget_about_it_is_not_an_instruction_to_forget_everything(tmp_path):
-    vault = Vault.__new__(Vault)
-    vault.path = tmp_path / "vault.txt"
-    store.atomic_write(vault.path, "- Dinner with Selina at the city club\n- The kitchen needs fixing\n")
+def test_forget_about_it_is_not_an_instruction_to_forget_everything():
+    vault = Vault("test")
+    for fact in ("Dinner with Selina at the city club", "The kitchen needs fixing"):
+        vault._add(fact)
     assert vault.forget("it") == []
     assert len(vault.entries()) == 2
     assert vault.forget("dinner with selina") and len(vault.entries()) == 1

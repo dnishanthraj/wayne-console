@@ -35,7 +35,9 @@ import ollama
 
 from .. import config, delivery, events, operator
 from ..memory import History, Story, Vault
+from ..memory.history import PLACEHOLDERS
 from ..memory.texts import TextLog
+from ..store import recall
 from . import (
     culture,
     gazette,
@@ -137,6 +139,7 @@ def _link_marker(contact):
 # The user side of a text they sent first. Never shown; it keeps the history
 # alternating, and tells the model on a later turn that nobody had asked.
 REACH_MARKER = "(Nothing from him — you texted first.)"
+PLACEHOLDERS.add(REACH_MARKER)          # stands in for nothing said: kept out of the transcript
 
 # Used only when two generations running have handed the operator his own words
 # back. Deliberately in character rather than neutral filler.
@@ -1367,6 +1370,20 @@ class ContactSession:
                 self.history.record_aside(text)
         yield events.reply_end(text)
 
+    def _remembered(self, prompt, guarded=False):
+        """
+        What they'd remember from before this conversation that bears on what he
+        just said (see wayne.store.recall) — '' most turns: only a memory cue, a
+        time or a rogue named sets it looking. Nothing the window already holds.
+        """
+        messages = self.history.messages
+        since = self.history._window_start or (messages[0].get("at") if messages else None)
+        try:
+            return recall.block(self.contact, prompt, said_since=since, outsider=guarded)
+        except Exception:
+            _log.exception("recall failed for %s", self.contact.id)
+            return ""
+
     def _background(self):
         """What they've heard secondhand, and what's been said in their group chats."""
         from ..contacts import directory
@@ -2063,7 +2080,8 @@ class ContactSession:
                          "plausibly know, said as you'd say it; never as though you'd just looked it "
                          "up. If you honestly wouldn't know, say so your way:\n" + found)
 
-        hearsay = "\n\n".join(part for part in (self._background(), known) if part)
+        remembered = "" if from_contact else self._remembered(prompt, guarded)
+        hearsay = "\n\n".join(part for part in (self._background(), remembered, known) if part)
         user_turn = prompting.compose_user_turn(
             prompt, vault_block, search_context, awareness, spoken=said,
             hearsay=hearsay, contact=self.contact, length=length, head=head)

@@ -13,14 +13,13 @@ asked to keep quiet. News that touches a secret (see the operator profile's
 from gossip. And hearsay is handed over as secondhand, to raise only when it
 comes up naturally, so it stays an occasional surprise rather than a habit.
 """
-import json
 import random
 import re
 import threading
 import time
 
-from .. import operator, paths
-from ..memory.store import atomic_write, read_text
+from .. import operator
+from ..store import events
 from . import model
 
 # How long news takes to travel, in seconds: from half an hour to most of a day.
@@ -30,15 +29,20 @@ _FRESH_DAYS = 10      # older than this and it's no longer worth mentioning
 _lock = threading.Lock()
 
 
-def _path(contact_id):
-    return paths.contact_dir(contact_id) / "hearsay.json"
-
-
 def _load(contact_id):
-    try:
-        return json.loads(read_text(_path(contact_id)) or "[]")
-    except ValueError:
-        return []
+    """
+    What's been passed on to them, the latest passed on first — {from, text, at}, `at` when it reaches them.
+    Each is an event (kind hearsay) with them in its audience from that moment (see wayne.store.events).
+    """
+    return [{"from": e["actor"], "text": e["text"], "at": e["known_at"]}
+            for e in events.known_to(contact_id, "hearsay", limit=_KEEP)]
+
+
+def _pass_on(source, text, reaching, source_id=""):
+    """`source` (a name) tells `text` to everyone in `reaching` — [(contact id, when it reaches them)]."""
+    if reaching:
+        events.add("hearsay", text, actor=source, links=[("contact", source_id)] + [("contact", c) for c, _ in reaching],
+                   audience=[(c, at, f"{source} told you") for c, at in reaching], secret=False)
 
 
 def closeness(a, b):
@@ -141,17 +145,13 @@ def note_call(session, contacts, start_index, present=()):
         if not news:
             return
         source = session.contact
-        for other in contacts:
-            if other.id == source.id or other.id in present:
-                continue   # they were there; it isn't news to them
-            for item in news:
-                if _crosses_secret(item, other.id) or random.random() >= closeness(source.id, other.id) * 0.6:
-                    continue
-                with _lock:
-                    entries = _load(other.id) + [{
-                        "from": source.full_name, "text": item,
-                        "at": time.time() + random.uniform(*_DELAY)}]
-                    atomic_write(_path(other.id), json.dumps(entries[-_KEEP:], indent=1))
+        for item in news:
+            reaching = [(other.id, time.time() + random.uniform(*_DELAY)) for other in contacts
+                        if other.id != source.id and other.id not in present     # they were there: not news
+                        and not _crosses_secret(item, other.id)
+                        and random.random() < closeness(source.id, other.id) * 0.6]
+            with _lock:
+                _pass_on(source.full_name, item, reaching, source.id)
 
     threading.Thread(target=run, daemon=True).start()
 
@@ -159,12 +159,8 @@ def note_call(session, contacts, start_index, present=()):
 def spread(source, text, to, delay=_DELAY):
     """Something big travels: `source` (a name) tells each of `to` (contact ids), in their own time."""
     with _lock:
-        for other in to:
-            entries = _load(other) + [{"from": source, "text": text, "at": time.time() + random.uniform(*delay)}]
-            atomic_write(_path(other), json.dumps(entries[-_KEEP:], indent=1))
+        _pass_on(source, text, [(other, time.time() + random.uniform(*delay)) for other in to])
 
 
 def clear(contact_id):
-    path = _path(contact_id)
-    if path.exists():
-        path.unlink()
+    events.forget_audience(contact_id, "hearsay")

@@ -26,8 +26,8 @@ import re
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
+from ..store import events
 
 FIELD = ("nightwing", "robin", "batgirl", "orphan", "redhood", "batwing")
 # How long after closing a case stays on the board (and in their mind).
@@ -36,21 +36,48 @@ KEEP_CLOSED = 6 * 3600
 _lock = threading.Lock()
 
 
-def _path():
-    return paths.DATA_DIR / "_cases.json"
+# The board is the space "cases", a row per case, in the order they were opened (see wayne.store.kv). Asked
+# about hundreds of times a pulse — who's on what, for every map dot and every prompt — it's read from a view
+# parsed once per change, and a case handed out is a copy of its own; a change writes that case's row and
+# nothing else. How each went is kept for good as an event (case.closed): who was on it, where, who was behind it.
+
+def _board():
+    return store.space("cases")
 
 
 def everything():
-    try:
-        return read_json(_path(), [])
-    except ValueError:
-        return []
+    """Every case on the board, in the order they were opened — copies, to change as you like."""
+    return _board().list()
 
 
-def _save(cases):
-    now = time.time()
-    kept = [c for c in cases if c["status"] != "closed" or now - c.get("closed_at", now) < 3 * 86400]
-    atomic_write(_path(), json.dumps(kept[-200:], ensure_ascii=False))
+def peek():
+    """
+    The board as it stands, shared and not to be changed — for readers that only
+    look, many times a pulse (the scanner, the patrols). Hand on a copy of anything.
+    """
+    return _board().view()
+
+
+def _copy(case):
+    return json.loads(json.dumps(case)) if case is not None else None
+
+
+def _get(case_id):
+    return _board().get(case_id)
+
+
+def _put(case):
+    _board().put(case["id"], case)
+
+
+def _prune(now=None):
+    """Off the board three days after it closed (the record keeps it), and never more than 200 on it."""
+    now = now or time.time()
+    board_ = _board()
+    gone = [c["id"] for c in board_.view() if c["status"] == "closed" and now - c.get("closed_at", now) >= 3 * 86400]
+    if gone:
+        board_.drop(*gone)
+    board_.trim(200)
 
 
 def team(case):
@@ -73,25 +100,25 @@ def known(case):
 def board(now=None):
     """Open cases he knows of, and the ones closed in the last few hours, newest first."""
     now = now or time.time()
-    return sorted((c for c in everything() if known(c) and (c["status"] != "closed"
-                   or now - c.get("closed_at", 0) < KEEP_CLOSED)), key=lambda c: -c["opened_at"])
+    return sorted((_copy(c) for c in _board().view() if (c["status"] != "closed"
+                   or now - c.get("closed_at", 0) < KEEP_CLOSED) and known(c)), key=lambda c: -c["opened_at"])
 
 
 def active(contact_id):
     """The case they're on right now, or None."""
-    return next((c for c in everything() if contact_id in team(c) and c["status"] != "closed"), None)
+    return _copy(next((c for c in _board().view() if c["status"] != "closed" and contact_id in team(c)), None))
 
 
 def recent(contact_id, now=None):
     """The last case they closed, if it was tonight."""
     now = now or time.time()
-    closed = [c for c in everything() if contact_id in team(c) and c["status"] == "closed"
-              and now - c.get("closed_at", 0) < KEEP_CLOSED]
-    return max(closed, key=lambda c: c["closed_at"]) if closed else None
+    closed = [c for c in _board().view() if c["status"] == "closed" and now - c.get("closed_at", 0) < KEEP_CLOSED
+              and contact_id in team(c)]
+    return _copy(max(closed, key=lambda c: c["closed_at"])) if closed else None
 
 
 def for_report(report_id):
-    return next((c for c in everything() if c["id"] == report_id), None)
+    return _get(report_id)
 
 
 def assign(report, contact_id, by="him", travel=0):
@@ -102,17 +129,16 @@ def assign(report, contact_id, by="him", travel=0):
     """
     now = time.time()
     with _lock:
-        cases = everything()
-        case = next((c for c in cases if c["id"] == report["id"]), None)
+        case = _get(report["id"])
         if case is not None and case["status"] == "closed":
             return case
-        if case is None:
+        new = case is None
+        if new:
             case = {"id": report["id"], "kind": report["kind"], "severity": report["severity"],
                     "place": report["place"], "area": report["area"], "x": report["x"], "y": report["y"],
                     "dispatch": report.get("dispatch", ""), "suspect": report.get("suspect", ""),
                     "gang": report.get("gang", ""), "crew": report.get("crew", 1), "was": report.get("was", []),
-                    "began": report.get("at", now), "opened_at": now, "log": [], "team": [], "members": {}}
-            cases.append(case)
+                    "began": report.get("at", now), "opened_at": now, "team": [], "members": {}}
         case.setdefault("team", team(case))
         case.setdefault("members", {})
         if contact_id in case["team"]:
@@ -135,17 +161,16 @@ def assign(report, contact_id, by="him", travel=0):
                 case["due"] = min(case.get("due", now), max(now + (travel + 4) * 60, now + max(3, left) * 60))
             else:
                 case["due"] = max(now + (travel + 4) * 60, min(case.get("due", now), now + max(3, left) * 60))
-        case["log"].append({"at": now, "text": f"{'assigned to' if first else 'joined by'} {contact_id} "
-                                               f"({'by him' if by == 'him' else 'took it'})"})
-        _save(cases)
+        _put(case)
+        if new:
+            _prune(now)
     return case
 
 
 def leave(case_id, contact_id):
     """They've moved on to something else: off this case — and the case gone with them if they were all it had."""
     with _lock:
-        cases = everything()
-        case = next((c for c in cases if c["id"] == case_id), None)
+        case = _get(case_id)
         if case is None:
             return
         members = team(case)
@@ -153,12 +178,12 @@ def leave(case_id, contact_id):
             return
         rest = [m for m in members if m != contact_id]
         if not rest and case["status"] != "closed":
-            cases = [c for c in cases if c["id"] != case_id]
+            _board().drop(case_id)
         else:
             case["team"] = rest
             (case.get("members") or {}).pop(contact_id, None)
             case["assignee"] = rest[0] if rest else case.get("assignee")
-        _save(cases)
+            _put(case)
 
 
 def advance(now=None, arrived=None):
@@ -170,27 +195,23 @@ def advance(now=None, arrived=None):
     now = now or time.time()
     due, landed = [], []
     with _lock:
-        cases = everything()
-        changed = False
-        for c in cases:
-            if c["status"] == "closed":
-                continue
+        for c in [_copy(c) for c in _board().view() if c["status"] != "closed"]:
+            changed = False
             members = c.get("members") or {c["assignee"]: {"joined": c["updated_at"], "travel": c.get("travel", 9),
                                                             "status": "on scene" if c["status"] == "on scene" else "assigned"}}
             for cid, m in members.items():
                 if m.get("status") == "assigned" and now - m.get("joined", now) > m.get("travel", 9) * 60:
                     m["status"] = "on scene"
-                    c["log"].append({"at": now, "text": f"{cid} on scene"})
                     landed.append((c, cid))
                     changed = True
                     if c["status"] == "assigned":
                         c["status"], c["updated_at"] = "on scene", now
             if "members" in c:
                 c["members"] = members
+            if changed:
+                _put(c)
             if c["status"] in ("assigned", "on scene") and now > c.get("due", now + 1):
                 due.append(c)
-        if changed:
-            _save(cases)
     for c, cid in landed:
         if arrived:
             arrived(c, cid)
@@ -211,8 +232,7 @@ def close(case_id, outcome, result=None):
     """
     now = time.time()
     with _lock:
-        cases = everything()
-        case = next((c for c in cases if c["id"] == case_id), None)
+        case = _get(case_id)
         if case is None or case["status"] == "closed":
             return None
         case.update({"status": "closed", "closed_at": now, "updated_at": now, "outcome": outcome.strip()[:240]})
@@ -221,8 +241,9 @@ def close(case_id, outcome, result=None):
         if result:
             case["result"] = {k: result[k] for k in ("ok", "grade", "lives", "culprit", "how", "caught", "hurt")
                               if k in result}
-        case["log"].append({"at": now, "text": "closed"})
-        _save(cases)
+        _put(case)
+        _prune(now)
+    _remember(case)
     if result is not None:
         if result.get("caught"):
             from . import codex
@@ -234,37 +255,58 @@ def close(case_id, outcome, result=None):
     return case
 
 
+def _remember(case):
+    """
+    How it went, kept for good — the board forgets a case after three days — for
+    whoever was on it, and for Alfred and Barbara at the screens if he'd know of it.
+    """
+    from ..contacts import directory
+    book = directory()
+    crew = team(case)
+    names = [book.get(c).name if book.get(c) else "Bruce" if c == "bruce" else c for c in crew]
+    result = case.get("result") or {}
+    text = (f"the {case['kind'].lower()} at {case['place']} ({case['area']}), "
+            + (f"{' and '.join(names)} on it" if names else "nobody on it")
+            + (f" — {result['grade']}" if result.get("grade") else "")
+            + f": {case.get('story') or case.get('outcome') or 'handled'}")
+    events.add("case.closed", text[:900], at=case.get("closed_at"), actor="",
+               data={"case": case["id"], "kind": case["kind"], "place": case["place"], "area": case["area"],
+                     "team": crew, "suspect": case.get("suspect", ""), "outcome": case.get("outcome", ""),
+                     "grade": result.get("grade", ""), "opened_at": case.get("opened_at")},
+               links=[("case", case["id"]), ("place", case["place"]), ("rogue", case.get("suspect", ""))]
+               + [("contact", c) for c in crew],
+               audience=[c for c in crew if c != "bruce"],
+               scope=events.WATCHERS if known(case) else events.PRIVATE, secret=True)
+
+
 def retime(case_id, contact_id, minutes):
     """Their way there changed — a lift in the Batwing — and with it when they'll be on scene."""
     with _lock:
-        cases = everything()
-        case = next((c for c in cases if c["id"] == case_id), None)
+        case = _get(case_id)
         mine = (case or {}).get("members", {}).get(contact_id)
         if not mine or mine.get("status") != "assigned":
             return None
         mine["joined"], mine["travel"] = time.time(), round(minutes, 1)
         if case["assignee"] == contact_id and case["status"] == "assigned":
             case["updated_at"], case["travel"] = time.time(), round(minutes, 1)
-        _save(cases)
+        _put(case)
     return case
 
 
 def mark(case_id, **fields):
     """Note something on a case — that they called for help, say."""
     with _lock:
-        cases = everything()
-        case = next((c for c in cases if c["id"] == case_id), None)
+        case = _get(case_id)
         if case is None:
             return None
         case.update(fields)
-        _save(cases)
+        _put(case)
     return case
 
 
 def drop(case_id):
     with _lock:
-        cases = [c for c in everything() if c["id"] != case_id]
-        _save(cases)
+        _board().drop(case_id)
 
 
 # The kinds where being on scene means a fight; the rest are searched, asked about, pieced together.
@@ -361,8 +403,8 @@ def brief(contact_id, now=None):
 def missions(contact_id, now=None, days=7):
     """The cases they've worked lately and seen through, newest first — the stories they'd tell."""
     now = now or time.time()
-    done = [c for c in everything() if contact_id in team(c) and c["status"] == "closed"
-            and now - c.get("closed_at", 0) < days * 86400]
+    done = [_copy(c) for c in _board().view() if c["status"] == "closed" and now - c.get("closed_at", 0) < days * 86400
+            and contact_id in team(c)]
     return sorted(done, key=lambda c: -c["closed_at"])
 
 

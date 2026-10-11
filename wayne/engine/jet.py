@@ -14,15 +14,14 @@ sweep over the roughest districts around where he left it — eyes on the city
 for the cave — till he calls it or the night's over and it goes home.
 
 Where it is, is worked out from what it's been asked to do and the clock, so
-the map, the family and the case board agree. Kept in DATA_DIR/_jet.json.
+the map, the family and the case board agree. Kept in the database (the document
+"jet").
 """
-import json
 import math
 import threading
 import time
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
 from . import places
 
 SPEED = 45.0            # map units a minute: ~400 km/h low over the roofs — faster than any airliner on approach
@@ -38,19 +37,12 @@ PILOT = "bruce"
 _lock = threading.Lock()
 
 
-def _path():
-    return paths.DATA_DIR / "_jet.json"
-
-
 def _load():
-    try:
-        return read_json(_path(), {})
-    except ValueError:
-        return {}
+    return store.doc("jet", {})
 
 
 def _save(data):
-    atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+    store.save_doc("jet", data)
 
 
 def home():

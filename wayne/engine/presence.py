@@ -33,7 +33,6 @@ pulse carries them out (see `Console.pulse`).
 """
 import datetime
 import hashlib
-import json
 import math
 import random
 import re
@@ -41,8 +40,7 @@ import threading
 import time
 import uuid
 
-from .. import paths
-from ..memory.store import atomic_write, read_text
+from .. import store
 from . import patrols, places, travel, week
 from . import plans as plans_made
 
@@ -363,7 +361,6 @@ def glance(contact, t=None, here=None, viewer=None):
 class Presence:
     def __init__(self, contact):
         self.contact = contact
-        self.path = paths.contact_dir(contact.id) / "presence.json"
         # The afterthought writes from a worker thread while the console's
         # loop reads and updates: one lock round every change and save, or a
         # kept promise came back from a stale copy and was kept twice.
@@ -375,11 +372,15 @@ class Presence:
 
     # --- storage -----------------------------------------------------------
 
+    # Their state is the space presence/<id>, a row per key: a word to him rewrites last_active, not the
+    # week of trips beside it — saving writes only the keys that changed.
+
+    @property
+    def _space(self):
+        return store.space(f"presence/{self.contact.id}")
+
     def _load(self):
-        try:
-            state = json.loads(read_text(self.path) or "{}")
-        except ValueError:
-            state = {}
+        state = self._space.dict()
         state.setdefault("activity", None)
         state.setdefault("last_active", 0)
         state.setdefault("intents", [])
@@ -387,7 +388,7 @@ class Presence:
 
     def save(self):
         with self._lock:
-            atomic_write(self.path, json.dumps(self._state, indent=1))
+            self._space.replace(self._state)
 
     # --- the routine -------------------------------------------------------
 
@@ -1335,8 +1336,7 @@ class Presence:
 
     def clear(self):
         self._state = {"activity": None, "last_active": 0, "intents": []}
-        if self.path.exists():
-            self.path.unlink()
+        self._space.clear()
 
 
 # How likely they are to answer, by what they're doing — unless the profile

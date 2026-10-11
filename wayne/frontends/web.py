@@ -16,7 +16,6 @@ are released to the page strictly in order.
 """
 import asyncio
 import contextlib
-import json
 import logging
 import logging.handlers
 import math
@@ -32,7 +31,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .. import config, events, paths
+from .. import config, events, paths, store
 from .. import operator as wayne_operator
 from ..audio import stt, system_voice
 from ..audio.tts import get_voice_engine
@@ -55,7 +54,6 @@ from ..engine.session import ASKS_REACTION
 from ..memory import groups as group_store
 from ..memory import migrate_legacy
 from ..memory.history import describe_gap
-from ..memory.store import atomic_write, read_json, read_text
 from ..memory.texts import TextLog, quoted_by
 from ..paths import WEB_DIR
 from .groupchats import GroupChats
@@ -1673,6 +1671,7 @@ class Console(GroupChats):
         # Each step on its own: one that keeps failing (the mail, the papers) no longer takes the cases and
         # comms down with it every pulse.
         await self._step("diary", asyncio.to_thread(self._observe_all, now))
+        await self._step("upkeep", asyncio.to_thread(_daily_upkeep))
         for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
                            ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
                            ("mail", self._write_mail), ("dispatches", self._write_dispatches)):
@@ -2158,9 +2157,8 @@ class Console(GroupChats):
         way people do mid-op. Whoever joins later is added.
         """
         from ..engine import cases
-        from ..memory import groups as store
         crew = [m for m in cases.team(case) if self.directory.get(m)]
-        found = next((g for g in store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
+        found = next((g for g in group_store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
         if found is None and "bruce" in cases.team(case) and not crew:
             # Him on it alone: no channel unless he opens one (see open_comms). Alfred may
             # still have something to say — a word in his ear, as a text, now and then.
@@ -2178,7 +2176,7 @@ class Console(GroupChats):
         if not sharers and "bruce" not in cases.team(case):
             return None
         if found is None:
-            found = store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
+            found = group_store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
             found.update_meta(lambda meta: meta.update({"case": case["id"], "comms": True,
                                                         "next_post": time.time() + random.uniform(15, 45)}))
             found.system(f"Comms open: {case['kind'].lower()} at {case['place']}")
@@ -2197,11 +2195,10 @@ class Console(GroupChats):
         (Barbara too, if she's at her screens and not out herself). His; nobody opens another.
         """
         from ..engine import cases
-        from ..memory import groups as store
         case = cases.for_report(report_id)
         if case is None or case["status"] == "closed":
             return None
-        found = next((g for g in store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
+        found = next((g for g in group_store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
         if found is not None:
             if (found.meta() or {}).get("archived"):
                 found.update_meta(lambda m: m.update({"archived": False}))
@@ -2215,7 +2212,7 @@ class Console(GroupChats):
                 crew.append(m)
         if not crew:
             return None
-        found = store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
+        found = group_store.create(f"Comms · {case['kind']} · {case['place']}"[:60], crew)
         found.update_meta(lambda meta: meta.update({"case": case["id"], "comms": True, "by": "him",
                                                     "next_post": time.time() + random.uniform(15, 45)}))
         line = found.system(f"You opened comms: {case['kind'].lower()} at {case['place']}")
@@ -2225,8 +2222,7 @@ class Console(GroupChats):
 
     async def archive_group(self, group_id, archived=True):
         """He puts a group chat away (or brings it back): it folds into the archived list, and goes quiet."""
-        from ..memory import groups as store
-        group = store.of(group_id)
+        group = group_store.of(group_id)
         if group is None:
             return None
         group.update_meta(lambda m: m.update({"archived": bool(archived), "archived_at": time.time(), "kept": True}))
@@ -2244,8 +2240,7 @@ class Console(GroupChats):
         a little later as everyone goes their own way.
         """
         from ..engine import cases
-        from ..memory import groups as store
-        for group in store.all_groups():
+        for group in group_store.all_groups():
             meta = group.meta() or {}
             if not meta.get("comms"):
                 continue
@@ -2788,10 +2783,9 @@ class Console(GroupChats):
         return start <= hour < end if start <= end else (hour >= start or hour < end)
 
     def _initiative_log(self):
-        try:
-            return json.loads(read_text(paths.DATA_DIR / "_initiative.json") or "[]")
-        except ValueError:
-            return []
+        """When each unprompted text was decided on, the last day's worth (the document "initiative")."""
+        found = store.doc("initiative", [])
+        return found if isinstance(found, list) else []
 
     async def _maybe_reach_out(self, now):
         """
@@ -2871,7 +2865,7 @@ class Console(GroupChats):
     def _count_initiative(self):
         """Counted when decided, not when sent — or the next tick decides again."""
         entries = [t for t in self._initiative_log() if time.time() - t < 86400]
-        atomic_write(paths.DATA_DIR / "_initiative.json", json.dumps(entries + [time.time()]))
+        store.save_doc("initiative", entries + [time.time()])
 
     async def _send_unprompted(self, contact, about, why):
         """They text first: written, then typed, then sent."""
@@ -3205,11 +3199,27 @@ def _warm_speech():
 
 
 @asynccontextmanager
+def _daily_upkeep():
+    from ..store import upkeep
+    upkeep.daily()
+
+
+def _warm_store():
+    """The day's upkeep, then the search index recall reads — off the loop, before anyone asks."""
+    from ..store import index, upkeep
+    try:
+        upkeep.daily()
+        index.warm()
+    except Exception:
+        logging.getLogger("wayne").exception("warming the store failed")
+
+
 async def lifespan(_app):
     warm = [
         asyncio.create_task(asyncio.to_thread(_warm_model)),
         asyncio.create_task(asyncio.to_thread(_warm_speech)),
         asyncio.create_task(asyncio.to_thread(world.prime)),
+        asyncio.create_task(asyncio.to_thread(_warm_store)),
         asyncio.create_task(asyncio.to_thread(
             system_voice.prime, console.voice, [c.full_name for c in console.directory])),
         asyncio.create_task(console.pulse()),
@@ -3217,6 +3227,7 @@ async def lifespan(_app):
     yield
     for task in warm:
         task.cancel()
+    store.close_all()           # checkpoints the write-ahead log into the database file
 
 
 app = FastAPI(title="WayneTech Console", docs_url=None, redoc_url=None,
@@ -3308,20 +3319,13 @@ def _mail_unread():
     return inbox.unread()
 
 
-def _mutes_path():
-    return paths.DATA_DIR / "_mutes.json"
-
-
 def mutes(now=None):
     """
     The threads he's muted: {thread: {"messages": until (0 none, -1 for good), "calls": bool}} —
-    a contact's id, or "g:<group>". Lapsed mutes are left out.
+    a contact's id, or "g:<group>". Lapsed mutes are left out. Kept in the space "mutes", a row a thread.
     """
     now = now or time.time()
-    try:
-        kept = read_json(_mutes_path(), {})
-    except ValueError:
-        kept = {}
+    kept = store.space("mutes").dict()
     out = {}
     for thread, m in kept.items():
         until = m.get("messages", 0)
@@ -3332,18 +3336,12 @@ def mutes(now=None):
 
 
 def calls_muted(contact_id):
-    return bool(mutes().get(contact_id, {}).get("calls"))
-
-
-def _pins_path():
-    return paths.DATA_DIR / "_pins.json"
+    return bool((store.space("mutes").get(contact_id) or {}).get("calls"))
 
 
 def _load_pins():
-    try:
-        return read_json(_pins_path(), [])
-    except ValueError:
-        return []
+    """His pins on the map — the space "pins", a row a pin."""
+    return store.space("pins").list()
 
 
 @app.get("/api/mutes")
@@ -3375,7 +3373,7 @@ async def set_mute(request: Request):
     if "calls" in body:
         entry["calls"] = bool(body["calls"]) and not thread.startswith("g:")
     kept[thread] = entry
-    atomic_write(_mutes_path(), json.dumps({k: v for k, v in kept.items() if v.get("messages") or v.get("calls")}))
+    store.space("mutes").replace({k: v for k, v in kept.items() if v.get("messages") or v.get("calls")})
     return JSONResponse({"mutes": mutes()})
 
 
@@ -3389,21 +3387,23 @@ async def map_pins():
 async def save_pin(request: Request):
     """Drop a pin, or rename or move one he dropped."""
     body = await request.json()
-    pins = _load_pins()
     try:
         x, y = float(body.get("x")), float(body.get("y"))
     except (TypeError, ValueError):
         return JSONResponse({"error": "where?"}, status_code=400)
     pin = {"id": str(body.get("id") or uuid.uuid4().hex[:10]), "label": str(body.get("label") or "Pin")[:40],
            "x": max(-20.0, min(120.0, x)), "y": max(-20.0, min(120.0, y)), "at": time.time()}
-    pins = [p for p in pins if p["id"] != pin["id"]] + [pin]
-    atomic_write(_pins_path(), json.dumps(pins[-200:]))
+    with store.get().tx():
+        space = store.space("pins")
+        space.drop(pin["id"])           # moved or renamed: it goes to the end, as the newest
+        space.put(pin["id"], pin)
+        space.trim(200)
     return JSONResponse({"pin": pin})
 
 
 @app.delete("/api/map/pins/{pin_id}")
 async def delete_pin(pin_id: str):
-    atomic_write(_pins_path(), json.dumps([p for p in _load_pins() if p["id"] != pin_id]))
+    store.space("pins").drop(pin_id)
     return JSONResponse({"ok": True})
 
 
@@ -3835,7 +3835,7 @@ async def read_bio(contact_id: str):
     contact = console.directory.get(contact_id)
     if contact is None:
         return Response(status_code=404)
-    stored = read_text(paths.bio_file(contact_id))
+    stored = store.space("bio").get(contact_id)
     return JSONResponse({"bio": stored or contact.bio})
 
 
@@ -3844,7 +3844,11 @@ async def write_bio(contact_id: str, request: Request):
     if console.directory.get(contact_id) is None:
         return Response(status_code=404)
     body = await request.json()
-    atomic_write(paths.bio_file(contact_id), (body.get("bio") or "").strip())
+    bio = (body.get("bio") or "").strip()
+    if bio:
+        store.space("bio").put(contact_id, bio)
+    else:
+        store.space("bio").drop(contact_id)
     return JSONResponse({"ok": True})
 
 

@@ -1,5 +1,4 @@
 """Vault storage and retrieval, encryption at rest, and elapsed-time memory."""
-import json
 import re
 
 import pytest
@@ -11,10 +10,8 @@ from wayne.memory.store import atomic_write, generate_key
 
 
 @pytest.fixture
-def vault(tmp_path, monkeypatch):
-    v = Vault("test")
-    monkeypatch.setattr(v, "path", tmp_path / "vault.txt")
-    return v
+def vault():
+    return Vault("test")
 
 
 class TestVaultWrites:
@@ -66,12 +63,53 @@ class TestVaultRetrieval:
 
 
 class TestHistory:
-    def test_round_trips_an_exchange(self, tmp_path, monkeypatch):
+    def test_round_trips_an_exchange(self):
         h = History("test")
-        monkeypatch.setattr(h, "path", tmp_path / "history.json")
-        h.messages = []
         h.record_exchange("what's my name", "Wayne.")
-        assert json.loads((tmp_path / "history.json").read_text())[-1]["content"] == "Wayne."
+        assert History("test").messages[-1]["content"] == "Wayne."
+        assert [m["content"] for m in History("test").messages] == ["what's my name", "Wayne."]
+
+    def test_everything_said_is_kept_past_the_window(self):
+        from wayne.store import transcript
+        h = History("test")
+        for i in range(40):
+            h.record_exchange(f"question {i}", f"answer {i}")
+        assert len(History("test").messages) == 60
+        said = transcript.lines("test")
+        assert len(said) == 80 and said[0]["text"] == "question 0" and said[-1]["text"] == "answer 39"
+
+    def test_an_aside_or_an_amended_reply_changes_its_line_rather_than_adding_one(self):
+        from wayne.store import transcript
+        h = History("test")
+        h.record_exchange("still there?", "Here.")
+        h.record_aside("Sorry — the tunnel.")
+        h.amend_last_reply("Here, Master Wayne.")
+        h.save()
+        said = transcript.lines("test")
+        assert [s["text"] for s in said] == ["still there?", "Here, Master Wayne. Sorry — the tunnel."]
+
+    def test_placeholders_and_silences_are_not_kept_as_said(self):
+        from wayne.store import transcript
+        h = History("test")
+        h.append("user", "[link established]")
+        h.messages[-1]["marker"] = True
+        h.append("assistant", "Evening.")
+        h.record_heard("Tim: what about you?")
+        assert [s["text"] for s in transcript.lines("test")] == ["Evening.", "Tim: what about you?"]
+
+    def test_a_window_read_back_does_not_keep_its_lines_twice(self):
+        from wayne.store import transcript
+        History("test").record_exchange("one", "two")
+        again = History("test")
+        again.record_exchange("three", "four")
+        assert [s["text"] for s in transcript.lines("test")] == ["one", "two", "three", "four"]
+
+    def test_clearing_memory_clears_the_transcript_too(self):
+        from wayne.store import transcript
+        h = History("test")
+        h.record_exchange("one", "two")
+        h.clear()
+        assert History("test").messages == [] and transcript.lines("test") == []
 
     def _conversation(self, pairs, words_each=10):
         h = History.__new__(History)
@@ -145,13 +183,16 @@ class TestHistory:
         moves = sum(1 for a, b in zip(opening, opening[1:], strict=False) if a != b)
         assert 1 <= moves <= 5
 
-    def test_corrupt_history_is_treated_as_empty_not_fatal(self, tmp_path, monkeypatch):
-        path = tmp_path / "history.json"
-        path.write_text("{ this is not json")
-        h = History.__new__(History)
-        h.contact_id = "test"
-        h.path = path
-        assert h._load() == []
+    def test_undecryptable_history_is_treated_as_empty_and_kept_aside(self):
+        from wayne import store
+        db = store.get()
+        with db.tx() as c:
+            c.execute("INSERT INTO kv(space, key, seq, value, at) VALUES ('window', 'test', 1, ?, 0)",
+                      (b"gAAAAA" + b"x" * 80,))         # ciphertext no key here can open
+        assert History("test").messages == []
+        assert db.row("SELECT COUNT(*) FROM quarantine WHERE tbl = 'kv'")[0] == 1
+        History("test").record_exchange("hello", "Mm.")  # written over — the original's still in quarantine
+        assert db.row("SELECT COUNT(*) FROM quarantine")[0] == 1
 
 
 class TestAtomicWrite:
@@ -260,10 +301,8 @@ class TestElapsedTime:
     def test_no_history_has_no_gap(self):
         assert describe_gap(None) == ""
 
-    def test_timestamps_are_hidden_from_the_model(self, tmp_path, monkeypatch):
+    def test_timestamps_are_hidden_from_the_model(self):
         h = History("test")
-        monkeypatch.setattr(h, "path", tmp_path / "history.json")
-        h.messages = []
         h.record_exchange("hello", "Mm.")
         assert all(set(m) == {"role", "content"} for m in h.for_model())
         assert h.seconds_since_last() < 5
@@ -280,10 +319,7 @@ class TestGreetingPileUp:
     MARKER = "[link established]"
 
     def _history(self, tmp_path, monkeypatch):
-        h = History("test")
-        monkeypatch.setattr(h, "path", tmp_path / "history.json")
-        h.messages = []
-        return h
+        return History("test")
 
     def test_drops_earlier_greetings(self, tmp_path, monkeypatch):
         h = self._history(tmp_path, monkeypatch)

@@ -6,13 +6,15 @@ Start Gotham over — the conversations, the world, or both — with a backup fi
     venv/bin/python scripts/reset_world.py --world        # where everyone is, cases, mail, the papers, rogues
     venv/bin/python scripts/reset_world.py --all --dry-run
 
-What's kept either way: who they are (bio.txt), your pins, photo framing, the
-Codex you've written, mutes, what each of them follows, and the audio caches.
-The whole data directory is copied to data/_backup-<when>/ before anything goes.
-Stop the console first — a running server would write its state straight back.
+What's kept either way: who they are (their bios), your pins, photo framing,
+the Codex you've written, mutes, what each of them follows, and the audio
+caches. The data directory — the database by SQLite's own backup — is copied to
+data/_backup-<when>/ before anything goes. Stop the console first: a running
+server would write its state straight back.
 """
 import argparse
 import shutil
+import sqlite3
 import sys
 import time
 import urllib.request
@@ -21,15 +23,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from wayne import paths  # noqa: E402
+from wayne import paths, store  # noqa: E402
 
-# Per contact, under data/<id>/.
-CHATS_EACH = ("history.json", "texts.json", "hearsay.json", "vault.txt", "story.txt")
-WORLD_EACH = ("presence.json", "diary.json")
-# Under data/ itself.
-CHATS = ("_groups", "_initiative.json", "_plans.json")
-WORLD = ("_cases.json", "_dispatch.json", "_reportlog.json", "_inbox.json", "_arcs.json", "_jet.json",
-         "_bruce.json", "_gazette.json", "_rogue_status.json", "_encountered.json")
+# Spaces (see wayne.store.kv) — "<name>/" means every contact's; "doc:<name>" one document.
+CHATS_SPACES = ("window", "groups", "vault/", "story/", "plans", "doc:initiative")
+WORLD_SPACES = ("presence/", "diary_last", "cases", "dispatch", "reportlog", "mail", "mail_keys", "mail_events",
+                "gazette", "rogue_status", "encountered", "doc:arcs", "doc:jet", "doc:bruce")
+# Events (see wayne.store.events), by kind prefix.
+CHATS_EVENTS = ("hearsay", "plan.")
+WORLD_EVENTS = ("diary.", "case.", "rogue.")
 
 
 def _running(port):
@@ -40,16 +42,43 @@ def _running(port):
         return False
 
 
-def targets(root, chats, world):
-    """Everything that would go, as paths that exist."""
+def _after(prefix):
+    """The first string past every one starting with `prefix` — for a range the index can use."""
+    return prefix[:-1] + chr(ord(prefix[-1]) + 1)
+
+
+def targets(db, chats, world):
+    """What would go: [(what, how many, (sql, params) that removes it)], only what's there."""
     out = []
-    names = (CHATS if chats else ()) + (WORLD if world else ())
-    each = (CHATS_EACH if chats else ()) + (WORLD_EACH if world else ())
-    out += [root / n for n in names if (root / n).exists()]
-    for folder in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith(("_", "."))
-                         and p.name != "ambience"):
-        out += [folder / n for n in each if (folder / n).exists()]
-    return out
+    for name in (CHATS_SPACES if chats else ()) + (WORLD_SPACES if world else ()):
+        if name.startswith("doc:"):
+            where = ("space = 'doc' AND key = ?", (name[4:],))
+            what = f"document {name[4:]}"
+        elif name.endswith("/"):
+            where = ("space >= ? AND space < ?", (name, _after(name)))
+            what = f"{name}… (every contact's)"
+        else:
+            where = ("space = ?", (name,))
+            what = name
+        n = db.row(f"SELECT COUNT(*) FROM kv WHERE {where[0]}", where[1])[0]
+        out.append((what, n, (f"DELETE FROM kv WHERE {where[0]}", where[1])))
+    if chats:
+        out.append(("texts and group messages", db.row("SELECT COUNT(*) FROM messages")[0], ("DELETE FROM messages", ())))
+        out.append(("transcript", db.row("SELECT COUNT(*) FROM transcript")[0], ("DELETE FROM transcript", ())))
+    for prefix in (CHATS_EVENTS if chats else ()) + (WORLD_EVENTS if world else ()):
+        where = ("kind >= ? AND kind < ?", (prefix, _after(prefix)))
+        n = db.row(f"SELECT COUNT(*) FROM events WHERE {where[0]}", where[1])[0]
+        out.append((f"events {prefix}…", n, (f"DELETE FROM events WHERE {where[0]}", where[1])))
+    return [t for t in out if t[1]]
+
+
+def backup(root, db):
+    """The data directory copied — every file but the backups and the audio — and the database, whole."""
+    target = root / time.strftime("_backup-%Y%m%d-%H%M%S")
+    shutil.copytree(root, target, ignore=shutil.ignore_patterns("_backup-*", "_imported-*", "ambience", "wayne.db",
+                                                               "wayne.db-*", "wayne.failed-*"))
+    db.backup(target / "wayne.db")
+    return target
 
 
 def main():
@@ -67,23 +96,27 @@ def main():
     if not root.exists():
         print(f"Nothing to reset: {root} doesn't exist.")
         return 0
-    going = targets(root, chats, world)
-    for p in going:
-        print(("would remove " if args.dry_run else "removing ") + str(p.relative_to(root)))
+    if not args.dry_run and _running(args.port):
+        print(f"The console is running on port {args.port}: stop it first, or it'll write everything back.")
+        return 1
+    db = store.get()            # an older console's files are brought in first (see wayne.store.legacy)
+    going = targets(db, chats, world)
+    for what, n, _ in going:
+        print(f"{'would remove' if args.dry_run else 'removing'} {what}: {n}")
     if args.dry_run or not going:
         print("Nothing to do." if not going else f"{len(going)} item(s).")
         return 0
-    if _running(args.port):
-        print(f"The console is running on port {args.port}: stop it first, or it'll write everything back.")
-        return 1
-    backup = root / time.strftime("_backup-%Y%m%d-%H%M%S")
-    shutil.copytree(root, backup, ignore=shutil.ignore_patterns("_backup-*", "ambience"))
-    print(f"Backed up to {backup}")
-    for p in going:
-        if p.is_dir():
-            shutil.rmtree(p)
-        else:
-            p.unlink()
+    print(f"Backed up to {backup(root, db)}")
+    with db.tx() as c:
+        for _, _, (sql, params) in going:
+            c.execute(sql, params)
+        c.execute("DELETE FROM event_audience WHERE event_id NOT IN (SELECT id FROM events)")
+    try:
+        with db.lock:
+            db.conn.execute("VACUUM")
+    except sqlite3.Error:
+        pass
+    store.close_all()
     print(f"Done: {len(going)} item(s) removed. Start the console and Gotham begins again from now.")
     return 0
 

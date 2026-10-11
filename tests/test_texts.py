@@ -13,9 +13,8 @@ from wayne.memory.texts import TextLog
 
 
 def _log(tmp_path):
-    log = TextLog.__new__(TextLog)
-    log.path = tmp_path / "texts.json"
-    return log
+    """Dick's thread, in this test's own database."""
+    return TextLog("nightwing")
 
 
 def _contact(**kw):

@@ -18,7 +18,9 @@ happened:
 - and spam, in its own folder.
 
 Written by the model, a few at a time while it's loaded and idle (the night
-report is assembled, never written). Kept in DATA_DIR/_inbox.json.
+report is assembled, never written). Kept in the database: a row a message (the
+space "mail"), the keys that stop the same thing arriving twice ("mail_keys"),
+and what's waiting to be written about ("mail_events").
 """
 import datetime
 import hashlib
@@ -28,8 +30,7 @@ import threading
 import time
 import uuid
 
-from .. import paths
-from ..memory.store import atomic_write, read_json
+from .. import store
 
 FOLDERS = ("inbox", "secure", "spam", "archive")
 KEEP = 400
@@ -49,30 +50,22 @@ SENDERS = {
 }
 
 
-def _path():
-    return paths.DATA_DIR / "_inbox.json"
-
-
-def _load():
-    try:
-        return read_json(_path(), {})
-    except ValueError:
-        return {}
-
-
-def _save(data):
-    data["mail"] = sorted(data.get("mail") or [], key=lambda m: m["at"])[-KEEP:]
-    atomic_write(_path(), json.dumps(data, ensure_ascii=False))
+def _mail():
+    return store.space("mail")
 
 
 def mail(folder=None):
     """His mail, newest first — one folder's, or all of it."""
-    found = sorted(_load().get("mail") or [], key=lambda m: -m["at"])
+    found = sorted(_mail().list(), key=lambda m: -m["at"])
     return [m for m in found if folder is None or m["folder"] == folder]
 
 
 def unread():
-    return sum(1 for m in _load().get("mail") or [] if not m.get("read") and m["folder"] in ("inbox", "secure"))
+    return sum(1 for m in _mail().list() if not m.get("read") and m["folder"] in ("inbox", "secure"))
+
+
+def _delivered(key):
+    return bool(key) and key in store.space("mail_keys")
 
 
 def deliver(sender, subject, body, folder=None, at=None, name=None, address=None, kind="", key=None):
@@ -82,56 +75,56 @@ def deliver(sender, subject, body, folder=None, at=None, name=None, address=None
     """
     known = SENDERS.get(sender)
     with _lock:
-        data = _load()
-        if key and key in (data.get("keys") or []):
+        if _delivered(key):
             return None
         message = {"id": uuid.uuid4().hex[:12], "at": at or time.time(),
                    "from": name or (known[0] if known else sender), "address": address or (known[1] if known else ""),
                    "subject": subject.strip()[:160], "body": body.strip()[:6000],
                    "folder": folder or (known[2] if known else "inbox"), "read": False, "kind": kind}
-        data.setdefault("mail", []).append(message)
-        if key:
-            data["keys"] = (data.get("keys") or [])[-600:] + [key]
-        _save(data)
+        box = _mail()
+        with store.get().tx():
+            box.put(message["id"], message)
+            if len(box) > KEEP:
+                # The oldest go — by when they arrived, not when they were filed.
+                box.drop(*[m["id"] for m in sorted(box.list(), key=lambda m: m["at"])[:len(box) - KEEP]])
+            if key:
+                keys = store.space("mail_keys")
+                keys.put(key, time.time())
+                keys.trim(600)
     return message
 
 
 def update(message_id, **fields):
     """Read it, file it, bin it."""
     with _lock:
-        data = _load()
-        for m in data.get("mail") or []:
-            if m["id"] == message_id:
-                if fields.get("folder") in FOLDERS:
-                    m["folder"] = fields["folder"]
-                if "read" in fields:
-                    m["read"] = bool(fields["read"])
-                _save(data)
-                return m
-        if fields.get("delete"):
+        m = _mail().get(message_id)
+        if m is None:
             return None
-    return None
+        if fields.get("folder") in FOLDERS:
+            m["folder"] = fields["folder"]
+        if "read" in fields:
+            m["read"] = bool(fields["read"])
+        _mail().put(message_id, m)
+        return m
 
 
 def delete(message_id):
     with _lock:
-        data = _load()
-        data["mail"] = [m for m in data.get("mail") or [] if m["id"] != message_id]
-        _save(data)
+        _mail().drop(message_id)
 
 
 def queue(event):
     """Something happened that'll bring mail: a case ended, someone broke out. Written when the model's free."""
     with _lock:
-        data = _load()
-        data["events"] = (data.get("events") or [])[-40:] + [{**event, "at": time.time()}]
-        _save(data)
+        waiting = store.space("mail_events")
+        waiting.put(uuid.uuid4().hex[:12], {**event, "at": time.time()})
+        waiting.trim(41)
 
 
 def _take_event():
     """The oldest event waiting — looked at, not taken: it's only gone once its mail is (see _done_event)."""
     with _lock:
-        events = _load().get("events") or []
+        events = store.space("mail_events").list()
         return dict(events[0]) if events else None
 
 
@@ -141,17 +134,14 @@ def _done_event(event, tried=False):
     model ran, a failed write lost the case's mail for good.
     """
     with _lock:
-        data = _load()
-        events = data.get("events") or []
-        for i, e in enumerate(events):
+        waiting = store.space("mail_events")
+        for key, e in waiting.items():
             if e.get("id") == event.get("id") and e.get("kind") == event.get("kind"):
                 if tried and not e.get("tried"):
-                    events[i] = {**e, "tried": True}        # one more go, later
+                    waiting.put(key, {**e, "tried": True})        # one more go, later
                 else:
-                    events.pop(i)
+                    waiting.drop(key)
                 break
-        data["events"] = events
-        _save(data)
 
 
 # --- the night report: assembled, not written --------------------------------------
@@ -226,7 +216,7 @@ def write_night_report(now=None):
     if time.localtime(now).tm_hour < 6:
         return None
     key = f"night:{day.isoformat()}"
-    if key in (_load().get("keys") or []):
+    if _delivered(key):
         return None
     subject, body = night_report(day, now)
     at = time.mktime((day.year, day.month, day.day, 6, 0, 0, 0, 0, -1))
@@ -261,7 +251,7 @@ def write_market_close(now=None):
     if not markets.trading(day) or (local.tm_hour, local.tm_min) < (16, 35):
         return None
     key = f"market:{day.isoformat()}"
-    if key in (_load().get("keys") or []):
+    if _delivered(key):
         return None
     subject, body = markets.report(day)
     at = time.mktime((day.year, day.month, day.day, 16, 35, 0, 0, 0, -1))

@@ -1,18 +1,22 @@
 """
 Short-term conversation memory, scoped to one contact.
 
+The window — what their model reads, every turn — is one entry in the
+database's "window" space. Everything said also goes, a line at a time, into
+the transcript (wayne.store.transcript), which keeps it past the window for
+recall to find when it comes up again.
+
 Every message carries the time it was said. The model never sees that field —
 it is stripped before the payload is built — but it is what lets a contact know
 whether the last exchange was ten minutes or three weeks ago, which is most of
 the difference between "Evening again" and "It's been a while."
 """
-import json
 import threading
 import time
 
-from .. import delivery, paths
+from .. import delivery, store
 from ..config import setting
-from .store import atomic_write, read_text
+from ..store import transcript
 
 # Full exchanges kept on disk as short-term memory.
 MAX_HISTORY_PAIRS = 30
@@ -54,6 +58,10 @@ HISTORY_WORD_BUDGET = int(setting("HISTORY_WORDS", "260"))
 # still for the next several turns, so those turns only pay for what is new.
 TRIM_TO = 0.6
 
+# Turns that stand in for something rather than being said — the call's opening, "you texted first" — kept
+# out of the transcript. The window flags its own ("marker"); the console registers the rest (see session).
+PLACEHOLDERS = set()
+
 
 def describe_gap(seconds):
     """A human interval, the way someone would actually say it."""
@@ -89,17 +97,15 @@ class History:
 
     def __init__(self, contact_id):
         self.contact_id = contact_id
-        self.path = paths.history_file(contact_id)
         self.messages = self._load()
+        # Which of the window's messages are which lines of the transcript: the message itself (held, so its
+        # id() can't be reused), the line's id, and how it read when last kept.
+        self._kept = {}
+        self._match_transcript()
 
     def _load(self):
-        if not self.path.exists():
-            return []
-        try:
-            return json.loads(read_text(self.path))[-MAX_HISTORY_MESSAGES:]
-        except (OSError, json.JSONDecodeError, ValueError):
-            # Corrupt or unreadable history shouldn't crash the boot.
-            return []
+        found = store.space("window").get(self.contact_id, [])
+        return found[-MAX_HISTORY_MESSAGES:] if isinstance(found, list) else []
 
     def __bool__(self):
         return bool(self.messages)
@@ -316,13 +322,58 @@ class History:
     def save(self):
         with self._lock:
             del self.messages[:-MAX_HISTORY_MESSAGES]
-            atomic_write(self.path, json.dumps(self.messages, indent=2))
+            store.space("window").put(self.contact_id, self.messages)
+            self._keep_transcript()
 
     def clear(self):
         with self._lock:
-            if self.path.exists():
-                self.path.unlink()
+            store.space("window").drop(self.contact_id)
+            transcript.forget(self.contact_id)
             self.messages = []
+            self._kept = {}
+
+    # --- the transcript: everything said, past the window ------------------------
+
+    @staticmethod
+    def _line(message):
+        """How a message reads in the transcript — None for what wasn't said (a placeholder, a silence)."""
+        if message.get("marker") or message.get("quiet") or not message.get("at"):
+            return None
+        if message["role"] == "user" and message.get("content") in PLACEHOLDERS:
+            return None
+        text = ((message.get("content") or "") + " " + (message.get("aside") or "")).strip()
+        return text or None
+
+    def _match_transcript(self):
+        """The window read back: which of its messages are already in the transcript."""
+        if not self.messages or transcript.DAYS <= 0:
+            return
+        start = min((m.get("at") or 0) for m in self.messages)
+        lines = transcript.ids_since(self.contact_id, start)
+        for message in self.messages:
+            row = lines.get((message["role"], message.get("at")))
+            if row is not None:
+                self._kept[id(message)] = (message, row, (self._line(message), message.get("at"), message.get("via")))
+
+    def _keep_transcript(self):
+        """What's new in the window goes into the transcript; what was said differently is changed there."""
+        if transcript.DAYS <= 0:
+            return
+        kept, before = {}, getattr(self, "_kept", {})
+        for message in self.messages:
+            text = self._line(message)
+            shape = (text, message.get("at"), message.get("via"))
+            known = before.get(id(message))
+            if known is not None and known[0] is message:
+                row = known[1]
+                if known[2] != shape and text:
+                    transcript.change(row, self.contact_id, message["role"], message["at"], text, message.get("via"))
+                kept[id(message)] = (message, row, shape)
+            elif text:
+                row = transcript.keep(self.contact_id, message["role"], message["at"], text, message.get("via"))
+                if row is not None:
+                    kept[id(message)] = (message, row, shape)
+        self._kept = kept
 
 
 def _without_silences(messages, kept):

@@ -19,8 +19,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from .. import paths
-from ..memory.store import atomic_write, read_text
+from .. import store
 
 _lock = threading.Lock()
 
@@ -30,15 +29,9 @@ def _data():
     return json.loads(Path(__file__).with_name("codex.json").read_text())
 
 
-def _encountered_path():
-    return paths.DATA_DIR / "_encountered.json"
-
-
 def encountered():
-    try:
-        return json.loads(read_text(_encountered_path()) or "{}")
-    except ValueError:
-        return {}
+    """The rogues whose work he's come across: {name: {at, how}} — the space "encountered"."""
+    return store.space("encountered").dict()
 
 
 def encounter(name, how):
@@ -46,10 +39,9 @@ def encounter(name, how):
     if not name:
         return
     with _lock:
-        seen = encountered()
+        seen = store.space("encountered")
         if name not in seen:
-            seen[name] = {"at": time.time(), "how": how}
-            atomic_write(_encountered_path(), json.dumps(seen, ensure_ascii=False))
+            seen.put(name, {"at": time.time(), "how": how})
 
 
 def people(directory):
@@ -69,7 +61,7 @@ def people(directory):
         entry["edited"] = f"bio:people:{person['name']}" in mine
         if contact is not None:
             # The personnel file he keeps on them — the same words the directory shows.
-            entry["dossier"] = (read_text(paths.bio_file(contact.id)) or contact.bio or "").strip()
+            entry["dossier"] = (store.space("bio").get(contact.id) or contact.bio or "").strip()
         out.append(entry)
     return out
 
@@ -132,31 +124,19 @@ def places():
 TRANSFER = 24 * 3600
 ESCAPES = {"Arkham Asylum": 0.025, "Blackgate Penitentiary": 0.012}
 RECAPTURED = 0.06          # a day, for someone loose who isn't anyone's case
-_cache = {"mtime": None, "data": {}}
-
-
-def _status_path():
-    return paths.DATA_DIR / "_rogue_status.json"
-
-
 def _statuses():
-    path = _status_path()
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return {}
-    if mtime != _cache["mtime"]:
-        try:
-            _cache["data"] = json.loads(path.read_text() or "{}")
-        except ValueError:
-            _cache["data"] = {}
-        _cache["mtime"] = mtime
-    return _cache["data"]
+    """Each rogue's standing, as last worked out: the space "rogue_status" (a row a rogue)."""
+    return store.space("rogue_status").dict()
 
 
-def _save_statuses(data):
-    atomic_write(_status_path(), json.dumps(data, ensure_ascii=False))
-    _cache["mtime"] = None
+def _standing(name, state, news=None):
+    """Keep a rogue's standing — and what changed, as the city heard it (an event everyone can know)."""
+    store.space("rogue_status").put(name, state)
+    if news:
+        from ..store import events
+        events.add(f"rogue.{news}", f"{name}: {state['how']}" if state.get("how") else f"{name}: {state['status']}",
+                   at=state.get("since"), actor=name, links=[("rogue", name), ("place", state.get("held", ""))],
+                   scope=events.PUBLIC)
 
 
 def _roll(name, day, what):
@@ -167,9 +147,7 @@ def _roll(name, day, what):
 def capture(name, how):
     """The family caught them: in GCPD custody now, to be transferred."""
     with _lock:
-        data = dict(_statuses())
-        data[name] = {"status": "in custody", "held": "GCPD Central", "since": time.time(), "how": how}
-        _save_statuses(data)
+        _standing(name, {"status": "in custody", "held": "GCPD Central", "since": time.time(), "how": how}, "captured")
     encounter(name, how)
 
 
@@ -180,29 +158,33 @@ def where(rogue, now=None):
     """
     now = now or time.time()
     stats = _data()["rogues"].get(rogue["name"], {})
-    kept = _statuses().get(rogue["name"])
+    kept = store.space("rogue_status").get(rogue["name"])
     state = dict(kept) if kept else {"status": rogue["status"], "held": rogue.get("held", ""),
                                       "since": now - 30 * 86400, "how": ""}
-    changed = False
+    news = []                # what happened since, in order: (what, how they stood after)
     if state["status"] == "in custody" and now - state["since"] > TRANSFER:
         held = "Arkham Asylum" if stats.get("asylum") else "Blackgate Penitentiary"
         state = {"status": "locked up", "held": held, "since": state["since"] + TRANSFER, "how": f"transferred to {held}"}
-        changed = True
+        news.append(("transferred", state))
     # A day at a time since: the odd breakout, the odd recapture.
     day0, day1 = int(state["since"] // 86400) + 1, int(now // 86400)
     for day in range(max(day0, day1 - 60), day1 + 1):
         if state["status"] == "locked up" and _roll(rogue["name"], day, "out") < ESCAPES.get(state["held"], 0.0):
             state = {"status": "at large", "held": "", "since": day * 86400.0, "how": f"broke out of {state['held']}"}
-            changed = True
+            news.append(("escaped", state))
         elif state["status"] == "at large" and kept and _roll(rogue["name"], day, "in") < RECAPTURED:
             held = "Arkham Asylum" if stats.get("asylum") else "Blackgate Penitentiary"
             state = {"status": "locked up", "held": held, "since": day * 86400.0, "how": f"picked up by GCPD, sent to {held}"}
-            changed = True
-    if changed or (kept is None and state["status"] != rogue["status"]):
+            news.append(("recaptured", state))
+    if news or (kept is None and state["status"] != rogue["status"]):
         with _lock:
-            data = dict(_statuses())
-            data[rogue["name"]] = state
-            _save_statuses(data)
+            if kept is not None:
+                # Each change as it happened, for the record; a rogue seen for the first time has no story yet.
+                for what, then in news[:-1]:
+                    from ..store import events
+                    events.add(f"rogue.{what}", f"{rogue['name']}: {then['how']}", at=then["since"],
+                               actor=rogue["name"], links=[("rogue", rogue["name"])], scope=events.PUBLIC)
+            _standing(rogue["name"], state, news[-1][0] if news and kept is not None else None)
     return state
 
 
@@ -215,15 +197,9 @@ def rogue_status(name, now=None):
 
 # --- his own notes ------------------------------------------------------------------
 
-def _notes_path():
-    return paths.DATA_DIR / "_codex_notes.json"
-
-
 def notes():
-    try:
-        return json.loads(read_text(_notes_path()) or "{}")
-    except ValueError:
-        return {}
+    """His own notes and rewritten files: {"<kind>:<name>": text} — the space "codex_notes"."""
+    return store.space("codex_notes").dict()
 
 
 def write_bio(kind, name, text):
@@ -234,13 +210,11 @@ def write_bio(kind, name, text):
 def write_note(kind, name, text, limit=2000):
     """His note on someone or somewhere — `kind` is people, rogues or places. Empty puts back the default."""
     with _lock:
-        data = notes()
         key = f"{kind}:{name}"
         if (text or "").strip():
-            data[key] = text.strip()[:limit]
+            store.space("codex_notes").put(key, text.strip()[:limit])
         else:
-            data.pop(key, None)
-        atomic_write(_notes_path(), json.dumps(data, ensure_ascii=False))
+            store.space("codex_notes").drop(key)
 
 
 # --- faces ------------------------------------------------------------------------
@@ -274,16 +248,9 @@ def portrait_version(contact_id):
     return 0
 
 
-def _frames_path():
-    return paths.DATA_DIR / "_portrait_frames.json"
-
-
 def frames():
     """How each face is framed, as he's set it: {key: {"size": "180%", "position": "48% 16%"}}."""
-    try:
-        return json.loads(read_text(_frames_path()) or "{}")
-    except ValueError:
-        return {}
+    return store.space("frames").dict()
 
 
 def frame_key(entry_id, contact_id=None):
@@ -293,12 +260,10 @@ def frame_key(entry_id, contact_id=None):
 def set_frame(key, size, position):
     """Keep his framing for a face; empty puts back the default."""
     with _lock:
-        data = frames()
         if size and position:
-            data[key] = {"size": size, "position": position}
+            store.space("frames").put(key, {"size": size, "position": position})
         else:
-            data.pop(key, None)
-        atomic_write(_frames_path(), json.dumps(data, ensure_ascii=False))
+            store.space("frames").drop(key)
 
 
 def frame_for(contact):

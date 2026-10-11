@@ -21,14 +21,16 @@ def migrate_legacy(contact_id):
     moved = []
 
     if paths.LEGACY_HISTORY_FILE.exists():
-        target = paths.history_file(contact_id)
-        if not target.exists():
+        history = History(contact_id)
+        if not history.messages:
             try:
                 with open(paths.LEGACY_HISTORY_FILE) as f:
                     legacy = json.load(f)  # only migrate what we can read
-                # Written through the store so it lands encrypted if a key is set.
-                atomic_write(target, json.dumps(legacy, indent=2))
-                moved.append("history")
+                if isinstance(legacy, list):
+                    # Kept through the store, so it's sealed if a key is set.
+                    history.messages = legacy
+                    history.save()
+                    moved.append("history")
             except (OSError, json.JSONDecodeError):
                 pass
         paths.LEGACY_HISTORY_FILE.rename(
@@ -36,9 +38,11 @@ def migrate_legacy(contact_id):
         )
 
     if paths.LEGACY_VAULT_FILE.exists():
-        target = paths.vault_file(contact_id)
-        if not target.exists():
-            atomic_write(target, paths.LEGACY_VAULT_FILE.read_text())
+        vault = Vault(contact_id)
+        if not vault.entries():
+            for line in paths.LEGACY_VAULT_FILE.read_text().splitlines():
+                if line.strip():
+                    vault._add(line.lstrip("- ").strip())
             moved.append("vault")
         paths.LEGACY_VAULT_FILE.rename(
             paths.LEGACY_VAULT_FILE.with_suffix(".txt.migrated")

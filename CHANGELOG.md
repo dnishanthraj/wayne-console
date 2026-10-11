@@ -5,6 +5,53 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+### Changed
+
+- **Everything in one database.** The JSON files are replaced by one SQLite
+  file, `data/wayne.db`. Small documents (the case board, the plans, Bruce,
+  the jet, each one's presence, the Codex notes) are a row per entry, read
+  from memory and written a row at a time. Every text and group message is a
+  row, with read marks in columns of their own. Saving one case, one word to
+  Tim or one group message no longer rewrites the whole file. Measured on a
+  world grown to a few months of use: unread texts are 350× faster to find,
+  the last text 170×, sending a text 45×, a group message 14×, who's on what
+  200×, and the background each prompt reads 7×.
+- **Brought in, not lost.** A console with the old files imports them the
+  first time it starts. It's one transaction, read back through the same code
+  and compared before it's kept, and the files are then moved untouched to
+  `data/_imported-<when>/`. A file that won't open is left where it is and
+  skipped. `scripts/export_db_to_json.py` writes the old files back out for
+  an older version; `scripts/migrate_to_db.py` shows what's there, checks the
+  database and reseals it under a new key.
+- **Sealed value by value.** With a memory key, every stored value is
+  encrypted on its own: a database written before the key still reads, and a
+  value the key won't open goes to quarantine instead of being lost.
+- The case log, never read by anything, is gone. How each case went is kept
+  for good as an event instead.
+
+### Added
+
+- **Recall.** Ask "what did I tell you about the Kord deal?" or "what were
+  you doing last night?" and they remember. The record is searched: what was
+  said with them (kept past the model's short window: the transcript), their
+  diary, news that reached them, cases they worked, what the city knows, and
+  the group chats as far as they've read. The best few go in as background.
+  It only runs when the words call for it (a memory cue, a time, a rogue
+  named), costs a few milliseconds, and adds at most `WAYNE_RECALL_WORDS`.
+  Nothing the conversation already holds is repeated. Hearsay counts only once
+  it's reached them, and nothing about the masks reaches anyone outside the
+  secret, or anyone on a call with someone outside it.
+- **A record of what happened.** Diary lines, news passed on, cases closed,
+  plans made and rogues caught, escaped or moved are events, linked to who and
+  what they're about and to who knows them, from when. They're kept for a
+  year (`WAYNE_EVENT_DAYS`), the transcript for 90 days
+  (`WAYNE_TRANSCRIPT_DAYS`), and cleared out once a day.
+
+### Fixed
+
+- Rogues' statuses and place descriptions written with a memory key read back
+  as nothing (they were read without decrypting).
+
 ## [0.11.0] - 2026-10-11
 
 ### Added

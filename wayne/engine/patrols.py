@@ -131,7 +131,7 @@ def _related_areas(contact_id, t):
     same crew, the same rogue: where they'd go back to look.
     """
     from . import cases, incidents
-    worked = [c for c in cases.everything() if contact_id in cases.team(c) and t - c.get("opened_at", 0) < 48 * 3600]
+    worked = [c for c in cases.peek() if contact_id in cases.team(c) and t - c.get("opened_at", 0) < 48 * 3600]
     if not worked:
         return {}
     suspects = {c.get("suspect") for c in worked if c.get("suspect")}
