@@ -140,15 +140,15 @@ REACH_MARKER = "(Nothing from him — you texted first.)"
 
 # Used only when two generations running have handed the operator his own words
 # back. Deliberately in character rather than neutral filler.
+# Only for a contact with none of their own (every one of the cast has theirs): plain enough to be anyone's —
+# this list was Alfred's ("Don't be difficult."), said by whoever was added next.
 _DEFLECTIONS = [
-    "I asked first.",
-    "That's rather the point of asking.",
-    "Don't be difficult.",
-    "Out with it.",
-    "I'd rather hear it from you.",
-    "You know I'll only ask twice.",
-    "Go on, then.",
-    "Something on your mind, or are we just making noises?",
+    "Go on.",
+    "Say that again?",
+    "And?",
+    "Meaning what?",
+    "You first.",
+    "Try me.",
 ]
 
 # The floor handed to him without a question mark.
@@ -1084,7 +1084,8 @@ class ContactSession:
                          "teasing, or genuinely asking. Answer plainly and warmly; "
                          "if he's playing, play back. Never cryptic.")
         clipped = [r for r in self.history.recent_assistant(turns=4) if r.strip()][-2:]
-        if len(clipped) == 2 and all(len(_plain_words(r)) <= 2 for r in clipped):
+        self._clipped_run = len(clipped) == 2 and all(len(_plain_words(r)) <= 2 for r in clipped)
+        if self._clipped_run:
             notes.append("Your last few replies have been a word or two. Open up a "
                          "little — say something real.")
 
@@ -1852,6 +1853,10 @@ class ContactSession:
             # carry, and without it Tim answered "who's running point?" in five.
             length, self._turn_cap = prompting.spoken_length(self.contact, prompt)
             length = length or None
+            if length and getattr(self, "_clipped_run", False) and "a few words" in length:
+                # "Open up a little" beside "a few words — a fragment": one of them has to give, and it's the draw.
+                length = "Length this time: a sentence or two, unless it truly needs otherwise."
+                self._turn_cap = max(self._turn_cap or 0, 3)
         # A run of texts is ordinary — people fire off three in a row all the time,
         # and "three texts in a row? you okay?" from Tim and Dick alike, every
         # time, was the tell. Only a real barrage, and only sometimes, is worth a word.
@@ -1869,7 +1874,7 @@ class ContactSession:
         head = None
         if via is None and not from_contact and not self.call:
             pre, self._prefetched = getattr(self, "_prefetched", None), None
-            fresh = pre and time.time() - pre["at"] < 45 and pre["history"] == len(self.history.messages)
+            fresh = pre and time.time() - pre["at"] < 45 and pre["history"] == self._history_mark()
             head = pre["head"] if fresh else self._standing_head()
         else:
             here = presence.of(self.contact).note()
@@ -2190,9 +2195,8 @@ class ContactSession:
         board = cases.board_note({c.id: c.name for c in book})
         if not watches:
             # A look at the app, not a feed of the city: no scanner, no board.
-            return ("You can check the family's location app on your phone. If you'd actually look, say so as you "
-                    "do — 'hang on, pulling it up' — and this is what it shows. Answer only what he asked, the way "
-                    "you would: " + "; ".join(lines) + (f". Not on it: {', '.join(dark)}." if dark else "."))
+            return ("You can check the family's location app on your phone. If you'd actually look, say so your own "
+                    "way as you do, and this is what it shows. Answer only what he asked, the way you would: " + "; ".join(lines) + (f". Not on it: {', '.join(dark)}." if dark else "."))
         return ("The family tracker, as you see it on your screens. Answer only what he asked — "
                 "whoever he asked about, the way you would — not a roll call: " + "; ".join(lines)
                 + (f". Not on it: {', '.join(dark)}." if dark else ".")
@@ -2319,19 +2323,22 @@ class ContactSession:
                 + "; ".join(f"\"{w}\"" for w in worn[:4]) + ".")
 
     # Talk of trouble on the scanner — not "go to bed", "working late" or "on it".
+    # Narrow on purpose: each of these pulls a block of case history into the turn, and "tell me", "dinner"
+    # and "this week" did it for small talk — seconds of reading before the first word.
     _MISSION_TALK = re.compile(r"(?i)\b(last night|the other night|that case|the case|cases|mission|missions|"
-                               r"how did it go|how'd it go|what happened|tell (me|us)|war stor|dinner|catch up|"
-                               r"this week|patrol)\b")
+                               r"how did it go|how'd it go|what happened (?:on|at|with|last|tonight)|war stor|patrol)\b")
 
-    _CRIMEY = re.compile(r"(?i)\b(cases?|scanner|reports?|robbery|robberies|shooting|shots|body|bodies|"
+    _CRIMEY = re.compile(r"(?i)\b(cases?|scanner|police reports?|robbery|robberies|shooting|shots|a body|bodies|"
                          r"kidnap\w*|gang|riot|hostage|crime|dispatch|called in|take (that|this) one|"
                          r"check (it|that) out|on the scanner|need you (on|at|over)|get (over|down) to|"
                          r"joker|scarecrow|riddler|penguin|two-face|bane|ivy|freeze|croc|black mask|zsasz|"
                          r"hatter|firefly|hush|clayface|harley|deathstroke|falcone|thorne|breakout|stabbing|machete)\b")
 
+    # The whole board for Alfred and Barbara when the talk is the board's — not for "tonight", "where" or
+    # "update", which most turns contain (about 550 tokens of reading each time).
     _BOARDISH = re.compile(r"(?i)\b(news|papers?|headline|case|cases|scanner|batwing|jet|patrol|rogue|joker|bane|"
-                           r"arkham|blackgate|gordon|gcpd|who's out|what's (going on|happening)|tonight|status|update|"
-                           r"report|anyone|everyone|the family|where)\b")
+                           r"arkham|blackgate|gordon|gcpd|who's out|what's (going on|happening) (?:out there|tonight|in)|"
+                           r"status report|sitrep|the board|the family|where(?:'s| is| are) (?:everyone|everybody|the others))\b")
 
     def _batcomputer_glance(self):
         """The Batcomputer in a line, for when the talk's elsewhere: there if he asks, not in the way."""
@@ -2603,6 +2610,14 @@ class ContactSession:
             notes.append(CLOSING_DIRECTIVE)
         return prompting.standing_block(self.contact, notes)
 
+    def _history_mark(self):
+        """
+        Where the conversation's got to: its length and when the last thing was said. The length alone stopped
+        changing once history reached its cap, and a head read ahead before the last turn was used after it.
+        """
+        messages = self.history.messages
+        return (len(messages), messages[-1].get("at") if messages else None)
+
     def prefetch_turn(self):
         """
         While he's talking: read ahead the part of his next turn that won't
@@ -2613,7 +2628,7 @@ class ContactSession:
         if self.call:
             return
         head = self._standing_head()
-        self._prefetched = {"head": head, "at": time.time(), "history": len(self.history.messages)}
+        self._prefetched = {"head": head, "at": time.time(), "history": self._history_mark()}
         payload = prompting.build_payload(self.contact, self.history.for_model(), prompting.reference_opening(head))
         ollama.chat(model=self.contact.model, messages=payload, stream=False,
                     options=self._options(num_predict=1), **self._extra())

@@ -129,13 +129,22 @@ _CHECK_IN = re.compile(
 _DISTRESS = re.compile(
     r"\b(?:lost|died|dead|death|killed|hurt|bleeding|hospital|funeral|grie(?:f|ving)|can'?t sleep|nightmares?|"
     r"scared|afraid|panic|help me|bad (?:night|day)|rough (?:night|day)|awful|terrible|sick|crying|cried|"
-    r"depress\w*|lonely|alone|miss (?:her|him|them|you)|exhausted|wrecked|not okay|not fine|struggling)\b", re.I)
+    r"depress\w*|lonely|alone|miss (?:her|him|them|you)|exhausted|wrecked|not okay|not fine|struggling|"
+    # Hurt in the field is cause too: "I got stabbed" and "you okay?" was stripped as fussing.
+    r"stabbed|shot|knifed|wounded|injured|blood|bled|broke (?:my|a)|broken|concussion|ambushed|jumped|"
+    r"crashed|burned|fell|took a (?:hit|bullet|knife)|got hit|cut (?:me|my))\b", re.I)
+# Who the concern's for: "Dick, you good?" is to Dick, and nothing to do with fussing over him.
+_TO_SOMEONE = re.compile(r"^\W*(?:\[[^\]]*\]\s*)?([A-Z][\w.'-]*(?:\s[A-Z][\w.'-]*)?),\s")
+_HIM = {"bruce", "b", "master bruce", "mr. wayne", "mr wayne", "sir", "boss", "old man", "batman", "dad"}
 
 
 def takes_his_temperature(sentence, prompt):
     """A line asking how he is or telling him how he sounds, when nothing he said gave cause."""
     if _DISTRESS.search(prompt or ""):
         return False
+    named = _TO_SOMEONE.match(sentence or "")
+    if named and named.group(1).lower() not in _HIM:
+        return False            # asked of someone else on the line
     return bool(_CHECK_IN.search(sentence or ""))
 
 

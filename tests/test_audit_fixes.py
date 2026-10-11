@@ -307,3 +307,23 @@ def test_someone_on_a_speaker_joins_without_a_ring():
     from wayne import events
     assert events.party(["nightwing", "robin"], added="robin", room=True)["room"] is True
     assert events.party(["nightwing"], added="robin")["room"] is False
+
+
+def test_concern_for_someone_hurt_or_for_someone_else_isnt_fussing():
+    assert not guards.takes_his_temperature("You okay?", "I got stabbed on the docks.")
+    assert not guards.takes_his_temperature("Dick, you good?", "Dick took a hit.")
+    assert guards.takes_his_temperature("You okay?", "Hey.")
+
+
+def test_asking_whos_about_isnt_making_a_plan():
+    from wayne.engine import plans
+    assert not plans.maybe_proposal("Anyone seen Dick tonight?")
+    assert plans.maybe_proposal("Dinner tonight at 8, everyone?")
+
+
+def test_on_a_group_call_tims_line_isnt_hearsay_about_bruce():
+    from wayne.contacts import directory
+    from wayne.engine import grapevine
+    session = SimpleNamespace(contact=directory().get("nightwing"))
+    line = grapevine._line(session, {"role": "user", "content": "Tim Drake: I'm quitting the team."})
+    assert line.startswith("Tim Drake:") and "Bruce" not in line

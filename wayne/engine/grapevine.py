@@ -87,10 +87,26 @@ def block(contact_id):
             "who told you:\n" + "\n".join(f"- {h['from']} told you {ago(h['at'])}: {h['text']}" for h in items))
 
 
+def _line(session, message):
+    """
+    One line of the transcript, said by whoever said it: on a group call his side holds everyone else's
+    labelled lines too, and every one of them went down as his — "Bruce said…" hearsay in Tim's words.
+    """
+    if message["role"] != "user":
+        return f"{session.contact.name}: {message['content']}"
+    lines = []
+    for part in message["content"].splitlines():
+        labelled = re.match(r"^\(?([A-Z][\w.'-]*(?:\s[A-Z][\w.'-]*){0,2})\)?:\s*(.*)$", part.strip())
+        if labelled and labelled.group(1) not in (operator.full_name(), operator.name()):
+            lines.append(f"{labelled.group(1)}: {labelled.group(2)}")
+        else:
+            lines.append(f"{operator.name()}: {labelled.group(2) if labelled else part}")
+    return "\n".join(lines)
+
+
 def _notable(session, exchanges):
     """One model pass: what from this call might be passed on. [] if nothing."""
-    transcript = "\n".join(f"{operator.name() if m['role'] == 'user' else session.contact.name}: {m['content']}"
-                           for m in exchanges)
+    transcript = "\n".join(_line(session, m) for m in exchanges)
     instruction = (
         f"Here is a conversation between {operator.full_name()} and {session.contact.full_name}.\n\n"
         f"{transcript}\n\n"

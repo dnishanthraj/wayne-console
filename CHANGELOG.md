@@ -130,6 +130,15 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   and one that fails waits its turn; "yesterday" is the calendar's, so the
   night the clocks change keeps its patrol; fortnightly habits keep their
   rhythm across the new year; Cass rides for the long way across the city.
+- Talk: knowing where you are when they're told it isn't against the rules
+  any more ("you can't know where he is" sat beside the tracker saying where);
+  "you okay?" after "I got stabbed", or to Dick, isn't stripped as fussing;
+  "anyone seen Dick tonight?" isn't read as a plan (a blocking model call), and
+  ordinary words like "tonight", "where" and "dinner" no longer pull the whole
+  board and case history into a turn; a turn read ahead is only reused if
+  nothing's been said since; on a group call, hearsay is pinned on whoever
+  said it, not on you; "open up a little" no longer sits beside "a few words";
+  the fallback lines and the rule about staying yourself fit anyone.
 - Tests run in a world of their own: a temporary data directory before
   anything imports the engine, every cache emptied between tests, and a frozen
   clock for tests about the world — the suite had been due to go red by

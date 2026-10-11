@@ -31,7 +31,8 @@ _WHEN = re.compile(
 _LETS = re.compile(
     r"\b(let'?s|we'?re (?:going|getting|doing|having|heading)|we are going|come (?:to|with|over|along)|"
     r"join (?:us|me)|meet (?:me|us|up)|dinner|lunch|brunch|breakfast|drinks?|coffee|movie|film|game|match|"
-    r"party|bbq|barbecue|picnic|bowling|karaoke|everyone|everybody|anyone|who'?s in|you in|are you free|"
+    r"party|bbq|barbecue|picnic|bowling|karaoke|(?:everyone|everybody|anyone)\s+(?:free|in|up for|coming|want|keen|fancy|"
+    r"around|game)|who'?s in|you in|are you free|"
     r"free (?:on|for|tonight|tomorrow)|reservation|booked|table for)\b", re.I)
 RSVP = re.compile(r"\[\s*rsvp\s*:\s*(yes|no|maybe)\s*\]", re.I)
 ANSWERS = ("yes", "no", "maybe")
