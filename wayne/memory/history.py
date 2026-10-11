@@ -18,7 +18,7 @@ from .. import delivery, store
 from ..config import setting
 from ..store import transcript
 
-# Full exchanges kept on disk as short-term memory.
+# Full exchanges kept as short-term memory (the window; everything said also goes to the transcript).
 MAX_HISTORY_PAIRS = 30
 MAX_HISTORY_MESSAGES = MAX_HISTORY_PAIRS * 2
 

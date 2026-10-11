@@ -18,7 +18,7 @@
    ],
    "checks": {
     "must": [
-     "(?i)knights|team|football|buy|30|said a word|not a word|sealed|safe with me|between us|secret|remember"
+     "(?i)knights|team|football|buy|30|said a word|not a word|told anyone|sealed|safe with me|between us|secret|remember|of course (i do|i remember)|the deal|paperwork"
     ],
     "must_not": [
      "(?i)what knights|no idea what|you never told|you didn'?t tell"
