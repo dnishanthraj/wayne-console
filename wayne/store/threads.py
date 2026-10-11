@@ -118,7 +118,11 @@ class Thread:
                                 (value, self.thread, *params)).rowcount
 
     def change(self, message_id, change):
-        """Change one message's words or tapbacks: `change(message)` edits it in place. Returns it, or None."""
+        """
+        Change one message's words or tapbacks: `change(message)` edits it in place. Returns it, or None. Whoever
+        keeps up with what's added (the search index) hears of the change too: an edited message is found by what
+        it says now.
+        """
         store = self.db
         with store.tx() as conn:
             row = conn.execute(f"SELECT {_COLUMNS} FROM messages WHERE thread = ? AND id = ?",
@@ -129,7 +133,12 @@ class Thread:
             change(message)
             body = {k: v for k, v in message.items() if k not in _MARKS}
             conn.execute("UPDATE messages SET body = ? WHERE rid = ?", (sealing.seal(sealing.dumps(body)), row[0]))
-            return message
+        for hook in list(_hooks):
+            try:
+                hook(store, row[0], self.thread, message)
+            except Exception:
+                pass
+        return message
 
     def clear(self):
         with self.db.tx() as conn:

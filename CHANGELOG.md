@@ -5,6 +5,39 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-11
+
+### Added
+
+- **Edit your texts.** A pencil next to your own messages (DMs and group
+  chats) rewrites one in place, and it shows "Edited". If they haven't read
+  it yet, they read the new version. If they already have and it now says
+  something different, they notice and can answer the change. Fixing a typo
+  is just fixed.
+- **They edit theirs too.** Most people who fix a typo now edit the message a
+  few seconds later, and it shows "Edited". Tim still sends a quick "*word"
+  when he's in a hurry. Jim repeats it plainly ("Grand. Not Grant.").
+  Jason and Randy let it stand.
+- **Real mix-ups, rarely.** Now and then someone gets a detail wrong (the
+  wrong day, the wrong place, the wrong name) and puts it right a moment
+  later, by editing it or with a "wait no, thursday", their way. They
+  remember saying it. A mix-up can never touch the masks or the secret.
+
+### Changed
+
+- **Typos are rare.** The chance is per reply, not per message, so Dick no
+  longer slips in one reply out of five, and everyone's rate is lower.
+- **Texting with feeling.** Each character's own habits now reach every
+  text: when they send one composed message and when it's a burst, and a few
+  of their quirks each time (a different few, so none become a tic). When
+  something lands it shows, if that's them: caps (Dick's "HAHAHAHA", "NO
+  BC"), stretched letters, rapid short texts, swearing. Lowercase texters
+  keep their shouting ("I CANT" stays "I CANT"). Humour comes from what's
+  around them: names, places, the news. Jason calls Dick "blud" because
+  Blüdhaven; Randy and Jason say "bro" and "get a grip dawg" to each other;
+  Tim's "we're cooked" and Dick's "lowkey" fit who they are, and each still
+  has words they'd never use.
+
 ## [0.33.1] - 2026-10-11
 
 ### Changed

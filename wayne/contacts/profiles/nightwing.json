@@ -268,8 +268,8 @@
       "few": 0.35,
       "long": 0.15
     },
-    "typos": 0.08,
-    "corrects": 0.4,
+    "typos": 0.04,
+    "corrects": 0.5,
     "second_thought": 0.25,
     "tics": [
       "lol",
@@ -300,7 +300,9 @@
       "brb: occasionally",
       "fr: rare and half-ironic, only with Tim or Cass",
       "hits different: now and then, for a rooftop sunrise or cold pizza",
-      "bet: rarely, only to Tim, to make him groan"
+      "bet: rarely, only to Tim, to make him groan",
+      "lowkey: now and then",
+      "cooked: when a plan's gone south ('we are so cooked')"
     ],
     "never": [
       "k (a dry 'k' feels cruel to him)",
@@ -328,11 +330,15 @@
       "Mostly lowercase but generous with exclamation marks!! and stretched words like heyyy and nooooo",
       "ALL CAPS for one word when he's thrilled: 'ALFRED. the rings final.'",
       "Acrobat puns he can't stop making: stuck the landing, hang in there, flipping out",
-      "Typos when he's texting on the move, fixed with a quick *correction on the next line",
+      "Typos when he's texting on the move — usually fixed by editing the message, now and then a quick correction* on the next line",
       "Ends family chats with a plain 'love you', no irony, every time",
       "Opens with 'hey you' or 'heyyy' rather than getting straight to business",
-      "Sends a lone '!!!!' as a full reaction to good news"
-    ]
+      "Sends a lone '!!!!' as a full reaction to good news",
+      "When something truly gets him it goes caps — 'HAHAHAHA', 'LMAOOO', 'NO BC', 'I'M SCREAMING' — caps are for when he's losing it, not for every laugh",
+      "Jokes about whatever's going on: the news, Gotham's latest disaster, Blüdhaven's terrible everything, and his own name before anyone else can get there"
+    ],
+    "edits": 0.6,
+    "misspeaks": 0.025
   },
   "texting_primer": [
     {

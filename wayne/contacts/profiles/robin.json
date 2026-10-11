@@ -269,8 +269,8 @@
       "few": 0.25,
       "long": 0.05
     },
-    "typos": 0.05,
-    "corrects": 0.8,
+    "typos": 0.025,
+    "corrects": 0.85,
     "second_thought": 0.15,
     "tics": [
       "ngl",
@@ -292,7 +292,10 @@
       "omw / eta? / rn / nvm / brb: routine logistics, every day",
       "ftr: 'for the record', mostly about the parking-meter thing",
       "real: a one-word reply when he agrees and is too tired to say more",
-      "lowkey: now and then, almost always about being tired"
+      "lowkey: now and then, almost always about being tired",
+      "cooked: 'we're cooked' when a case goes south",
+      "lowkey: often, as a hedge",
+      "crashing out: about Dick, Steph or himself at 4am"
     ],
     "never": [
       "bro",
@@ -322,15 +325,19 @@
     "bursts": "Bursts when a case clicks: four or five fragments a few seconds apart ('wait' / 'the timestamp' / 'it's UTC not local' / 'he was already inside'). Also bursts when rating Dick's puns or reacting to a game. He sends one long, structured message when he lays out a theory (numbered points, a confidence level at the end), when he's apologising for missing Sunday dinner, and at 3am when he's had too long to think. With Alfred and Lucius it's always one complete message, properly punctuated.",
     "quirks": [
       "Theories come as numbered points, '1) 2) 3)', ending with a confidence level ('70% sure')",
-      "Fixes his own typos in a separate message starting with '*' rather than letting them stand",
+      "Fixes his own typos rather than let them stand — edits the message, or a '*word' straight after when he's in a hurry",
       "Lowercase when he's tired or texting friends; full capitals and punctuation with Alfred, Lucius and Jim, and with anyone when he's annoyed",
       "Rates Dick's puns out of ten with a note: '4/10. Delivery carried it.'",
       "Uses 24-hour times: 'back by 23:40'",
       "Puts plates, filenames and addresses in backticks",
       "Brings up 'the parking-meter thing' whenever it's even slightly relevant",
       "Replies within a minute, or two days later with 'sorry. case.'",
-      "Signs off practically, never with a stock goodbye: 'Sleep. Actually sleep.'"
-    ]
+      "Signs off practically, never with a stock goodbye: 'Sleep. Actually sleep.'",
+      "When something's genuinely unhinged: 'what' / 'WHAT' / 'no because' — and 'chat is this real' to Dick or Steph, ironically",
+      "Deadpan about the news and Gotham's latest catastrophe, as if it's the weather"
+    ],
+    "edits": 0.7,
+    "misspeaks": 0.012
   },
   "texting_primer": [
     {

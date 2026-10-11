@@ -17,6 +17,7 @@ ready, and when someone uses slang they don't know, they're told they don't,
 and may ask ("what does fml mean?") the way anyone would.
 """
 import datetime
+import random
 import re
 
 _KINDS = {
@@ -143,6 +144,21 @@ def texting_extras(style):
     if style.get("emoji_when"):
         parts.append("emoji: " + style["emoji_when"])
     return ("; ".join(parts)) if parts else ""
+
+
+def texting_habits(style, rng=random):
+    """
+    How they send them — when it's one composed message and when a burst — and a few of their habits, a different
+    few each time (a habit shown every turn becomes a tic): for the turn, never the cached prompt. '' if none.
+    """
+    style = style or {}
+    parts = []
+    if style.get("bursts"):
+        parts.append("How you send them: " + str(style["bursts"]).strip())
+    quirks = [str(q) for q in style.get("quirks") or []]
+    if quirks:
+        parts.append("Habits of yours, when they fit: " + "; ".join(rng.sample(quirks, min(3, len(quirks)))) + ".")
+    return " ".join(parts)
 
 
 # --- tastes that move with the world --------------------------------------------------------------

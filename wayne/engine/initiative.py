@@ -721,15 +721,33 @@ _AUTOCORRECT = {"docks": "ducks", "cave": "cafe", "fucking": "ducking", "fuck": 
                 "roof": "riff", "patrol": "petrol", "tonight": "tonights", "omw": "own"}
 
 
-def slip(contact, text, rng=random):
+class Sent(str):
+    """
+    A message as it goes out — and, if they'll fix it in place a moment later, what it'll say then (`edit_to`):
+    the phone shows it edited. Otherwise just the words.
+    """
+    edit_to = None
+
+
+def sent_as(text, edit_to=None):
+    out = Sent(text)
+    out.edit_to = edit_to
+    return out
+
+
+def slip(contact, text, rng=random, rolled=False):
     """
     Maybe a slip in a message — a fat-fingered typo, or autocorrect swapping in
-    the wrong real word — and maybe the correction after it, the way they'd
-    write one: '*docks' (Tim), 'docks*' (Dick), or not at all (Jason lets it
-    stand). Returns the message as sent, and the correction or None.
+    the wrong real word — and how they fix it, if they do: edited in place a
+    moment later (most who fix them, these days), a '*docks' after it (Tim in a
+    hurry), 'docks*' (Dick), 'Grand. Not Grant.' (Jim, who's never found the
+    edit button), or not at all (Jason lets it stand). Returns the message as
+    sent — carrying its fix (`Sent.edit_to`) if it'll be edited — and the
+    correction to send after it, or None. `rolled`: the chance of a slip at all
+    was already taken, once for the whole reply (see _with_slips).
     """
     style = contact.texting_style or {}
-    if rng.random() >= style.get("typos", 0):
+    if not rolled and rng.random() >= style.get("typos", 0):
         return text, None
     swappable = [m for m in re.finditer(r"\b[a-z']+\b", text) if m.group(0) in _AUTOCORRECT]
     if swappable and rng.random() < style.get("autocorrect", 0):
@@ -746,14 +764,68 @@ def slip(contact, text, rng=random):
     sent = text[:target.start()] + wrong + text[target.end():]
     if rng.random() >= style.get("corrects", 0):
         return sent, None
+    if rng.random() < style.get("edits", 0):
+        return sent_as(sent, edit_to=text), None
     word = target.group(0)
     form = style.get("correct_style", "prefix")
     if form == "mixed":
         form = rng.choice(("prefix", "suffix"))
+    if form == "plain":
+        return sent, f"{word[:1].upper() + word[1:]}. Not {wrong[:1].upper() + wrong[1:]}."
     correction = f"*{word}" if form == "prefix" else f"{word}*"
     if autocorrected and rng.random() < 0.35:
         correction += rng.choice((" autocorrect", " stupid autocorrect", " ugh autocorrect"))
     return sent, correction
+
+
+# Words a slip may never bring in: the masks, the work, the secret — a mix-up is a day or a name, never a leak.
+_NEVER_SLIP = re.compile(r"(?i)\b(batman|bat|bats|nightwing|robin|batgirl|oracle|red hood|batwing|orphan|catwoman|"
+                         r"cave|batcave|cowl|suit|mask|masks|patrol|vigilante|signal|batmobile|batwing|wayne|bruce)\b")
+
+
+def misspeak(contact, text, model_name, options, rng=random):
+    """
+    Now and then — rarely, and by their nature — a real mix-up rather than a typo: Thursday for Tuesday, Ralli's
+    for Antonio's, Tim for Dick; caught a moment later and put right, by editing it or a word after ("wait no,
+    thursday"), their way. The model finds the slip someone like them could make in this message and how they'd
+    fix it; anything that would bring in the masks, the work or a name it didn't have is thrown out. Returns
+    (as sent, the correction to send after it or None — when the message carries its own edit, Sent.edit_to), or
+    None for no slip.
+    """
+    import difflib
+
+    from . import model as llm
+    style = contact.texting_style or {}
+    if len(text.split()) < 5 or rng.random() >= style.get("misspeaks", 0):
+        return None
+    instruction = (
+        f"You're {contact.full_name}, about to send this text: \"{text}\"\n"
+        "Typing fast, people now and then get one detail wrong and catch it a second later — not a typo, a real "
+        "mix-up: the wrong day or time, the wrong place, the wrong person's name, a word that means something "
+        "else. Make one such slip in this message, the kind someone like you could easily make, changing nothing "
+        "else. Then write the correction you'd send straight after, your way and short (\"wait no, thursday\", "
+        "\"sorry — antonio's not ralli's\")" + (f" — you text like this: {contact.texting[:240]}" if contact.texting else "")
+        + ". If nothing in it could plausibly be mixed up, say so. JSON only: "
+        '{"slipped": "the message with the slip", "fix": "the correction"} or {"slipped": null}')
+    try:
+        found = json.loads(llm.ask(model_name, [{"role": "user", "content": instruction}],
+                                   {**options, "temperature": 0.7, "num_predict": 120}, fmt="json",
+                                   purpose=f"{contact.id}'s slip"))
+    except Exception:
+        return None
+    slipped, fix = str(found.get("slipped") or "").strip(), str(found.get("fix") or "").strip()
+    if not slipped or not fix or slipped == text or len(fix) > 90:
+        return None
+    if not 0.6 <= difflib.SequenceMatcher(None, slipped.lower(), text.lower()).ratio() < 0.99:
+        return None              # rewritten, not slipped
+    before = set(re.findall(r"[\w']+", text.lower()))
+    brought = " ".join(w for w in re.findall(r"[\w']+", (slipped + " " + fix).lower()) if w not in before)
+    if _NEVER_SLIP.search(brought):
+        return None
+    slipped = styled(contact, slipped, rng)
+    if rng.random() < style.get("edits", 0):
+        return sent_as(slipped, edit_to=text), None
+    return slipped, styled(contact, fix, rng)
 
 
 # Sentence ends — but not after a title ("Mr. Freeze" is one name, not two
@@ -771,8 +843,11 @@ def styled(contact, text, rng=random):
     if _EMOJI.search(text) and rng.random() >= style.get("emoji", 1.0):
         # Shown one thumbs-up in a sample, a model gives every message one.
         text = re.sub(r"\s{2,}", " ", _EMOJI.sub("", text)).strip() or text
-    if rng.random() < style.get("lower", 0):
-        # Lowercase texters write 'i' too; acronyms they'd keep (GCPD) survive.
+    letters = [c for c in text if c.isalpha()]
+    shouting = len(letters) >= 4 and sum(c.isupper() for c in letters) >= 0.6 * len(letters)
+    if not shouting and rng.random() < style.get("lower", 0):
+        # Lowercase texters write 'i' too; acronyms they'd keep (GCPD) survive — and a line in caps is shouted,
+        # not capitalised: "I CANT" stays as it was sent.
         # Links keep their case — they're case-sensitive.
         links = _URL.findall(text)
         text = re.sub(r"\b(?![A-Z]{2,}\b)[A-Za-z][\w'’]*",
@@ -831,10 +906,17 @@ def _one_emoji_moment(contact, messages):
 
 
 def _with_slips(contact, messages, rng):
-    """At most one typo a reply — and its correction, sent straight after."""
+    """
+    A typo is rare, and the chance is the reply's, not each message's — three texts in a row were three chances,
+    and Dick slipped in one reply in five. At most one, in one of its messages (a longer one sooner), and its fix:
+    edited in place, or a correction sent straight after.
+    """
     messages = _one_emoji_moment(contact, messages)
-    for i, message in enumerate(messages):
-        sent, correction = slip(contact, message, rng)
-        if sent != message:
+    if not messages or rng.random() >= (contact.texting_style or {}).get("typos", 0):
+        return messages
+    order = sorted(range(len(messages)), key=lambda i: -len(messages[i]) * rng.random())
+    for i in order:
+        sent, correction = slip(contact, messages[i], rng, rolled=True)
+        if sent != messages[i]:
             return messages[:i] + [sent] + ([correction] if correction else []) + messages[i + 1:]
     return messages

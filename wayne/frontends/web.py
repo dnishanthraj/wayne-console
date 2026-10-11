@@ -1614,6 +1614,7 @@ class Console(GroupChats):
         thread = TextLog(contact.id)
         recent = [m["text"] for m in thread.page(limit=8) if m["from"] == "them"][-3:]
         parts = initiative.bubbles(contact, initiative.untic(contact, reply, recent))
+        parts = await self._mixed_up(contact, parts, session=self.session_for(contact.id))
         async with self._hands(contact.id) as waited:
             for i, part in enumerate(parts):
                 await self.broadcast({"type": "text_typing", "speaker": contact.id})
@@ -1621,8 +1622,46 @@ class Console(GroupChats):
                                      already=(loop.time() - started) if i == 0 and not waited else 0)
                 sent = thread.add("them", part, origin=origin, reply_to=reply_to if i == 0 else None)
                 await self.broadcast({"type": "text_reply", "speaker": contact.id, "message": sent})
+                if getattr(part, "edit_to", None):
+                    # Caught it: fixed in place a moment later, and the phone says so.
+                    self._spawn(self._edit_later(contact, sent["id"], part.edit_to))
                 if i < len(parts) - 1:
                     await asyncio.sleep(random.uniform(0.4, 1.4))
+
+    async def _mixed_up(self, contact, parts, session=None):
+        """
+        Rarely, by their nature, one of the messages has a real mix-up in it — the wrong day, the wrong place —
+        put right a moment later: edited, or a word after it (initiative.misspeak). Not on top of a typo. What
+        they remember saying is what they sent, fix and all.
+        """
+        if not parts or any(getattr(p, "edit_to", None) for p in parts) or not (contact.texting_style or {}).get("misspeaks"):
+            return parts
+        i = max(range(len(parts)), key=lambda k: len(parts[k]))
+        found = await asyncio.to_thread(initiative.misspeak, contact, str(parts[i]), contact.model, contact.options)
+        if not found:
+            return parts
+        slipped, fix = found
+        log.info("%s mixed something up (%s)", contact.id, "edited" if fix is None else "corrected")
+        if fix and session is not None:
+            said = session.history.last_assistant()
+            if said:
+                amended = said.replace(str(parts[i]), f"{slipped}\n{fix}", 1) if str(parts[i]) in said else \
+                    f"{said}\n(Typing fast you first wrote “{slipped}”, then put it right: “{fix}”.)"
+                session.history.amend_last_reply(amended)
+        return parts[:i] + [slipped] + ([fix] if fix else []) + parts[i + 1:]
+
+    async def _edit_later(self, contact, message_id, text, group=None):
+        """They've spotted the slip: a few seconds on, the message is edited to what they meant."""
+        await asyncio.sleep(random.uniform(2.5, 9.0))
+        if group is not None:
+            found = group_store.of(group)
+            message = found.edit(message_id, contact.id, text) if found is not None else None
+            if message is not None:
+                await self.broadcast({"type": "group_edited", "group": group, "message": message})
+            return
+        message = TextLog(contact.id).edit(message_id, text, "them")
+        if message is not None:
+            await self.broadcast({"type": "text_edited", "speaker": contact.id, "message": message})
 
     @contextlib.asynccontextmanager
     async def _hands(self, contact_id):
@@ -1733,6 +1772,32 @@ class Console(GroupChats):
         contact = self.directory.get(contact_id)
         if contact:
             await self._tapback_text(contact, message_id, "me", emoji)
+
+    async def text_edit(self, contact_id, message_id, text):
+        """
+        He edits a text of his. Not read yet: they read it as it is now. Read already, and it says something
+        different: they see it's been edited, and may answer the change like anything else he sends. A typo
+        fixed is just fixed.
+        """
+        if self.directory.get(contact_id) is None:
+            return
+        thread = TextLog(contact_id)
+        before = thread.thread.get(message_id)
+        message = thread.edit(message_id, text, "me")
+        if message is None or before is None:
+            return
+        await self.broadcast({"type": "text_edited", "speaker": contact_id, "message": message})
+        held = next((m for m in self._pending_texts.get(contact_id) or [] if m.get("id") == message_id), None)
+        if held is not None:
+            held["text"] = message["text"]          # still to be read: read as it is now
+            return
+        if not message.get("read_at") or _just_a_typo(before["text"], message["text"]):
+            return
+        self._pending_texts.setdefault(contact_id, []).append(
+            {"id": message_id, "from": "me", "at": time.time(),
+             "text": f"(He's edited a text he sent you — it said “{before['text'][:160]}”, now it says "
+                     f"“{message['text'][:240]}”)"})
+        self._start_answering(self.directory.get(contact_id))
 
     async def _call_first(self, contact_id=None, most=20 * 60):
         """
@@ -4094,6 +4159,12 @@ def _quoting(thread, batch, said):
     return target["id"] if target and last and last["id"] != target["id"] else None
 
 
+def _just_a_typo(before, after):
+    """Whether an edit only fixed the spelling — nothing anyone would answer."""
+    import difflib
+    return difflib.SequenceMatcher(None, before.lower(), after.lower()).ratio() >= 0.88
+
+
 def _as_read(message):
     """One of his texts as they read it — with the one it answers, when he replied to a particular one."""
     quoted = message.get("reply_to")
@@ -5319,6 +5390,12 @@ async def websocket_endpoint(websocket: WebSocket):
             elif kind == "text_react":
                 console._spawn(console.text_react(payload.get("id", ""), payload.get("message", ""),
                                                        payload.get("emoji", "")))
+            elif kind == "text_edit":
+                console._spawn(console.text_edit(payload.get("id", ""), payload.get("message", ""),
+                                                      str(payload.get("text", ""))[:2000]))
+            elif kind == "group_edit":
+                console._spawn(console.group_edit(payload.get("id", ""), payload.get("message", ""),
+                                                       str(payload.get("text", ""))[:2000]))
             elif kind == "seen":
                 TextLog(str(payload.get("id", ""))).mark_seen()
             elif kind == "group_seen":

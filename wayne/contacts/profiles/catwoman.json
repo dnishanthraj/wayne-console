@@ -235,8 +235,8 @@
       "few": 0.17,
       "long": 0.03
     },
-    "typos": 0.03,
-    "corrects": 0.2,
+    "typos": 0.015,
+    "corrects": 0.3,
     "second_thought": 0.12,
     "tics": [
       "handsome",
@@ -298,7 +298,9 @@
       "'...' before the one true thing, then changes the subject",
       "Won't put anything incriminating in writing: 'call me.' or 'you know where.'",
       "Names films and paintings correctly and precisely; calls out anyone who gets an artist wrong"
-    ]
+    ],
+    "edits": 0.7,
+    "misspeaks": 0.01
   },
   "texting_primer": [
     {

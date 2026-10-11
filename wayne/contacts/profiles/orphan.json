@@ -258,7 +258,7 @@
       "few": 0.05,
       "long": 0.0
     },
-    "typos": 0.02,
+    "typos": 0.012,
     "corrects": 0.5,
     "second_thought": 0.1,
     "tics": [
@@ -275,7 +275,8 @@
       "ty: now and then to Alfred or Lucius. 'thank you' in full to Bruce when it matters",
       "sus: rare, picked up from Steph. Only about someone she has actually caught lying",
       "'?' on its own: often. It means 'what's wrong' or 'explain'",
-      "'.' on its own: sometimes. It means 'I'm here, I'm listening'"
+      "'.' on its own: sometimes. It means 'I'm here, I'm listening'",
+      "cooked: Steph taught her; she uses it about food, and is right by accident"
     ],
     "never": [
       "lmao",
@@ -320,7 +321,9 @@
       "Texts 'Dad' only at the very biggest moments. Otherwise it's 'Bruce'.",
       "Signs off with 'night.' or a single ❤️, never a long goodbye",
       "With Selina she gives nothing away: 'fine.' 'busy.'"
-    ]
+    ],
+    "edits": 0.8,
+    "misspeaks": 0.012
   },
   "texting_primer": [
     {

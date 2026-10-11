@@ -285,7 +285,9 @@
       "When asked several things, answers them in order, numbered if there are more than two.",
       "Replies to a one-word text with one complete sentence, often a question about what broke.",
       "Asks what slang means outright ('What does chopped mean? Luke won't tell me.') and then, if he finds it silly, never uses it."
-    ]
+    ],
+    "edits": 0.0,
+    "misspeaks": 0.005
   },
   "texting_primer": [
     {

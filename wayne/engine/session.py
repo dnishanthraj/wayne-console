@@ -1657,7 +1657,7 @@ class ContactSession:
         for line in (gazette.note(self.contact, heard), gazette.who(heard)):
             if line:
                 context.append(line)
-        style = f" ({self.contact.texting})" if self.contact.texting else ""
+        style = self._texting_style()
         if task:
             ask = (f"{operator_name(self.contact)} asked you privately to do this in the group: {task}. Do it now, in your own "
                    "words, as you would — don't mention that he asked unless you'd naturally say so.")
@@ -1910,6 +1910,16 @@ class ContactSession:
                 "Talk to each of them as where they are: someone still on the way can't see the scene or do anything "
                 "at it yet." + tone + honest + asked)
 
+    def _texting_style(self):
+        """
+        ' (how they text — what they say and never say, their emoji — and, this time, how they send them and a
+        few of their habits)', for an instruction to write a text; '' if the profile has none.
+        """
+        from . import tastes
+        habits = tastes.texting_habits(self.contact.texting_style)
+        said = "; ".join(p for p in (self.contact.texting, habits) if p)
+        return f" ({said})" if said else ""
+
     def reach_out(self, about, why="impulse"):
         """
         A text they send first. `about` is what's on their mind — picked by
@@ -1926,7 +1936,7 @@ class ContactSession:
         background = self._background()
         if background:
             context.append(background)
-        style = f" ({self.contact.texting})" if self.contact.texting else ""
+        style = self._texting_style()
         if why == "chase":
             # Whether he's seen it shows on their phone, as it would: read and
             # ignored is one thing, not even opened is another.
@@ -2235,8 +2245,7 @@ class ContactSession:
             # A text is answered as a text: short, written, in their own style.
             awareness.append(
                 "He's texting you, not calling. Reply as a text message, "
-                "written the way you text" + (f" ({self.contact.texting})" if self.contact.texting
-                                              else "") + ", no stage cues. "
+                "written the way you text" + self._texting_style() + ", no stage cues. "
                 "Several short texts go on separate lines.")
             length = initiative.length_hint(self.contact, prompt) or None
             if length and "a word or two" in length:

@@ -196,7 +196,7 @@
       "few": 0.08,
       "long": 0.04
     },
-    "typos": 0.03,
+    "typos": 0.015,
     "corrects": 0.0,
     "second_thought": 0.03,
     "autocorrect": 0.2,
@@ -214,7 +214,9 @@
       "lmao: rare; only to Dick, Jason or Cass, never to Bruce",
       "ngl: rare, just before something honest that he undercuts straight away",
       "mb: rare; when he's actually wrong, which he'll admit to Lucius or Alfred",
-      "omw: only for work, a kid in danger; never for dinner"
+      "omw: only for work, a kid in danger; never for dinner",
+      "bro: with Jason or Dick only",
+      "dawg: with Jason, deadpan ('get a grip dawg')"
     ],
     "never": [
       "lol",
@@ -251,7 +253,9 @@
       "leaves typos and lets autocorrect stand",
       "mutes the family group chat and answers only Cass there",
       "if anyone asks about a late-night long message: 'forget it'"
-    ]
+    ],
+    "edits": 0.0,
+    "misspeaks": 0.008
   },
   "texting_primer": [
     {

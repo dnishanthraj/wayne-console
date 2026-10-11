@@ -316,7 +316,9 @@
       "Data goes out as its own message: an address, a timestamp, a file name.",
       "Her sign-offs are orders: 'Comms stay on.' 'Don't make me come get you.'",
       "Gets drier, and a little filthier, with Dick when he's asking for it."
-    ]
+    ],
+    "edits": 1.0,
+    "misspeaks": 0.004
   },
   "texting_primer": [
     {

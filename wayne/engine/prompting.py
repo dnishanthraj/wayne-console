@@ -355,6 +355,14 @@ TEXT_LENGTH = (
     "Texts are short: a line, a few words, sometimes one — longer only when it's "
     "earned. Never pad, and stop when done."
 )
+# How a text sounds moves with how they feel: shown calm texting and nothing else, everyone answered news that
+# should have had them shouting in a neat lowercase line.
+TEXT_FEELING = (
+    "How you text moves with how you feel, the way it does for anyone — if it's you. Most texts are calm; when "
+    "something lands, it shows: capitals for the word or the whole line when you're shocked, thrilled or losing "
+    "it, letters stretched, laughter typed out, a run of short texts on their own lines while it's hitting you, "
+    "swearing if you swear. Your humour comes from what's around you — names, places, the news, the moment."
+)
 
 
 def standing_directives(contact, texting=False):
@@ -369,7 +377,7 @@ def standing_directives(contact, texting=False):
     """
     if texting:
         parts = [TEXT_CONSTRAINT, TEXT_PRESENCE, GROUNDING_DIRECTIVE,
-                 CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, TEXT_LENGTH]
+                 CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, TEXT_LENGTH, TEXT_FEELING]
     else:
         parts = [SPEECH_CONSTRAINT, PRESENCE_DIRECTIVE, GROUNDING_DIRECTIVE,
                  CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, LENGTH_GUIDANCE]

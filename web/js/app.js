@@ -709,6 +709,7 @@
   var ICONS = {
     reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/></svg>',
     smile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.2a4.2 4.2 0 0 0 7 0"/><path d="M9 9.6h.01M15 9.6h.01" stroke-width="2.6"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>',
     call: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>',
     add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>',
@@ -917,7 +918,9 @@
       if (message.at) {
         var time = document.createElement('span');
         time.className = 'bubble__time';
-        time.textContent = clock(message.at) + (message.origin === 'call' ? ' \u00b7 on the call' : '');
+        time.textContent = clock(message.at) + (message.origin === 'call' ? ' \u00b7 on the call' : '') +
+                           (message.edited_at ? ' \u00b7 Edited' : '');
+        if (message.edited_at) time.dataset.tip = 'Edited ' + clock(message.edited_at);
         t.appendChild(time);
       }
     }
@@ -939,6 +942,16 @@
       answer.dataset.tip = 'Reply';
       answer.innerHTML = ICONS.reply;
       li.appendChild(answer);
+    }
+    if (from === 'me' && message.id && !message.typing && message.origin !== 'call') {
+      // His own words, his to fix: edited in place, and marked so.
+      var pen = document.createElement('button');
+      pen.type = 'button';
+      pen.className = 'bubble__edit';
+      pen.setAttribute('aria-label', 'Edit');
+      pen.dataset.tip = 'Edit';
+      pen.innerHTML = ICONS.pencil;
+      li.appendChild(pen);
     }
     if (from === 'them' && message.id && !message.typing) {
       // A way to react without knowing to double-click.
@@ -970,6 +983,46 @@
       li.dataset.reacted = '1';
     }
     return li;
+  }
+
+  /* One of his own messages, rewritten where it stands: Enter keeps it, Escape (or clicking away) leaves it as
+     it was. The thread shows it edited; whoever's already read it may notice. */
+  function editMine(bubble) {
+    if (!bubble || !state.thread || bubble.querySelector('.bubble__editing')) return;
+    var id = bubble.dataset.id;
+    var m = (state.thread.messages || []).filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    var text = bubble.querySelector('.bubble__text');
+    var box = document.createElement('textarea');
+    box.className = 'bubble__editing';
+    box.value = m.text;
+    box.rows = 1;
+    text.hidden = true;
+    bubble.classList.add('is-editing');
+    text.insertAdjacentElement('afterend', box);
+    var closed = false;
+    function fit() { box.style.height = 'auto'; box.style.height = box.scrollHeight + 'px'; }
+    function done(keep) {
+      if (closed) return;
+      closed = true;                                         // taking the box away blurs it: once is enough
+      var next = box.value.trim();
+      text.hidden = false;
+      bubble.classList.remove('is-editing');
+      box.remove();
+      if (!keep || !next || next === m.text) return;
+      send({ type: state.groupOpen ? 'group_edit' : 'text_edit', id: state.groupOpen || state.thread.id,
+             message: id, text: next });
+    }
+    box.addEventListener('input', fit);
+    box.addEventListener('keydown', function (e) {
+      e.stopPropagation();                                   // typing here isn't a shortcut
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); done(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); done(false); }
+    });
+    box.addEventListener('blur', function () { done(false); });
+    fit();
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
   }
 
   /* Double-click someone's message — in a group or a DM — to tap a reaction on it. */
@@ -1037,6 +1090,8 @@
     el['messages-thread'].addEventListener('click', function (e) {
       var button = e.target.closest && e.target.closest('.bubble__add');
       if (button) { e.stopPropagation(); open(button.closest('.bubble')); return; }
+      var pen = e.target.closest && e.target.closest('.bubble__edit');
+      if (pen && state.thread) { e.stopPropagation(); editMine(pen.closest('.bubble')); return; }
       var reply = e.target.closest && e.target.closest('.bubble__reply');
       if (reply && state.thread) {
         var id = reply.closest('.bubble').dataset.id;
@@ -2123,7 +2178,7 @@
         if (state.groups[id]) (state.groups[id].reads = state.groups[id].reads || {})[event.member] = event.at;
         if (groupOpenFor(id)) state.thread.reads[event.member] = event.at;
         break;
-      case 'group_reaction':
+      case 'group_reaction': case 'group_edited':
         if (state.groups[id] && state.groups[id].last && state.groups[id].last.id === event.message.id) {
           state.groups[id].last = event.message;
         }
@@ -3093,7 +3148,7 @@
         onTextReply(event);
         break;
 
-      case 'text_reaction':
+      case 'text_reaction': case 'text_edited':
         if (threadOpenFor(event.speaker)) {
           state.thread.messages = state.thread.messages.map(function (x) {
             return x.id === event.message.id ? event.message : x;
@@ -3120,7 +3175,7 @@
 
       case 'group_created': case 'group_deleted': case 'group_sent': case 'group_message':
       case 'group_read': case 'group_typing': case 'group_idle': case 'group_updated':
-      case 'group_reaction':
+      case 'group_reaction': case 'group_edited':
         onGroupEvent(event);
         break;
 

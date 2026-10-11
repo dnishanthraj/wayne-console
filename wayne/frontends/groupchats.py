@@ -159,6 +159,13 @@ class GroupChats:
             if emoji and author is not None and random.random() < initiative.tapback_odds(author, emoji) * 0.7:
                 self._spawn(self._answer_group_tapback(group_id, author, message, emoji))
 
+    async def group_edit(self, group_id, message_id, text):
+        """He edits a message of his in the chat: the chat sees it as it is now, marked edited."""
+        group = store.of(group_id)
+        message = group.edit(message_id, "me", text) if group is not None else None
+        if message is not None:
+            await self.broadcast({"type": "group_edited", "group": group_id, "message": message})
+
     async def _answer_group_tapback(self, group_id, contact, message, emoji):
         """Now and then, whoever wrote it says something about his reaction — once they've seen it."""
         delay = presence.read_delay(contact, presence.of(contact).now())
@@ -353,6 +360,7 @@ class GroupChats:
             await self._group_actions(group, contact, actions)
             return
         parts = initiative.bubbles(contact, initiative.untic(contact, text, mine))
+        parts = await self._mixed_up(contact, parts)
         async with self._hands(contact.id) as waited:
             if waited:
                 started = loop.time()           # what they wrote waited on another thread: typed from now
@@ -397,6 +405,8 @@ class GroupChats:
                 await self.broadcast({"type": "group_idle", "group": group.id, "speaker": contact.id})
                 return False
             await self.broadcast({"type": "group_message", "group": group.id, "message": message})
+            if getattr(part, "edit_to", None):
+                self._spawn(self._edit_later(contact, message["id"], part.edit_to, group=group.id))
             await self._ping(group, part, contact.id)
             if i < len(parts) - 1:
                 await asyncio.sleep(random.uniform(0.4, 1.2))

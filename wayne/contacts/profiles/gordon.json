@@ -158,8 +158,8 @@
       "few": 0.15,
       "long": 0.01
     },
-    "typos": 0.02,
-    "corrects": 0.1,
+    "typos": 0.012,
+    "corrects": 0.6,
     "second_thought": 0.08,
     "tics": [],
     "uses": [
@@ -218,7 +218,10 @@
       "In a group thread he starts with the person's name when he means one of them ('Barbara, lunch Sunday?')",
       "Sometimes texts Barbara a crossword clue he's stuck on, with the letter count, and pretends he isn't asking for help",
       "Barbara once had to explain that 'lol' doesn't mean 'lots of love'. He hasn't used it since"
-    ]
+    ],
+    "edits": 0.0,
+    "correct_style": "plain",
+    "misspeaks": 0.01
   },
   "texting_primer": [
     {

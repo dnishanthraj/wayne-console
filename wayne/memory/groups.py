@@ -165,6 +165,25 @@ class Group:
         with _lock:
             return self.thread.change(message_id, tap)
 
+    def edit(self, message_id, member, text):
+        """
+        A message rewritten by whoever sent it: the words now, when, and what it said first (`was`). Returns it —
+        or None if it isn't theirs, or isn't a message.
+        """
+        text = (text or "").strip()
+        found = self.thread.get(message_id)
+        if not text or not found or found.get("kind") or found.get("from") != member:
+            return None
+        if found["text"] == text:
+            return found
+
+        def rewrite(m):
+            m.setdefault("was", m["text"])
+            m["text"] = text
+            m["edited_at"] = time.time()
+        with _lock:
+            return self.thread.change(message_id, rewrite)
+
     def add_member(self, contact_id, at=None, backlog=6):
         """
         In they come, with the last few messages to catch up on (`backlog`) —

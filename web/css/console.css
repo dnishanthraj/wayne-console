@@ -1931,6 +1931,18 @@ html[data-seats="5"] .seat__name, html[data-seats="6"] .seat__name, html[data-se
 .bubble:hover .bubble__reply, .bubble__reply:focus-visible { opacity: 1; }
 .bubble__reply:hover { color: var(--primary); border-color: var(--primary-dim); }
 .bubble--me .bubble__reply { order: -1; }          /* on the inside edge of his own messages */
+/* His own words, his to fix: a pencil on the inside edge too, beside reply. */
+.bubble__edit { flex: none; align-self: center; width: 24px; height: 24px; padding: 4px; border-radius: 50%; order: -2;
+  border: 1px solid var(--hairline-2); background: var(--surface); color: var(--text-faint); cursor: var(--cursor-pointer);
+  opacity: 0; transition: opacity 0.15s var(--ease), color 0.15s, border-color 0.15s; }
+.bubble__edit svg { width: 100%; height: 100%; display: block; }
+.bubble:hover .bubble__edit, .bubble__edit:focus-visible { opacity: 1; }
+.bubble__edit:hover { color: var(--primary); border-color: var(--primary-dim); }
+@media (hover: none) { .bubble__edit { opacity: 0.6; } }
+.bubble.is-editing .bubble__edit, .bubble.is-editing .bubble__reply { visibility: hidden; }
+.bubble__editing { min-width: 220px; max-width: min(520px, 70%); resize: none; overflow: hidden; font: inherit;
+  font-size: 14px; line-height: 1.45; padding: 8px 12px; border-radius: 16px; border-bottom-right-radius: 4px;
+  background: rgba(79, 168, 224, 0.1); color: var(--operator); border: 1px solid var(--primary-dim); outline: none; }
 @media (hover: none) { .bubble__reply { opacity: 0.6; } }
 .bubble.is-flash .bubble__text { animation: quote-flash 1.2s var(--ease); }
 @keyframes quote-flash { 30% { box-shadow: 0 0 0 2px var(--primary); } }
