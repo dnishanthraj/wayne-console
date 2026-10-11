@@ -151,7 +151,7 @@ def note_call(session, contacts, start_index, present=()):
         return
 
     def run():
-        news = _notable(session, exchanges)
+        news = _notable(session, exchanges[-24:])         # the end of a long call is where the news is
         if not news:
             return
         source = session.contact

@@ -1002,7 +1002,8 @@ def write_log(report, model, options, now=None):
                 "Never mention Batman or any vigilante. ") + "Return JSON only: "
              '{"log": [{"time": "HH:MM", "who": "Caller | Dispatch | a unit like 2-Adam-14 | Det. Name", "text": "..."}]}')
     if kept["entries"]:
-        so_far = "\n".join(f"{e['time']} {e['who']}: {e['text']}" for e in kept["entries"])
+        # The log so far, as far as the writer needs it: the last dozen entries, not every one ever added.
+        so_far = "\n".join(f"{e['time']} {e['who']}: {e['text']}" for e in kept["entries"][-12:])
         instruction = (f"The {force} incident log for report {report['id']} — {facts} The log so far:\n{so_far}\n"
                        f"Write the one to three entries that come next, between {kept['entries'][-1]['time']} and "
                        f"{clock}, bringing it to where it stands now." + rules)

@@ -1993,8 +1993,11 @@ class Console(GroupChats):
                                ("dispatches", self._write_dispatches), ("sounds", self._warm_sounds)):
                 await self._step(name, step())
         if not self.clients:
-            # Nobody at the console to hear about it — but the night goes on: cases still end when they end.
+            # Nobody at the console to hear about it — but the night goes on: cases still end when they end, and his
+            # day still runs. Without the diary's own watch an evening he was at was settled as missed — letdowns,
+            # Jim's trust, the papers — because nothing had looked to see he was there.
             await self._step("cases", self._advance_cases(now))
+            await self._step("diary", self._diary_tick(now, quiet=True))
             return
         if not calling:
             for contact in self.directory:
@@ -3638,6 +3641,25 @@ class Console(GroupChats):
             hurt(row["inviter"], f"your {row['what']}")
         return row
 
+    async def plan_moved(self, row):
+        """
+        He's moved a plan in his diary: said where it was made — the family chat, or each of them who's going —
+        in a plain line of his, and their week moves with it (plans.move did that).
+        """
+        from ..engine import plans
+        plan = next((p for p in plans.all_plans() if p["id"] == row.get("plan")), None)
+        if plan is None:
+            return
+        line = (f"Change of plan — {row['what']} is now {plans.when(row['at'])}"
+                + (f" at {row['where']}" if row.get("where") else "") + ".")
+        made = str(plan.get("made_in") or "")
+        if made.startswith("g:"):
+            await self.group_text(made[2:], line)
+            return
+        for cid in plan.get("who") or []:
+            if self.directory.get(cid) is not None and plans.going(plan, cid):
+                await self.text(cid, line)
+
     async def answer_invite(self, engagement_id, yes, why=""):
         """
         His yes or no to one of them asking him along (engine.invites), from the diary: in the diary either way,
@@ -3747,15 +3769,18 @@ class Console(GroupChats):
                 f"he's heading out to the {report['kind'].lower()} at {report['place']} — and GCPD's task force is out "
                 "tonight with orders to bring the masks in on sight; warn him, your way"), "impulse")))
 
-    async def _diary_tick(self, now):
+    async def _diary_tick(self, now, quiet=False):
         """
         His engagements: while one's on, whether he's there (engine.engagements.watch); before one starts, the
-        reminder — on the console, with the way to go — and, as often as not, Alfred's word about it.
+        reminder — on the console, with the way to go — and, as often as not, Alfred's word about it. `quiet`:
+        nobody at the console — his day still runs (being there, setting off, home after), but nothing that's for
+        a page to show, and no reminder spent unseen.
         """
         from ..engine import batman, engagements
         engagements.watch(now)
-        for e in engagements.called_off_over(now):
-            self._after_called_off(e)
+        if not quiet:
+            for e in engagements.called_off_over(now):
+                self._after_called_off(e)
         # The map follows the diary: off to the next thing in time — unless he's in the middle of a case, or on his
         # way somewhere he chose — and home when the day's done.
         state = batman.state(now)
@@ -3770,6 +3795,8 @@ class Console(GroupChats):
                 time.localtime(now).tm_hour < 20 and getattr(self, "_went_home", "") != time.strftime("%Y-%m-%d"):
             self._went_home = time.strftime("%Y-%m-%d")
             await asyncio.to_thread(batman.go, batman.HOME, None, None, "", now, False)
+        if quiet:
+            return
         # Now and then — rarely — trouble comes to the evening he's at: on the scanner, his to slip out for.
         for e in engagements.all_engagements():
             if e["status"] == "accepted" and e.get("present") and not e.get("crime_rolled") and e["at"] <= now < e["until"]:
@@ -4780,10 +4807,15 @@ async def diary_edit(engagement_id: str, request: Request):
     until = _diary_when(body.get("date"), body.get("to")) if body.get("date") and body.get("to") else None
     if at is not None and until is not None and until <= at:
         until += 86400
+    was = next((e for e in engagements.all_engagements() if e["id"] == engagement_id), None)
+    who = body.get("with")
     row = engagements.edit(engagement_id, what=body.get("what"), where=body.get("where"), at=at, until=until,
-                           notes=body.get("notes"), as_=body.get("as"))
+                           notes=body.get("notes"), as_=body.get("as"),
+                           with_=", ".join(who) if isinstance(who, list) else who)
     if row is None:
         return JSONResponse({"error": "that one can't be changed"}, status_code=400)
+    if was and row.get("plan") and (abs(was["at"] - row["at"]) > 60 or was.get("where") != row.get("where")):
+        await console.plan_moved(row)                  # the family hear it where the plan was made
     return JSONResponse({"entry": engagements.entry(row)})
 
 
@@ -4814,8 +4846,15 @@ async def diary_answer(engagement_id: str, request: Request):
 
 @app.delete("/api/diary/{engagement_id}")
 async def diary_delete(engagement_id: str):
-    """Gone from the diary altogether."""
+    """
+    Gone from the diary altogether — and if it's still to come and someone's expecting him (a plan, their
+    invitation, a letter's evening), called off first, so they're told rather than left waiting.
+    """
     from ..engine import engagements
+    row = next((e for e in engagements.all_engagements() if e["id"] == engagement_id), None)
+    if (row and row["status"] == "accepted" and row["until"] > time.time()
+            and (row.get("plan") or row.get("inviter") or row.get("source") in ("invitation", "mail"))):
+        await console.cancel_engagement(engagement_id)
     engagements.delete(engagement_id)
     return JSONResponse({"ok": True})
 

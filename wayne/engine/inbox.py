@@ -735,8 +735,8 @@ def _reply_letter(model, options, event, now):
     secure = theirs.get("folder") == "secure"
     him = "Batman" if theirs.get("sender") == "gordon" else "Bruce Wayne"
     voice = _VOICES.get(theirs.get("sender")) or f"{theirs['from']}, writing as they did before"
-    lines = "\n\n".join(f"— {m['from']} ({time.strftime('%a %-d %b, %H:%M', time.localtime(m['at']))}):\n{m['body']}"
-                         for m in convo[-6:])
+    lines = "\n\n".join(f"— {m['from']} ({time.strftime('%a %-d %b, %H:%M', time.localtime(m['at']))}):\n"
+                         f"{m['body'][:1200]}" for m in convo[-6:])
     found = _ask(model, options, _context(now, secure=secure)
                  + f"Here is an email conversation between {him} and {theirs['from']}:\n\n{lines}\n\n"
                  f"Write {theirs['from']}'s reply to {him}'s last email, as {voice}. Answer what he actually wrote, "

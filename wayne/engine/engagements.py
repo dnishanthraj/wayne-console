@@ -16,6 +16,8 @@ remember.
 Kept in the database (the space "engagements", a row an engagement).
 """
 import datetime
+import functools
+import threading
 import time
 import uuid
 
@@ -26,6 +28,19 @@ MEETING = 3600             # a meeting: an hour's grace either side of being on 
 PRESENT_RADIUS = 2.5       # this close to the place, he's there (map units; one is ~150 m)
 REMIND_BEFORE = 40 * 60    # the reminder, and time enough to get across town
 LATE_AFTER = 15 * 60       # turning up this long after the start is late
+
+# One read-change-write of the diary at a time: the pass after a text answers an invitation on a worker thread while
+# the console settles the evening on the loop, and whole rows written back over each other gave an invitation
+# "unanswered", then "accepted", then "missed", with two let-downs.
+_lock = threading.RLock()
+
+
+def _locked(fn):
+    @functools.wraps(fn)
+    def inner(*args, **kwargs):
+        with _lock:
+            return fn(*args, **kwargs)
+    return inner
 _KEEP_DAYS = 30
 
 
@@ -82,6 +97,7 @@ def answer(message, accept, now=None):
     return row
 
 
+@_locked
 def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, source="mail", plan=None, until=None):
     """
     A meeting agreed in a letter's thread — dinner with Vicki, Batman and Jim on a roof — or a plan he made with
@@ -101,6 +117,7 @@ def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, s
     return row
 
 
+@_locked
 def watch(now=None):
     """
     While it's on — from a little before the start to the end — whether he's where it is: on the map, near enough
@@ -153,6 +170,7 @@ def late_words(e):
     return ("an hour" if hours <= 1 else f"{hours:g} hours".replace(".5 hours", " and a half hours")) + " late"
 
 
+@_locked
 def reminders(now=None):
     """What's about to start that he hasn't been reminded of — marked reminded. [rows]."""
     now = now or time.time()
@@ -335,6 +353,7 @@ def repute():
     return word, (doc.get("said") or [""])[0]
 
 
+@_locked
 def settle(now=None):
     """
     What's over: he was there, or he wasn't (out on a case, if that's why) — what it does between them, and the
@@ -385,6 +404,7 @@ def recent(now=None, days=3):
     return [e for e in all_engagements() if e["status"] in ("attended", "missed") and now - e["until"] < days * 86400]
 
 
+@_locked
 def remember(engagement_id, story):
     """What happened at an evening he went to, in a line or two — the mail and Alfred carry it on."""
     e = _rows().get(engagement_id)
@@ -501,6 +521,7 @@ def add(what, where, at, until=None, as_="bruce", with_="", notes="", now=None, 
     return row
 
 
+@_locked
 def remind(what, at, by="", now=None):
     """
     A reminder one of them set for him ([remind: …], see engine.show): in the diary, coming up at the moment
@@ -543,6 +564,7 @@ def their_block(contact, t, lead_minutes=None):
     return None
 
 
+@_locked
 def answer_invite(engagement_id, yes, now=None):
     """His yes or no to their invitation. Returns the row, or None if it isn't one waiting on him."""
     e = _rows().get(engagement_id)
@@ -559,12 +581,19 @@ def latest_invite(contact_id):
     return max(found, key=lambda e: e["answered_at"]) if found else None
 
 
-def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, as_=None):
-    """He changes it: the time, the place, what it is. Only what's still to come. Returns the row, or None."""
+@_locked
+def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, as_=None, with_=None):
+    """
+    He changes it: the time, the place, what it is, who it's with (his own entries). Only what's still to come. A
+    plan with the family moves with it (plans.move) — they turned up at the old time otherwise. Returns the row, or
+    None.
+    """
     e = _rows().get(engagement_id)
     if not e or e["status"] != "accepted":
         return None
     length = e["until"] - e["at"]
+    if with_ is not None and e.get("source") == "manual":
+        e["with"] = str(with_)[:200]
     if what is not None and str(what).strip():
         e["what"] = str(what).strip()[:120]
     if where is not None:
@@ -580,9 +609,13 @@ def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, 
     if as_ in ("bruce", "batman"):
         e["as"] = as_
     _rows().put(e["id"], e)
+    if e.get("plan"):
+        from . import plans
+        plans.move(e["plan"], what=e["what"], where=e["where"], at=e["at"], until=e["until"])
     return e
 
 
+@_locked
 def cancel(engagement_id, why="", case="", now=None):
     """
     He calls it off — saying why, or not; `case` the one he's on, if he is. Someone else's evening, a meeting, a
@@ -598,6 +631,7 @@ def cancel(engagement_id, why="", case="", now=None):
     return e
 
 
+@_locked
 def called_off_over(now=None):
     """
     What he called off (or turned down) with them that's over now: the plan they went to without him, their
@@ -704,6 +738,15 @@ def due_to_go(now=None):
     return out[:1]
 
 
+@_locked
+def rewith(plan_id, with_):
+    """A plan asked again with more of them: his diary row says who now."""
+    for e in _rows().list():
+        if e.get("plan") == plan_id:
+            _rows().put(e["id"], {**e, "with": str(with_)[:200], "host": str(with_)[:80]})
+
+
+@_locked
 def went(engagement_id, now=None):
     """He's set off for it on his own: not again."""
     e = _rows().get(engagement_id)
@@ -714,7 +757,8 @@ def went(engagement_id, now=None):
 def day_done(now=None):
     """Whether his day's over for now: the last thing ended a while ago and nothing's coming soon."""
     now = now or time.time()
-    rows = [e for e in _rows().list() if e["status"] in ("accepted", "attended", "left") and e.get("source") != "plan"]
+    rows = [e for e in _rows().list() if e["status"] in ("accepted", "attended", "left")
+            and e.get("source") not in ("plan", "reminder")]
     ended = [e for e in rows if e["until"] <= now]
     soon = [e for e in rows if e["status"] == "accepted" and now < e["until"] and e["at"] < now + 90 * 60]
     return bool(ended) and not soon and now - max(e["until"] for e in ended) > _HOME_AFTER \
@@ -737,7 +781,7 @@ def known_to(contact_id, now=None):
     level = identity.level(contact_id)
     if level not in ("all", "his"):
         return ""
-    soon = [e for e in upcoming(now, days=7) if not e.get("plan")]
+    soon = [e for e in upcoming(now, days=7) if not e.get("plan") and not e.get("reminder")]     # his reminders: his
     if level == "his":
         soon = [e for e in soon if e.get("source") == "invitation"]
     elif contact_id != "lucius":
@@ -809,6 +853,7 @@ def at_his(day, now=None):
 _CRIME_ODDS = 0.02
 
 
+@_locked
 def crime_at(e, now=None, rng=None):
     """Whether trouble comes to this evening — rolled once, while he's there. The report, or None."""
     import random as _random
@@ -832,5 +877,7 @@ def crime_at(e, now=None, rng=None):
               "at_his": e["id"], "dispatch": f"Reports of a {kind.lower()} under way at {e['where']} — during "
                                              f"{e['what']}."}
     from .. import store
-    store.space("event_crimes").put(report["id"], report)
+    crimes = store.space("event_crimes")
+    crimes.put(report["id"], report)
+    crimes.trim(50)                 # the scanner reads every one each pulse: only the recent ones are anything
     return report

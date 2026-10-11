@@ -127,6 +127,7 @@ class Vault:
             if lowered.startswith(trigger):
                 clean = text[len(trigger):].strip()
                 break
+        clean = clean[:600]          # a fact, not a document: every one is in prompts from now on
 
         if not clean:
             return text

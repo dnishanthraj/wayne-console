@@ -29,9 +29,14 @@ voice. They're still who they are — it colours, it doesn't rewrite.
 Kept in the store: "bonds" (each pair's state as of its last change, aged as
 it's read) and the events.
 """
+import threading
 import time
 
 from .. import store
+
+# One bond changed at a time: the pass after a text runs on a worker thread while the console nudges for cases and
+# evenings, and two read-change-writes at once lost one of them (and the day's cap with it).
+_lock = threading.RLock()
 
 ME = "me"
 GCPD = "gcpd"            # the department's standing with the masks, as an institution
@@ -122,6 +127,20 @@ def nudge(a, b, warmth=0.0, trust=0.0, tension=0.0, romance=0.0, why="", weight=
     Returns the new state.
     """
     t = t or time.time()
+    with _lock:
+        now = _nudged(a, b, warmth, trust, tension, romance, t)
+    if why:
+        from ..store import events
+        events.add("bond", why, at=t, actor=a,
+                   data={"toward": b, "warmth": warmth, "trust": trust, "tension": tension, "romance": romance,
+                         "weight": weight, **(extra or {})},
+                   links=tuple(links) + ((("contact", b),) if b not in (ME, GCPD) else ()),
+                   audience=tuple(audience) or (a,))
+    return now
+
+
+def _nudged(a, b, warmth, trust, tension, romance, t):
+    """The read-change-write of a nudge, under the lock (see nudge)."""
     mine = profile(a)
     now = state(a, b, t)
     kept = _space().get(_key(a, b)) or {}
@@ -148,13 +167,6 @@ def nudge(a, b, warmth=0.0, trust=0.0, tension=0.0, romance=0.0, why="", weight=
     if was is not None and now.get("romance") is not None:
         peak = _milestone(a, b, was, now["romance"], now["tension"], t, peak)
     _space().put(_key(a, b), {**now, "at": t, "day": day, "moved": moved, "peak": peak})
-    if why:
-        from ..store import events
-        events.add("bond", why, at=t, actor=a,
-                   data={"toward": b, "warmth": warmth, "trust": trust, "tension": tension, "romance": romance,
-                         "weight": weight, **(extra or {})},
-                   links=tuple(links) + ((("contact", b),) if b not in (ME, GCPD) else ()),
-                   audience=tuple(audience) or (a,))
     return now
 
 

@@ -464,6 +464,8 @@ class Presence:
         """How long before a plan they set off: the drive from home to there, and five minutes' slack."""
         key = (plan["id"], self.contact.id)
         if key not in _LEADS:
+            if len(_LEADS) > 500:
+                _LEADS.clear()           # plans come and go; their lead times needn't stay forever
             home = places.resolve(getattr(self.contact, "home", "") or "")
             there = places.resolve(plan.get("where") or "")
             minutes = 30

@@ -166,6 +166,7 @@ _CASE_KIND = [(r"shoot|gunfight|gunman|gunmen|firefight|sniper|shots fired", "gu
               (r"\bfire\b|arson|blaze", "fire_scene")]
 
 _locks, _failed = {}, {}
+_spending = threading.Lock()     # the month's count and the day's warm-up count: one read-change-write at a time
 errors = {}             # the last thing ElevenLabs said when a clip couldn't be made, by name
 _guard = threading.Lock()
 _plans = {}
@@ -463,10 +464,11 @@ def _allowance(seconds):
     if cap <= 0:
         return False
     space = store.space("ambience")
-    spent = int(space.get(_spent_key()) or 0)
-    if spent + cost > cap:
-        return False
-    space.put(_spent_key(), spent + cost)
+    with _spending:
+        spent = int(space.get(_spent_key()) or 0)
+        if spent + cost > cap:
+            return False
+        space.put(_spent_key(), spent + cost)
     return True
 
 
@@ -505,7 +507,8 @@ def clip(name, capped=True):
         if not capped:
             from .. import store
             space = store.space("ambience")
-            space.put(_spent_key(), int(space.get(_spent_key()) or 0) + int(seconds * CREDITS_PER_SECOND))
+            with _spending:
+                space.put(_spent_key(), int(space.get(_spent_key()) or 0) + int(seconds * CREDITS_PER_SECOND))
         try:
             response = requests.post(
                 "https://api.elevenlabs.io/v1/sound-generation",
@@ -552,8 +555,11 @@ def upcoming(directory, t=None, hours=2):
     return [scene for scene, _ in counts.most_common() if scene in CATALOGUE_SCENES]
 
 
-def _warm_key(t=None):
-    return "warm:" + time.strftime("%Y-%m-%d", time.localtime(t or time.time()))
+def _warm_spent(space, t=None):
+    """What warming-up has spent today — one row, today's: it used to leave a key a day behind, for ever."""
+    today = time.strftime("%Y-%m-%d", time.localtime(t or time.time()))
+    kept = space.get("warm") or {}
+    return today, (kept.get("spent", 0) if kept.get("day") == today else 0)
 
 
 def warm(directory, t=None, most=2):
@@ -575,11 +581,11 @@ def warm(directory, t=None, most=2):
             if path(name).exists() or time.time() - _failed.get(name, 0) < 600:
                 continue
             cost = int(_what(name)[1] * CREDITS_PER_SECOND)
-            today = int(space.get(_warm_key(t)) or 0)
+            day, today = _warm_spent(space, t)
             if today + cost > config.SFX_WARM_PER_DAY:
                 return made
             if clip(name) is not None:
-                space.put(_warm_key(t), today + cost)
+                space.put("warm", {"day": day, "spent": today + cost})
                 made.append(name)
     return made
 

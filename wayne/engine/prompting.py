@@ -560,7 +560,102 @@ def build_payload(contact, history, user_turn, texting=False):
         messages.append({"role": "system", "content": "\n\n".join(parts)})
     messages.extend(list(history))
     messages.append({"role": "user", "content": user_turn})
+    num_ctx = (getattr(contact, "options", None) or {}).get("num_ctx")
+    return fit_to_context(messages, num_ctx, label=getattr(contact, "id", ""))
+
+
+# --- fitting the window -------------------------------------------------------------------------------------------
+# The model reads a window of CONTEXT_WINDOW tokens (8,192), and the persona alone is about half of it. Nothing used
+# to measure what went in: a group call with three on the line, Alfred's screens on a busy night, a group chat's
+# backlog could run past it — and past it, the request fails (no reply at all) or the front of the prompt, the
+# persona, goes. So every conversation is measured as it's put together and trimmed to fit, least needed first:
+# the oldest history, then the background at the end of what they're told (hearsay, recall, the rest), then the
+# middle of an over-long message — and only last the sample lines. The persona itself, never.
+_CHARS_PER_TOKEN = 3.6         # conservative: this prose runs about 4.4 characters a token
+OUTPUT_RESERVE = 512           # room for the reply
+_MARGIN = 256
+_REF = re.compile(r"(\[REFERENCE[^\]]*\]\n)(.*?)(\n?\[END REFERENCE\])", re.S)
+_SAMPLES = re.compile(r"\n*=== HOW YOU (?:SPEAK|TEXT) ===.*?=== END SAMPLES[^\n]*", re.S)
+
+
+def tokens(text):
+    """About how many tokens this is — on the generous side, so an estimate never lets a prompt through that won't fit."""
+    return int(len(text or "") / _CHARS_PER_TOKEN) + 4
+
+
+def _size(messages):
+    return sum(tokens(m.get("content", "")) for m in messages)
+
+
+def _trim_reference(content, over):
+    """
+    The reference part of a turn with its last pieces dropped — hearsay and recall come last, the time and where
+    things stand first — until `over` tokens are freed or only its opening is left. Returns the new content.
+    """
+    found = _REF.search(content)
+    if not found:
+        return content
+    body = found.group(2)
+    sep = "\n\n" if "\n\n" in body else "\n"
+    pieces = body.split(sep)
+    freed = 0
+    while len(pieces) > 2 and freed < over:
+        freed += tokens(pieces.pop())
+    return content[:found.start(2)] + sep.join(pieces) + content[found.end(2):]
+
+
+def _trim_words(content, over):
+    """An over-long turn's own words, kept at both ends with the middle let go: what was said first and last."""
+    found = _REF.search(content)
+    start = found.end() if found else 0
+    words = content[start:]
+    keep = max(400, len(words) - int((over + 32) * _CHARS_PER_TOKEN))
+    if keep >= len(words):
+        return content
+    head, tail = words[:keep // 3], words[-(keep - keep // 3):]
+    return content[:start] + head + " … " + tail
+
+
+def fit_to_context(messages, num_ctx=None, reserve=OUTPUT_RESERVE, label=""):
+    """
+    The message list trimmed to fit the model's window with room for the reply (see above). The system message is
+    never cut, except its sample lines as a last resort. Logged whenever anything had to go.
+    """
+    num_ctx = int(num_ctx or _context_window())
+    budget = num_ctx - reserve - _MARGIN
+    size = _size(messages)
+    if size <= budget:
+        return messages
+    before, messages = size, [dict(m) for m in messages]
+    first = 1 if messages and messages[0].get("role") == "system" else 0
+    # The oldest of the history, a whole exchange at a time — never leaving it to start on their reply.
+    while size > budget and len(messages) - first > 1:
+        drop = 2 if (messages[first].get("role") == "user" and len(messages) - first > 2) else 1
+        for _ in range(drop):
+            size -= tokens(messages.pop(first).get("content", ""))
+    last = messages[-1]
+    if size > budget:
+        trimmed = _trim_reference(last.get("content", ""), size - budget)
+        size -= tokens(last.get("content", "")) - tokens(trimmed)
+        last["content"] = trimmed
+    if size > budget:
+        trimmed = _trim_words(last.get("content", ""), size - budget)
+        size -= tokens(last.get("content", "")) - tokens(trimmed)
+        last["content"] = trimmed
+    if size > budget and first:
+        system = messages[0].get("content", "")
+        lighter = _SAMPLES.sub("", system)
+        size -= tokens(system) - tokens(lighter)
+        messages[0] = {**messages[0], "content": lighter}
+    import logging
+    logging.getLogger("wayne").warning("%s: prompt of ~%d tokens trimmed to ~%d to fit %d%s", label or "a prompt",
+                                       before, size, num_ctx, "" if size <= budget else " — STILL OVER")
     return messages
+
+
+def _context_window():
+    from .. import config
+    return config.CONTEXT_WINDOW
 
 
 def _spoken_self(contact):
@@ -583,7 +678,7 @@ def story_so_far(contact):
     game's and nobody's real life. In the cached prefix: it changes only when
     he adds to it, and then one prefix re-read is the whole cost.
     """
-    facts = Story(contact.id).entries()
+    facts = [str(f)[:300] for f in Story(contact.id).entries()][-40:]     # the newest forty: the persona's window too
     if not facts:
         return ""
     if operator.roleplay():

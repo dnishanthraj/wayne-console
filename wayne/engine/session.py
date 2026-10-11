@@ -565,6 +565,12 @@ class ContactSession:
                 # the difference between a second and seven before the first word.
                 _log.info("%s read %d prompt tokens in %.2fs", self.contact.id, part.get("prompt_eval_count") or 0,
                           (part.get("prompt_eval_duration") or 0) / 1e9)
+                window = (self.contact.options or {}).get("num_ctx") or 8192
+                if (part.get("prompt_eval_count") or 0) >= 0.8 * window:
+                    _log.warning("%s: a prompt of %d tokens is near the %d window", self.contact.id,
+                                 part.get("prompt_eval_count"), window)
+            if part.get("done") and part.get("done_reason") == "length":
+                _log.warning("%s: a reply was cut off at its length limit", self.contact.id)
 
     # --- sentence assembly ------------------------------------------------
 
@@ -1613,7 +1619,14 @@ class ContactSession:
         if earlier:
             context.append("Earlier in the chat:\n" + groupchat.transcript(earlier, name))
         if unread:
-            context.append("Just now (you've only now read these):\n" + groupchat.transcript(unread, name))
+            # A backlog read in one go: the newest twenty, and his and anything naming them however far back —
+            # an overnight chat in full ran past the model's window.
+            shown = [m for i, m in enumerate(unread) if i >= len(unread) - 20 or m.get("from") == "me"
+                     or groupchat.addressed(m.get("text", ""), self.contact)]
+            skimmed = len(unread) - len(shown)
+            context.append("Just now (you've only now read these):\n"
+                           + (f"({skimmed} earlier messages skimmed)\n" if skimmed else "")
+                           + groupchat.transcript(shown, name))
         # Where they are and how late they are to it: a reply three hours on
         # reads as one, and they can say why — or not.
         state = presence.of(self.contact).now()

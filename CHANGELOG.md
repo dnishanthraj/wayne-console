@@ -5,6 +5,70 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-11
+
+Robustness, from two reviews of the whole codebase: how prompts fit the
+model's window, and how data moves and is kept.
+
+### Fixed
+
+- **Every prompt now fits the model's window.** The model reads 8,192 tokens,
+  and a character's persona alone is about half of that. Nothing used to
+  measure the rest. A group call with three or more on the line, Alfred's
+  screens on a busy night, or a group chat's overnight backlog could run past
+  it, and the request would fail (no reply) or lose the persona from the
+  front. Now every conversation and every background pass is measured as
+  it's put together, with room left for the reply, and trimmed least-needed
+  first:
+  1. the oldest history, a whole exchange at a time;
+  2. the background at the end of what they're told (hearsay and recall go
+     first);
+  3. the middle of an over-long message, keeping its start and end;
+  4. only then the sample lines.
+
+  The persona itself is never cut, and a trim is logged. The app also warns
+  when a prompt gets near the window, and when a reply is cut off at its
+  length limit.
+- **The things that grew without limit are capped:**
+  - a group chat's unread backlog (the newest twenty, plus yours and anything
+    naming them);
+  - email bodies in a reply;
+  - the incident log a writer reads;
+  - the grapevine's read of a long call;
+  - one over-long history message;
+  - story facts (the newest forty);
+  - each memory fact.
+- **Moving a family plan in your diary moves it for them.** They used to turn
+  up at the old time and place. Now the plan moves, and the family get a
+  plain "Change of plan — …" where it was made. Asking for the same plan again
+  with more people keeps your diary row in step.
+- **Removing an evening someone's expecting calls it off first,** so they're
+  told rather than left waiting. Changing who your own diary entry is with now
+  sticks.
+- **Your day runs with nobody at the console.** With no page open, evenings
+  were settled as "missed" (letdowns, Jim's trust, the papers), because
+  nothing had checked you were there. Now arriving, setting off and going
+  home carry on regardless; nothing gets announced, and no reminder is used
+  up unseen.
+- **Your reminders are yours.** The family no longer hear about them in their
+  view of your diary, and they never count as your day.
+- **No lost updates:**
+  - Relationship changes from a background thread no longer overwrite ones
+    from the main loop (or the day's cap).
+  - Diary rows are changed one at a time. An invitation could otherwise go
+    "unanswered", then "accepted", then "missed", with two letdowns.
+  - The sound budget counter is locked.
+- **Resets leave nothing behind:**
+  - Your society standing and evening crimes are now cleared.
+  - Plans go with either reset, so the family and your diary never disagree.
+  - A conversations-only reset also removes the diary rows and promised
+    errands those conversations made.
+  - Backups from Settings keep the last five, and two in the same second no
+    longer collide.
+- **Smaller growth trimmed:** evening crimes (the last 50), the warm-up's
+  counter (one row, not one a day), plan lead times, and diary lines in the
+  event log (a month, not a year; they were the bulk of it).
+
 ## [0.37.2] - 2026-10-11
 
 ### Added

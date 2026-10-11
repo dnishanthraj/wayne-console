@@ -22,8 +22,14 @@ from .. import paths
 
 # Spaces (see wayne.store.kv) — "<name>/" means every contact's; "doc:<name>" one document.
 CHATS_SPACES = ("window", "groups", "vault/", "story/", "plans", "doc:initiative", "bonds", "tastes")
+# Plans are both: made in a conversation, kept in the world (who's going where) — gone with either, so the family
+# and his diary never disagree about an evening one reset kept and the other didn't.
 WORLD_SPACES = ("presence/", "diary_last", "cases", "dispatch", "reportlog", "mail", "mail_keys", "mail_events",
-                "engagements", "gazette", "rogue_status", "encountered", "doc:arcs", "doc:jet", "doc:bruce")
+                "engagements", "gazette", "rogue_status", "encountered", "doc:arcs", "doc:jet", "doc:bruce",
+                "doc:repute", "event_crimes", "plans")
+# Diary rows a conversation made (a plan, an invitation, a text, a call): gone with the conversations.
+_SAID_INTO_THE_DIARY = ("plan", "invite", "dm", "call")
+KEEP_BACKUPS = 5
 # Events (see wayne.store.events), by kind prefix.
 CHATS_EVENTS = ("hearsay", "relayed", "plan.", "bond")
 WORLD_EVENTS = ("diary.", "case.", "rogue.")
@@ -68,6 +74,10 @@ def targets(db, chats, world):
 def backup(root, db):
     """The data directory copied — every file but the backups and the audio — and the database, whole."""
     target = root / time.strftime("_backup-%Y%m%d-%H%M%S")
+    n = 2
+    while target.exists():                     # two in the same second: never over the top of the other
+        target = root / time.strftime(f"_backup-%Y%m%d-%H%M%S-{n}")
+        n += 1
     shutil.copytree(root, target, ignore=shutil.ignore_patterns("_backup-*", "_imported-*", "ambience", "_system_voice",
                                                                "wayne.db", "wayne.db-*", "wayne.failed-*", _PENDING,
                                                                _DONE))
@@ -87,6 +97,9 @@ def run(chats=True, world=True):
             c.execute(sql, params)
         c.execute("DELETE FROM event_audience WHERE event_id NOT IN (SELECT id FROM events)")
         c.execute("DELETE FROM event_links WHERE event_id NOT IN (SELECT id FROM events)")
+    if chats and not world:
+        _forget_what_was_said(store)
+    _prune_backups(root)
     try:
         with db.lock:
             db.conn.execute("VACUUM")
@@ -94,6 +107,31 @@ def run(chats=True, world=True):
         pass
     store.close_all()
     return {"backup": kept.name, "removed": [(what, n) for what, n, _ in going]}
+
+
+def _forget_what_was_said(store):
+    """
+    The conversations gone and the world kept: what the conversations put into the world goes with them — the
+    diary rows a plan or a text made, and what they'd promised to do (presence intents), which otherwise carried on
+    from talks nobody remembers.
+    """
+    rows = store.space("engagements")
+    for row in rows.list():
+        if row.get("source") in _SAID_INTO_THE_DIARY:
+            rows.drop(row["id"])
+    from .. import store as kv
+    for space in kv.get().rows("SELECT DISTINCT space FROM kv WHERE space >= 'presence/' AND space < 'presence0'"):
+        found = store.space(space[0])
+        state = found.get("intents")
+        if state:
+            found.drop("intents")
+
+
+def _prune_backups(root):
+    """The last KEEP_BACKUPS backups from Settings kept; older ones go — each is the whole database."""
+    backups = sorted(p for p in root.glob("_backup-2*") if p.is_dir())
+    for old in backups[:-KEEP_BACKUPS]:
+        shutil.rmtree(old, ignore_errors=True)
 
 
 def request(scope):

@@ -122,14 +122,24 @@ def add(plan, made_in=""):
     """Keep a plan he's made; the same plan said twice (the same time and place) is one plan."""
     with _lock:
         rows = all_plans()
+        merged = None
         for p in rows:
             if abs(p["at"] - plan["at"]) < 1800 and p.get("where", "") == plan.get("where", ""):
                 p["who"] = sorted(set(p["who"]) | set(plan["who"]))
                 _save(rows)
-                return p
-        plan = {**plan, "id": uuid.uuid4().hex[:10], "made_in": made_in, "made": time.time(), "answers": {}}
-        rows.append(plan)
-        _save(rows)
+                merged = p
+                break
+        if merged is None:
+            plan = {**plan, "id": uuid.uuid4().hex[:10], "made_in": made_in, "made": time.time(), "answers": {}}
+            rows.append(plan)
+            _save(rows)
+    if merged is not None:
+        try:
+            from . import engagements
+            engagements.rewith(merged["id"], ", ".join(merged["who"]))     # his diary says who, now
+        except Exception:
+            pass
+        return merged
     try:
         # His too: in the diary, where being there is what counts (engine.engagements).
         from . import engagements
@@ -157,6 +167,25 @@ def answer(plan_id, contact_id, said, why=""):
                 p.setdefault("answers", {})[contact_id] = {"said": said, "why": why[:160], "at": time.time()}
                 _save(rows)
                 return
+
+
+def move(plan_id, what=None, where=None, at=None, until=None):
+    """
+    He's changed it in his diary: the plan moves with it — what, where, when — so the family go to the right place
+    at the right time. Returns the plan, or None.
+    """
+    with _lock:
+        rows = all_plans()
+        for p in rows:
+            if p["id"] == plan_id:
+                changed = (at is not None and abs(p["at"] - at) > 60) or (where is not None and where != p.get("where"))
+                p.update({k: v for k, v in (("what", what), ("where", where), ("at", at), ("until", until))
+                          if v is not None})
+                if changed:
+                    p["moved_at"] = time.time()
+                _save(rows)
+                return p
+    return None
 
 
 def he_cant(plan_id, why=""):

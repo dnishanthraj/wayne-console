@@ -61,6 +61,12 @@ def ask(model, messages, options=None, think=False, fmt=None, purpose="a backgro
     background pass gives way to a call (see the top of this module).
     """
     extra = {"keep_alive": config.MODEL_KEEP_ALIVE}
+    from . import prompting
+    options = options or {}
+    # Fitted to the window like every conversation is — with room for however long this pass may write.
+    messages = prompting.fit_to_context(messages, options.get("num_ctx"),
+                                        reserve=max(prompting.OUTPUT_RESERVE, int(options.get("num_predict") or 0)),
+                                        label=purpose)
     if think is not None:
         extra["think"] = think
     if fmt:

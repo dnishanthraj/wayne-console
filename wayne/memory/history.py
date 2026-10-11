@@ -151,6 +151,12 @@ class History:
                 # budget, so the most recent exchange is kept regardless.
                 start = next((i for i in range(len(messages) - 1, -1, -1)
                               if messages[i]["role"] == "user"), len(messages) - 1)
+                kept = _without_silences(messages[start:], self.messages[start:])
+                self._window_start = self.messages[start].get("at") if start < len(messages) else None
+                # Kept, but not without end: a wall of text pasted in once rode along whole in every turn after.
+                cap = budget * 8
+                return [{**m, "content": m["content"][:cap] + " …"} if len(m.get("content", "")) > cap else m
+                        for m in kept]
         self._window_start = self.messages[start].get("at") if start < len(messages) else None
         return _without_silences(messages[start:], self.messages[start:])
 

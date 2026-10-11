@@ -20,6 +20,7 @@ from . import db as database
 from . import transcript
 
 EVENT_DAYS = float(setting("EVENT_DAYS", "365") or 0)
+DIARY_DAYS = 30
 BACKUPS = int(setting("BACKUPS", "7") or 0)
 _log = logging.getLogger("wayne")
 
@@ -34,6 +35,11 @@ def run(now=None):
             gone["transcript"] = c.execute("DELETE FROM transcript WHERE at < ?", (now - transcript.DAYS * 86400,)).rowcount
         if EVENT_DAYS > 0:
             gone["events"] = c.execute("DELETE FROM events WHERE at < ?", (now - EVENT_DAYS * 86400,)).rowcount
+        # Their days — 'diary.' lines, hundreds a day — matter for a month, not a year: the search index loads them all.
+        gone["diary lines"] = c.execute("DELETE FROM events WHERE kind >= 'diary.' AND kind < 'diary/' AND at < ?",
+                                        (now - DIARY_DAYS * 86400,)).rowcount
+        c.execute("DELETE FROM event_audience WHERE event_id NOT IN (SELECT id FROM events)")
+        c.execute("DELETE FROM event_links WHERE event_id NOT IN (SELECT id FROM events)")
     with store.lock:
         store.conn.execute("PRAGMA optimize")
         store.conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
