@@ -808,6 +808,11 @@ class Presence:
                     shown["where"] = (f"{walking['near']}, {where}" if walking["near"] else where)
                     if walking["leg"]:
                         shown["route"] = {**walking["leg"], "from": "", "by": "over the rooftops", "patrol": True}
+        elif getattr(self.contact, "sightings", None):
+            # Not on the app, but seen in public — Jim's car on the scanner: the last he knows, never live.
+            seen = self._state.get("seen")
+            if seen and (t or time.time()) - seen.get("at", 0) < 48 * 3600:
+                shown["last_seen"] = seen
         return shown
 
     def patrolling(self, where, t=None):

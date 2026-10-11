@@ -5,6 +5,81 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-11
+
+### Added
+
+- **The sound of where they are, all the time.** A hundred kinds of place
+  (a rush-hour avenue, a café, a boxing gym, a trapeze hall, GCPD's bullpen,
+  a games night at Dick's, a film on at Barbara's, the cave, a rooftop in the
+  rain) and 170 sounds that happen in them. Each sound comes from a distance:
+  a horn right beside them, a siren going past, a train far off. Each is
+  panned, dulled with distance, and swept across if it's going past. Busy
+  streets carry a crowd under the traffic. Rain, a storm, snow or a hard wind
+  goes over anywhere outdoors, and rain sounds on the windows of anywhere
+  with them. Training halls have bursts and rests, and in a fight or on the
+  bag their own sounds cut in between sentences. The full list is in
+  [docs/soundscape.md](docs/soundscape.md).
+- **They hear it too.** The server decides what plays when, so each turn
+  tells the person what's just been audible around them. Ask Alfred
+  "washing your hands?" over the hose in the garden and he knows what you
+  heard. On a group call the others hear what came down Dick's phone and may
+  remark on it, or not.
+- **The room under each ring.** Each person's surroundings feed their own
+  visualiser: a faint shimmer from the room, and a jump when a horn goes off
+  behind them. On a group call it keeps playing behind everyone, quieter
+  behind those not talking.
+- **Made once, within an allowance.** Each loop and sound is made with
+  ElevenLabs the first time a call needs it, and kept. `WAYNE_SFX_CREDITS`
+  (default 40,000 a month, counted at the dearest rate) caps what's spent.
+  `scripts/soundscape.py` shows what's made and makes places ahead of time.
+- **They mute themselves.** Now and then, when life where they are calls
+  (the door, a friend arriving, a pan boiling over), they say so or don't,
+  and mute. A badge shows it, their room goes quiet, and they come back after
+  a while with something about it ("ah man, she's lovely"). Others on the call
+  can ask "who?". Anything you say meanwhile is kept for when they're back.
+- **Rooms that change.** Someone arriving where your caller is walks in on
+  the call: you hear them in the background, and the one they've walked in
+  on notices ("oh, Barb's here"). Someone leaving says goodbye and goes.
+  Someone with company on their speaker can step away somewhere quieter, and
+  go back. Someone in the background mostly talks to the room (the game, the
+  film, each other) and now and then to you.
+- **Jim on the map.** He's never tracked live. You see where he was last
+  seen (Car 1 on the scanner, on the news at City Hall, never at home), and
+  on the worst calls he sometimes goes to the scene himself, which is what
+  he'll tell you he's doing.
+
+### Changed
+
+- **Faster replies on calls.** The model answers one request at a time, so
+  while you're on a call the background passes (day plans, the papers, mail,
+  feeds) wait for you to hang up. One already writing when the call starts
+  stops and starts again after. A first reply took 17 seconds behind a day
+  plan.
+- **Cutting in is instant.** Talking over someone now cuts their reply's
+  connection, so a reply still reading its prompt stops at once instead of
+  seconds later.
+- **Someone on a speakerphone stays in the background**, chiming in about a
+  third as often. Each change of voice makes the model read a new prompt, and
+  Barbara on Cass's speaker was taking seven seconds a line.
+- **Fewer tics.** A sigh or a laugh before the first word is kept now and
+  then, never two replies running. Being rung again is offered as something
+  to mention, not asked for ("three calls in five minutes?" every time).
+  Cass no longer remarks on how you sound every time you ring back.
+- **"Give me a moment" is yours.** They answer with a word or nothing, and
+  if it runs long they check with a word, the way they'd say it.
+- **On mute, nobody chases you.** No "are you still there?" while your mic
+  is off.
+- GCPD sounds like GCPD behind Jim: the bullpen at the desk, the
+  bullpen through the door in his office.
+
+### Fixed
+
+- The glow behind the photo in the middle of the ring, and on the call bar's
+  faces, no longer pulses with the voice; only the bars move.
+- The FastAPI lifespan hook was decorated in the wrong place (it worked by
+  accident).
+
 ## [0.13.0] - 2026-10-11
 
 ### Added

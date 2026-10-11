@@ -393,6 +393,9 @@
           (state.ringingId && state.ringingId !== state.connectedId)) {
         armIdleCheck(); return;
       }
+      // He's muted: nobody chases a muted line ("you still there?" to a man who switched his mic off). On a call
+      // with company the others may still talk among themselves.
+      if (state.muted && !lull) { armIdleCheck(); return; }
       if (closing) {
         state.closing = true;
         send({ type: 'signoff' });
@@ -518,6 +521,7 @@
         node.appendChild(line);
         el.seats.appendChild(node);
         seat = state.seats[id] = { node: node, viz: new Visualizer(canvas, { accent: contact.accent }), line: line };
+        seat.viz.setRoom(function () { return id; });          // their room under their ring: the horn behind them
       }
       seat.node.style.order = i;
       seat.node.dataset.state = state.groupRinging.indexOf(id) !== -1 || state.ringingId === id ? 'ringing' : 'live';
@@ -546,6 +550,28 @@
       });
       seat.node.dataset.room = '0';
     });
+    paintTheyMuted();
+  }
+
+  /* Who on the line has muted themselves: a badge on their seat — or, one to one, a word under the ring. */
+  function paintTheyMuted() {
+    var muted = state.theyMuted || {};
+    Object.keys(state.seats).forEach(function (id) {
+      var seat = state.seats[id], badge = seat.node.querySelector('.seat__muted');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'seat__muted';
+        badge.innerHTML = MIC_OFF;
+        seat.node.querySelector('.seat__ring').appendChild(badge);
+      }
+      badge.dataset.tip = ((state.contacts[id] || {}).name || '') + ' has muted';
+      seat.node.dataset.muted = muted[id] ? '1' : '0';
+    });
+    var chip = document.getElementById('they-muted');
+    var solo = state.party.length <= 1 && state.connectedId && muted[state.connectedId];
+    if (!chip) return;
+    chip.hidden = !solo;
+    chip.innerHTML = solo ? MIC_OFF + '<span>' + ((state.contacts[state.connectedId] || {}).name || '') + ' muted</span>' : '';
   }
 
   function seatSpeaking(speaker) {
@@ -2776,6 +2802,8 @@
   function hangUp(opts) {
     opts = opts || {};
     if (state.muted) { state.muted = false; paintMute(); }
+    state.theyMuted = {};
+    paintTheyMuted();
     state.room = {};
     ConsoleAudio.setDistant([]);
     clearTimeout(bedTimer);
@@ -2998,11 +3026,20 @@
         }
         break;
 
+      case 'they_muted':
+        // They've muted themselves for a minute: shown on their seat (or the call), their room gone quiet.
+        state.theyMuted = state.theyMuted || {};
+        if (event.on) state.theyMuted[event.speaker] = true;
+        else delete state.theyMuted[event.speaker];
+        ConsoleAudio.muteBed(seatOwner(event.speaker) || event.speaker, !!event.on);
+        paintTheyMuted();
+        break;
       case 'room':
         // Who's on someone else's phone, on speaker: their voices through the room, their seat says so.
         state.room = event['with'] || {};
         ConsoleAudio.setDistant(Object.keys(state.room));
         renderSeats();
+        syncBeds();
         break;
 
       case 'picked_up':
@@ -3208,6 +3245,7 @@
     callbar = { root: root, who: root.querySelector('.gm-call__who'), line: root.querySelector('.gm-call__line'),
                 talk: root.querySelector('.gm-call__talk'), faces: {},
                 viz: new Visualizer(root.querySelector('.gm-call__viz'), { shape: 'line' }) };
+    callbar.viz.setRoom(function () { return state.party.length > 1 ? null : state.connectedId; });
     callbar.viz.setMode(document.documentElement.dataset.state || 'idle');
     root.querySelector('.gm-call__end').innerHTML = ICONS.end;
     root.querySelector('.gm-call__end').addEventListener('click', function () { if (state.connectedId) hangUp(); });
@@ -3311,7 +3349,6 @@
       face.dataset.tip = contact.name + (roomed.length ? ', with ' + roomed.join(' and ') + ' on speaker' : '');
     });
     bar.who.dataset.many = ids.length > 1 ? '1' : '0';
-    if (!callbarLoop) callbarLoop = requestAnimationFrame(callbarPulse);
   }
 
   function callbarSaid(speaker, text) {
@@ -3331,27 +3368,6 @@
     Object.keys(bar.faces).forEach(function (id) {
       bar.faces[id].dataset.speaking = id === lit ? '1' : '0';
     });
-  }
-
-  // The speaking ring's glow follows the voice itself, read off the analyser.
-  var callbarLoop = null, callbarBins = null;
-  function callbarPulse() {
-    callbarLoop = null;
-    var bar = callbar;
-    if (!bar || bar.root.hidden) return;
-    var analyser = ConsoleAudio.analyser, level = 0;
-    if (analyser && ConsoleAudio.isPlaying) {
-      callbarBins = callbarBins || new Uint8Array(analyser.frequencyBinCount);
-      analyser.getByteFrequencyData(callbarBins);
-      var sum = 0;
-      for (var i = 2; i < 64; i++) sum += callbarBins[i];
-      level = Math.min(1, sum / (62 * 160));
-    }
-    Object.keys(bar.faces).forEach(function (id) {
-      var face = bar.faces[id];
-      face.style.setProperty('--lvl', face.dataset.speaking === '1' ? level.toFixed(2) : '0');
-    });
-    callbarLoop = requestAnimationFrame(callbarPulse);
   }
 
   function wireInput() {
@@ -3485,14 +3501,17 @@
   function syncBeds() {
     clearTimeout(bedTimer);
     var live = state.connectedId && state.ringingId !== state.connectedId;
-    var on = live ? (state.party.length ? state.party.slice() : [state.connectedId]) : [];
+    // One phone per room: someone on another's speaker is in that room, not one of their own.
+    var on = live ? (state.party.length ? state.party.slice() : [state.connectedId])
+      .filter(function (id) { return !roomHost(id); }) : [];
     ConsoleAudio.beds().forEach(function (id) { if (on.indexOf(id) === -1) ConsoleAudio.unbed(id); });
-    var gated = on.length > 1;
+    var behind = on.length > 1;
     on.forEach(function (id) {
       fetch('/api/ambience/' + encodeURIComponent(id)).then(function (r) { return r.json(); })
         .then(function (body) {
           if (!body.scene) { ConsoleAudio.unbed(id); return; }
-          ConsoleAudio.bed(id, '/api/ambience/file/' + encodeURIComponent(body.scene), gated, body.shots);
+          ConsoleAudio.bed(id, body, behind);
+          if (state.theyMuted && state.theyMuted[id]) ConsoleAudio.muteBed(id, true);
         }).catch(function () {});
     });
     if (on.length) bedTimer = setTimeout(syncBeds, 90000);
@@ -3504,7 +3523,7 @@
       setState('speaking');
       if (speaker && seatFor(speaker)) seatSpeaking(seatOwner(speaker));
       revealSentence(text, key, durationMs, words, speaker);
-      var who = speaker || state.connectedId;
+      var who = seatOwner(speaker || state.connectedId) || speaker || state.connectedId;
       ConsoleAudio.beds().forEach(function (id) { ConsoleAudio.bedLevel(id, id === who); });
     });
     ConsoleAudio.on('onIdle', function () {
@@ -3890,6 +3909,8 @@
 
   cacheElements();
   state.viz = new Visualizer($('viz'));
+  // One to one, the stage's ring carries their room too: traffic behind them, a horn going off.
+  state.viz.setRoom(function () { return state.party.length > 1 ? null : state.connectedId; });
   setState('idle');
   setLink('off');
   wireInput();

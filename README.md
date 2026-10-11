@@ -66,7 +66,9 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 ### 📞 Calls
 - **Hold <kbd>Space</kbd> to talk**, or type; the mic button mutes you, and they know you've gone quiet. Talk over them and they stop.
 - **Speech starts in about half a second.** The turn is read ahead while you're still talking, sentences are voiced as the model writes them, and the words appear in time with the voice.
-- **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. Under it, rain and thunder, sirens, a kitchen, Selina's cats, Tim's houseboat. Stage directions are performed, never shown.
+- **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. Stage directions are performed, never shown.
+- **Their world, all the time.** A hundred kinds of place and 170 sounds: a horn beside them, a siren going past, a train far off, the crowd under a busy street, rain on the windows, the bag in a boxing gym, a games night at Dick's. They hear it too, so "what was that?" gets an answer, and on a group call everyone hears what came down Dick's phone. Each person's ring moves with their room. ([The full list](docs/soundscape.md).)
+- **Life interrupts.** Someone at the door and they mute for a minute, then come back with what it was. Someone walks in on the call and you hear them in the background; someone with company steps away to talk to you alone.
 - **A ring that means something.** It covers the model warming up; sleeping ones ring out, and they call you back. Whether they pick up depends on what they're doing, the way it would for anyone. Alfred in the garden answers. Dick on his way to a case answers, and at the scene maybe, about the case. Mid-fight or mid-training, nobody does.
 - **Group calls**, you plus four, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time. **One phone per room**: ring Dick while Tim's with him and Tim's on his speaker, on Dick's seat, and goes when Dick does.
 
@@ -210,6 +212,8 @@ Tick them off as you go.
 - [ ] Read the six o'clock night report after a long night.
 - [ ] Put Jim and Barbara on the same call, and ask him how his daughter's doing.
 - [ ] Ask Jim if he ever wonders who you are.
+- [ ] Ring Alfred while he's in the garden and ask what that noise was.
+- [ ] Call Dick on a games night and listen to the room.
 
 ## 🚀 Setup
 
@@ -247,6 +251,7 @@ python run.py                         # → http://127.0.0.1:8420   (passcode: z
 | `WAYNE_OPERATOR` | `bruce` | Who you play: an operator profile id or path (see [Making it yours](#-making-it-yours)). |
 | `ALFRED_OLLAMA_MODEL` | `gemma4:26b-a4b-it-qat` | The model everyone shares. |
 | `WAYNE_PASSCODE` | `zorro` | The lock screen's passcode. Theatre, not security. |
+| `WAYNE_SFX_CREDITS` | `40000` | ElevenLabs credits a month the room sounds may spend being made (each is made once, then kept). `0` makes nothing new. `scripts/soundscape.py` shows what's made. |
 | `BATCOMPUTER_VOICE_ID` | — | The console's own voice: unlocking, calls, the Batwing, cases, the scanner's worst. Every line is rendered once and kept as an mp3 in `data/_system_voice/`; `scripts/voice_lines.py` shows what's on disk and renders the rest. |
 | `WAYNE_WEB_PORT` | `8420` | The console's port. It only listens on `127.0.0.1`. |
 | `WAYNE_DATA_DIR` | `data/` | Where memory lives: the database (`wayne.db`) and the audio caches. Point it at a scratch folder to experiment. |

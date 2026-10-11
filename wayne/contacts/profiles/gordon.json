@@ -23,6 +23,7 @@
   "sees_work": "gcpd",
   "family_app": false,
   "shares_location": false,
+  "sightings": {"every": 1800, "how": {"default": "Car 1 on the scanner", "GCPD Central": "logged in at GCPD Central, on the dispatch board", "City Hall": "on GBS, leaving City Hall"}, "scene": {"severity": 4, "chance": 0.5, "minutes": 75, "how": "on scene — the scanner had Car 1 there"}},
   "calls_in": {
     "severity": 4,
     "chance": 0.6,

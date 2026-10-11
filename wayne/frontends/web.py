@@ -50,7 +50,8 @@ from ..engine import (
     travel,
     world,
 )
-from ..engine.party import MAX_CONTACTS, Call
+from ..engine import model as llm
+from ..engine.party import MAX_CONTACTS, ROOM_GUEST, Call
 from ..engine.session import ASKS_REACTION
 from ..memory import groups as group_store
 from ..memory import migrate_legacy
@@ -140,6 +141,17 @@ class Console(GroupChats):
     # unanswered reply could vanish the same way.
     _said = 0
     PULSE_SECONDS = PULSE_SECONDS
+
+    # Who's on the line. Setting it tells the background passes the model is the call's (see wayne.engine.model):
+    # a day plan written mid-call made the call's next turn wait, then read its whole prompt again.
+    @property
+    def current_id(self):
+        return self._current_id
+
+    @current_id.setter
+    def current_id(self, value):
+        self._current_id = value
+        llm.on_air(bool(value))
 
     def __init__(self):
         self.directory = directory()
@@ -605,7 +617,7 @@ class Console(GroupChats):
             # Whoever's with them is on the line too — in the room, on their speaker.
             self._spawn(self._bring_the_room(contact))
 
-    async def _bring_the_room(self, host):
+    async def _bring_the_room(self, host, arriving=False):
         """
         He's called someone who isn't alone: whoever's actually with them —
         arrived, the same place — is on the call too, on the host's speaker. No
@@ -617,16 +629,26 @@ class Console(GroupChats):
         if not self.call or host.id not in self._members():
             return
         _, company = presence.of(host).whereabouts()
+        apart = self.__dict__.get("_stepped_away", {}).get(host.id, set())
         for cid in company:
             other = self.directory.get(cid)
-            if (other is None or cid in self._members() or len(self.call.members) >= MAX_CONTACTS
+            if (other is None or cid in self._members() or cid in apart or cid in getattr(self, "_adding", ())
+                    or len(self.call.members) >= MAX_CONTACTS
                     or presence.of(other).now()["status"] == presence.OFFLINE):
                 continue
             self.call.speakerphone[cid] = host.id
             await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
-            await self.add(cid, ensure=True, willing=True, remark=False,
-                           note=f"you're with {host.name} — Bruce rang {host.name}, who's put him on speaker; "
-                                "you're not on a line of your own, you're in the room")
+            if arriving:
+                # Walked in on it: they know there's a call on, and whoever they've walked in on notices them.
+                note = (f"you've just got to where {host.name} is, in person — and {host.name} is on the phone to "
+                        "Bruce, on speaker. You walk in on the call: you're in the room, not on a line of your own")
+            else:
+                note = (f"you're with {host.name} — Bruce rang {host.name}, who's put him on speaker; "
+                        "you're not on a line of your own, you're in the room")
+            await self.add(cid, ensure=True, willing=True, remark=False, note=note)
+            if arriving and self.call and host.id in self._members():
+                await self._react(f"{other.name} has just walked in — here, where you are, in person, while you're "
+                                  "on the phone to him.", who=host.id)
         if self.call and self.call.speakerphone:
             await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
 
@@ -996,7 +1018,8 @@ class Console(GroupChats):
         if not self.call or not self.call.members:
             return
         candidates = [m for m in self.call.members if m.contact.id != but
-                      and (who is None or m.contact.id == who)]
+                      and (who is None or m.contact.id == who)
+                      and (who is not None or m.contact.id not in self.call.muted)]
         if not candidates:
             return
         member = random.choice(candidates)
@@ -1013,6 +1036,7 @@ class Console(GroupChats):
             self._spawn(self._chased(absent, member.contact))
         # A reaction can be "I'm out too" or "I'll get Barbara on".
         await self._hang_ups()
+        await self._call_moves()
         await self._call_adds()
 
     async def _chased(self, contact, by):
@@ -1093,6 +1117,91 @@ class Console(GroupChats):
                 elif random.random() < 0.2:
                     # Their goodbye was heard by all — said it was coming, often agreed to. Seldom remarked on.
                     await self._react(f"{member.contact.name} {reason}.")
+
+    async def _call_moves(self):
+        """
+        What a line just decided about the room and the mic: stepping away from
+        whoever's on their speaker ("I only need you") or going back to them,
+        and muting for a minute — the door, a friend arriving.
+        """
+        members = list(self.call.members) if self.call else (
+            [self.sessions[self.current_id]] if self.current_id in self.sessions else [])
+        for member in members:
+            move, member._room_move = getattr(member, "_room_move", None), None
+            why, member._muting = getattr(member, "_muting", None), None
+            if move == "away" and self.call:
+                await self._step_away(member)
+            elif move == "back" and self.call:
+                self.__dict__.setdefault("_stepped_away", {}).pop(member.contact.id, None)
+                self._spawn(self._bring_the_room(member.contact))
+            if why and member.contact.id not in self.__dict__.setdefault("_they_muted", {}):
+                await self._mute_them(member, why)
+
+    async def _step_away(self, member):
+        """
+        Somewhere quieter: whoever was on their speaker is off the call — they
+        were only ever in the room — and stays off till they go back. A guest
+        doing it leaves the two of them to it.
+        """
+        cid = member.contact.id
+        host = cid if cid not in self.call.speakerphone else self.call.speakerphone[cid]
+        guests = [g for g, h in self.call.speakerphone.items() if h == host] if host == cid else [cid]
+        if not guests:
+            return
+        self.__dict__.setdefault("_stepped_away", {}).setdefault(host, set()).update(guests)
+        for gid in guests:
+            guest = next((m for m in self.call.members if m.contact.id == gid), None)
+            self.call.speakerphone.pop(gid, None)
+            if guest is None:
+                continue
+            self.call.leave(guest)
+            who = self.directory.get(host)
+            self.call.event(f"{who.name if who else 'they'} stepped away from {guest.contact.name}")
+            self._wrap_up(guest, {gid} | set(self._members()))
+            await self.broadcast(events.party(self._members(), removed=gid))
+        await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
+
+    async def _mute_them(self, member, why):
+        """Their mic off for a minute: the page shows it, their room goes quiet, and they're back when it's done."""
+        cid = member.contact.id
+        quick = re.search(r"(?i)\b(sec|second|moment|door|kettle|phone|text)\b", why or "")
+        info = {"since": time.time(), "until": time.time() + random.uniform(*((15, 45) if quick else (35, 120))),
+                "why": why, "missed": []}
+        self._they_muted[cid] = info
+        if self.call:
+            self.call.muted[cid] = why
+        log.info("%s muted themselves (%s)", cid, why)
+        await self.broadcast({"type": "they_muted", "speaker": cid, "on": True})
+        self._spawn(self._back_from_mute(cid))
+
+    async def _back_from_mute(self, cid):
+        """Back on the line — and something about where they went, or what he said meanwhile, or just 'back'."""
+        info = self._they_muted.get(cid)
+        await asyncio.sleep(max(1.0, info["until"] - time.time()))
+        info = self._they_muted.pop(cid, None)
+        if self.call:
+            self.call.muted.pop(cid, None)
+        if not info or cid not in (set(self._members()) | {self.current_id}):
+            return
+        await self.broadcast({"type": "they_muted", "speaker": cid, "on": False})
+        away = int(time.time() - info["since"])
+        what = (f"You muted yourself about {away} seconds ago — {info['why']} — and you've just unmuted. Come back on "
+                "the line the way you would: that you're back, and, if it's worth a word, what that was — briefly, "
+                "as people do"
+                + (f". While you were off he said: “{' / '.join(info['missed'][-3:])}” — pick that up" if info["missed"]
+                   else "") + ".")
+        if self.call and self.call.is_group:
+            return await self._react(what, who=cid)
+        session = self.sessions.get(cid)
+        if session is None or self.current_id != cid:
+            return
+        epoch = self.interrupt()
+        async with self.turn_lock:
+            if epoch != self.turn_epoch or self.current_id != cid:
+                return
+            instruction = ("[REFERENCE — context only]\n" + (presence.of(session.contact).note() or "")
+                           + "\n[END REFERENCE]\n\n" + what)
+            await self.drive(session.say(instruction), session.contact, epoch)
 
     async def _room_goes_with(self, host_id):
         """
@@ -1673,26 +1782,36 @@ class Console(GroupChats):
         # comms down with it every pulse.
         await self._step("diary", asyncio.to_thread(self._observe_all, now))
         await self._step("upkeep", asyncio.to_thread(_daily_upkeep))
-        for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
-                           ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
-                           ("mail", self._write_mail), ("dispatches", self._write_dispatches)):
-            await self._step(name, step())
+        # On a call, the model is the call's: nothing that writes with it starts until he hangs up — day plans,
+        # the papers, the mail, someone texting first, the group chats talking among themselves. They catch up
+        # after. (A first reply took seventeen seconds behind a day plan.)
+        calling = bool(self.current_id)
+        if not calling:
+            for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
+                               ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
+                               ("mail", self._write_mail), ("dispatches", self._write_dispatches)):
+                await self._step(name, step())
         if not self.clients:
             # Nobody at the console to hear about it — but the night goes on: cases still end when they end.
             await self._step("cases", self._advance_cases(now))
             return
-        for contact in self.directory:
-            for intent in presence.of(contact).due(now):
-                # Spawned, not awaited: one contact typing out a long reply
-                # stalled every dot and every other promise behind it.
-                presence.of(contact).postpone(intent["id"], 120, count=False)  # claimed
-                self._spawn(self._carry_out(contact, intent))
-        await self._step("reaching out", self._maybe_reach_out(now))
+        if not calling:
+            for contact in self.directory:
+                for intent in presence.of(contact).due(now):
+                    # Spawned, not awaited: one contact typing out a long reply
+                    # stalled every dot and every other promise behind it.
+                    presence.of(contact).postpone(intent["id"], 120, count=False)  # claimed
+                    self._spawn(self._carry_out(contact, intent))
+            await self._step("reaching out", self._maybe_reach_out(now))
+        await self._step("sightings", self._sightings(now))
+        await self._step("rooms", self._rooms_arrive(now))
         await self._step("calls in", self._calls_in(now))
         await self._step("announcements", self._announce(now))
-        await self._step("groups", self._group_tick(now))
+        if not calling:
+            await self._step("groups", self._group_tick(now))
         await self._step("cases", self._case_tick(now))
-        await self._step("comms", self._comms_tick(now))
+        if not calling:
+            await self._step("comms", self._comms_tick(now))
 
     async def _step(self, name, awaitable):
         try:
@@ -2931,6 +3050,93 @@ class Console(GroupChats):
             elif r["severity"] >= 4:
                 await self._system("scanner_major")
 
+    async def _rooms_arrive(self, now):
+        """
+        Someone he's on the phone to has company now — Barbara got to Cass's —
+        and they're in the room: heard in the background, on the host's speaker,
+        as anyone there would be. Not if the host stepped away from them.
+        """
+        if not self.current_id or self._ringing_out or getattr(self, "_adding", False):
+            return
+        # Someone on a host's speaker who isn't with them any more — off somewhere, their day moved on — says
+        # goodbye and goes; the one they've left may say something about it.
+        for gid, hid in list(self.call.speakerphone.items()) if self.call else []:
+            host = self.directory.get(hid)
+            _, company = presence.of(host).whereabouts(now) if host else ("", [])
+            if host is not None and gid not in company and gid in self._members():
+                await self._room_leaves(gid, host)
+        hosts = [m.contact for m in self.call.members if m.contact.id not in self.call.speakerphone] if self.call \
+            else [self.directory.get(self.current_id)]
+        for host in [h for h in hosts if h is not None]:
+            apart = self.__dict__.get("_stepped_away", {}).get(host.id, set())
+            _, company = presence.of(host).whereabouts(now)
+            fresh = [cid for cid in company if cid not in self._members() and cid not in apart
+                     and cid not in getattr(self, "_adding", ()) and cid != self.current_id
+                     and self.directory.get(cid) is not None]
+            if fresh:
+                log.info("%s has company now on the call: %s", host.id, ", ".join(fresh))
+                self._spawn(self._bring_the_room(host, arriving=True))
+
+    async def _room_leaves(self, gid, host):
+        """A guest in the room heads off: a goodbye down the host's phone, gone from the call, maybe a word after."""
+        epoch = self.interrupt()
+        async with self.turn_lock:
+            if not self.call or gid not in self._members() or epoch != self.turn_epoch:
+                return
+            member = self.sessions[gid]
+            log.info("%s left the room %s is calling from", gid, host.id)
+            await self.drive(self.call.farewell(member, why=f"You're heading off, leaving where {host.name} is."),
+                             member.contact, epoch)
+            if not self.call or member not in self.call.members:
+                return
+            self.call.speakerphone.pop(gid, None)
+            self.call.leave(member)
+            self.call.event(f"{member.contact.name} left — headed off from where {host.name} is")
+            self._wrap_up(member, {gid} | set(self._members()))
+            await self.broadcast(events.party(self._members(), removed=gid))
+            await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
+        if self.call and host.id in self._members() and random.random() < 0.5:
+            await self._react(f"{member.contact.name} has just headed off, out of where you are.", who=host.id)
+
+    async def _sightings(self, now):
+        """
+        Where he'd know someone is without their telling him: Jim's car on the scanner, Jim on the news — every
+        half hour or so while he's out and about, never at home; and when something big lands on GCPD's
+        scanner, sometimes Jim himself goes, and that's where he is (and what he'll say he's doing).
+        """
+        from ..engine import incidents
+        considered = self.__dict__.setdefault("_scenes_considered", set())
+        for contact in self.directory:
+            rule = getattr(contact, "sightings", None) or {}
+            if not rule:
+                continue
+            whereabouts = presence.of(contact)
+            scene = rule.get("scene") or {}
+            if scene:
+                worst = [r for r in incidents.at(now) if r["id"] not in considered and now - r["at"] < 15 * 60
+                         and r.get("status") != "resolved" and r["severity"] >= scene.get("severity", 4)]
+                considered.update(r["id"] for r in worst)
+                asleep = whereabouts.now(now)["status"] == presence.OFFLINE
+                if worst and random.random() < scene.get("chance", 0.5) * (0.4 if asleep else 1.0):
+                    report = max(worst, key=lambda r: (r["severity"], r["at"]))
+                    whereabouts.set_activity(f"on scene at {report['place']} — {report['kind'].lower()}",
+                                             presence.BUSY, scene.get("minutes", 75), t=now,
+                                             where=report["place"], owner="scene")
+                    whereabouts.seen_at(report["place"], scene.get("how", "on scene"), now)
+                    await self._presence_changed(contact)
+                    continue
+            where, _ = whereabouts.whereabouts(now)
+            home = (getattr(contact, "home", "") or "").lower()
+            if not where or where.lower() == home or where.lower().startswith("home"):
+                continue
+            seen = whereabouts.get("seen") or {}
+            moved = seen.get("where") != (places.resolve(where) or {}).get("name")
+            stale = now - seen.get("at", 0) > rule.get("every", 1800) * random.uniform(0.8, 1.6)
+            if stale or (moved and random.random() < 0.3):
+                how = (rule.get("how") or {})
+                whereabouts.seen_at(where, how.get(where) or how.get("default") or "seen", now)
+                await self._presence_changed(contact)
+
     async def _calls_in(self, now):
         """
         The ones who'd ring him because of the night itself — Jim, when something
@@ -3057,12 +3263,16 @@ class Console(GroupChats):
             # moment, or the call's run down — and the page, waiting to hear, is
             # told so, or its timer stopped and the call never drifted to an end.
             return await self.broadcast(events.turn_complete())
-        members = list(self.call.members)
+        members = [m for m in self.call.members if m.contact.id not in self.call.muted]
+        if not members:
+            return await self.broadcast(events.turn_complete())
         weights = [(0.25 + (m.contact.initiative or {}).get("per_day", 0.5) * 0.4)
                    * (1 - (m.contact.texting_pace or {}).get("on_read", 0) * 0.7)
                    * (0.4 if m is self.call.last_speaker else 1.0)
                    # Whoever filled the last pause leaves the next to someone else, mostly.
-                   * (0.25 if m.contact.id == self._last_lull else 1.0) for m in members]
+                   * (0.25 if m.contact.id == self._last_lull else 1.0)
+                   # In the background on someone's speaker: there, not running the call.
+                   * (ROOM_GUEST if m.contact.id in self.call.speakerphone else 1.0) for m in members]
         member = random.choices(members, weights=weights)[0]
         # Now and then two of them go for the same pause at once.
         rest = [(m, w) for m, w in zip(members, weights, strict=True) if m is not member]
@@ -3080,6 +3290,7 @@ class Console(GroupChats):
             self._last_lull = member.contact.id
         self._lull_energy *= LULL_DECAY if line else 0.7
         await self._hang_ups()
+        await self._call_moves()
         await self._call_adds()
 
     async def _drive_for(self, generator, contact, epoch):
@@ -3103,6 +3314,12 @@ class Console(GroupChats):
         # an older page that doesn't say is checked as before).
         if spoken and overlapped is not False and self._is_own_echo(text):
             await self.broadcast(events.state(events.IDLE))      # not left on "one moment" for nothing
+            return
+        muted = self.__dict__.get("_they_muted", {}).get(self.current_id)
+        if muted and not (self.call and self.call.is_group):
+            # They've muted themselves: they hear him, they'll answer when they're back.
+            muted["missed"].append(text[:200])
+            await self.broadcast(events.state(events.IDLE))
             return
         wanted = self._asked_to_add(text) if self.call else None
         if self.call:
@@ -3130,6 +3347,7 @@ class Console(GroupChats):
             await self.drive(turn, contact, epoch)
         if group:
             await self._hang_ups()
+        await self._call_moves()
         await self._call_adds()
         if wanted and self.call and wanted not in self._members():
             # He asked for them: whoever he asked has answered him; now it rings.
@@ -4054,14 +4272,15 @@ async def ambience_for(contact_id: str):
     from ..audio import ambience
     contact = console.directory.get(contact_id)
     if contact is None or not ambience.available():
-        return JSONResponse({"scene": "", "shots": []})
-    scene = await asyncio.to_thread(ambience.scene_for, contact)
-    return JSONResponse({"scene": scene, "shots": ambience.shots_for(scene)})
+        return JSONResponse({"scene": "", "beds": [], "cues": [], "cuts": [], "now": time.time()})
+    # The next couple of minutes there — which loops, which sounds when — laid out here so what they hear is
+    # what he hears (see ambience.heard).
+    return JSONResponse(await asyncio.to_thread(ambience.plan, contact))
 
 
 @app.get("/api/ambience/file/{scene}")
 async def ambience_file(scene: str):
-    """A place's loop — made the first time anyone's there, kept after."""
+    """A place's loop, or one of its sounds from a distance — made the first time anyone's there, kept after."""
     from ..audio import ambience
     made = await asyncio.to_thread(ambience.clip, scene)
     if made is None:

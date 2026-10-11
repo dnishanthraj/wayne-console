@@ -521,3 +521,26 @@ def apply(text, prompt, max_sentences, already_greeted, forbidden_address=(), fa
         # greeted. A neutral acknowledgement is the honest substitute.
         text = stripped or "Mm."
     return cap_length(text, max_sentences)
+
+
+# A sigh or a laugh before the first word: a moment now and then, a tic when it's every reply (Jim sighed into
+# nearly every answer, Alfred laughed into his).
+_OPENING_CUE = re.compile(r"^\s*\[\s*(sighs?|exhales?|laughs?|chuckles?|scoffs?|snorts?|groans?)\s*\]\s*", re.I)
+OPENING_CUE_CHANCE = 0.3
+
+
+def spare_opening_cue(text, recent, chance=OPENING_CUE_CHANCE, roll=None):
+    """
+    The reply's first sentence, with a sigh or a laugh in front of it kept only
+    now and then — never when one of the last few replies opened that way.
+    Returns (text, opened_with_one). `recent` is whether each of the last few did.
+    """
+    import random
+    found = _OPENING_CUE.match(text or "")
+    if not found:
+        return text, False
+    if not any(recent) and (roll if roll is not None else random.random()) < chance:
+        return text, True
+    rest = text[found.end():]
+    return (rest[:1].upper() + rest[1:]) if rest else rest, False
+

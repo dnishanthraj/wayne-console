@@ -167,6 +167,10 @@ class Contact:
     # When they ring him unasked because of the night: {"severity": 4, "chance": 0.6, "gap": 120} — Jim, when
     # something big lands on GCPD's scanner and nobody's on it.
     calls_in: dict = field(default_factory=dict)
+    # Where he'd know they are without being told, for someone not on the family's app: Jim's car on the
+    # scanner, Jim on the news — refreshed every so often, never at home ({"every": 1800, "how": {...},
+    # "scene": {"severity": 4, "chance": 0.5, "minutes": 75}}). See ConsoleSightings in the web frontend.
+    sightings: dict = field(default_factory=dict)
     # What the Batcomputer calls them: "Commissioner Gordon". Their full name if not given.
     system_name: str = ""
     # Whether they're on the family's location app at all — Jim isn't family, whatever he is.
@@ -327,6 +331,7 @@ def _load_profile(path):
         sees_work=str(raw.get("sees_work", "")),
         calls_in=dict(raw.get("calls_in", {})),
         system_name=str(raw.get("system_name", "")),
+        sightings=dict(raw.get("sightings", {})),
         family_app=bool(raw.get("family_app", True)),
     )
 

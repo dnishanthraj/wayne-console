@@ -98,6 +98,38 @@ def test_on_a_call_jim_hears_batgirl_and_batman_and_she_hears_her_father(book):
     assert "Jim Gordon is on this call" not in call.note_for(gordon)
 
 
+def test_when_jim_leaves_they_talk_as_family_again_and_when_he_is_back_they_do_not(book):
+    gordon, barbara, dick = (Member(book.get(c)) for c in ("gordon", "batgirl", "nightwing"))
+    call = party.Call()
+    for member in (gordon, barbara, dick):
+        call.join(member)
+    with_jim = [m.contact.id for m in call.members if m is not barbara]
+    assert "Jim Gordon is on this call" in call.note_for(barbara)
+    assert "Dick" in identity.guard_vocatives("batgirl", with_jim)
+    assert identity.scrub("Thanks, Dick.", "batgirl", with_jim) == "Thanks, Nightwing."
+
+    call.leave(gordon)                                          # Jim hangs up; the call goes on
+    without = [m.contact.id for m in call.members if m is not barbara]
+    assert "Jim Gordon" not in call.note_for(barbara)
+    assert identity.guard_vocatives("batgirl", without) == ()
+    assert identity.scrub("Thanks, Dick. Bruce, you there?", "batgirl", without) == "Thanks, Dick. Bruce, you there?"
+    call._heard_by_all(barbara, "Bruce, Dick and I can take the docks.")
+
+    call.join(gordon)                                           # and he's back
+    assert "Jim Gordon is on this call" in call.note_for(barbara)
+    assert identity.scrub("Thanks, Dick.", "batgirl", [m.contact.id for m in call.members if m is not barbara]) \
+        == "Thanks, Nightwing."
+    assert not any("Bruce" in line or "Dick" in line for line in gordon.heard)   # nothing said while he was gone
+
+
+def test_a_sigh_or_a_laugh_opens_a_reply_now_and_then_never_every_time():
+    from wayne.engine import guards
+    assert guards.spare_opening_cue("[sighs] Fine.", [False, False], roll=0.1) == ("[sighs] Fine.", True)
+    assert guards.spare_opening_cue("[sighs] Fine.", [True, False], roll=0.1) == ("Fine.", False)
+    assert guards.spare_opening_cue("[laughs] you're kidding.", [], roll=0.9) == ("You're kidding.", False)
+    assert guards.spare_opening_cue("Fine. [sighs]", [True], roll=0.9) == ("Fine. [sighs]", False)
+
+
 def test_a_line_about_someone_is_said_as_each_listener_knows_them(book):
     line = f"{identity.mention('nightwing')} is on the call now"
     assert identity.render(line, "gordon") == "Nightwing is on the call now"
@@ -224,6 +256,33 @@ def test_jim_rings_when_something_big_lands_and_nobodys_on_it(book, clock, monke
     rung.clear()
     asyncio.run(console._calls_in(clock() + 60))
     assert rung == []                                          # once per call, and not again inside his gap
+
+
+def test_jim_is_seen_in_public_never_tracked_and_turns_up_at_the_worst_calls(book, clock, monkeypatch):
+    import asyncio
+
+    import wayne.frontends.web as web
+    from wayne.engine import incidents, presence
+    jim = book.get("gordon")
+    console = web.Console.__new__(web.Console)
+    console.directory, console.clients = book, set()
+
+    async def changed(contact):
+        pass
+    console._presence_changed = changed
+    monkeypatch.setattr(incidents, "at", lambda t=None: [])
+    presence.of(jim).set_activity("going over reports", presence.BUSY, 60, t=clock(), where="GCPD Central")
+    asyncio.run(console._sightings(clock()))
+    shown = presence.of(jim).public(clock())
+    assert "spot" not in shown and shown["last_seen"]["where"] == "GCPD Central"   # last seen, never live
+
+    report = {"id": "r-worst", "kind": "Hostage situation", "severity": 4, "place": "Gotham Zoo",
+              "area": "Fashion District", "at": clock() - 120, "status": "contained"}
+    monkeypatch.setattr(incidents, "at", lambda t=None: [report])
+    monkeypatch.setattr(web.random, "random", lambda: 0.0)
+    asyncio.run(console._sightings(clock() + 60))
+    assert "Gotham Zoo" in presence.of(jim).now(clock() + 90)["doing"]          # what he'll say he's doing
+    assert presence.of(jim).public(clock() + 90)["last_seen"]["where"] == "Gotham Zoo"
 
 
 def test_the_codex_puts_jim_in_his_phone(book):

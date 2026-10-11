@@ -54,6 +54,7 @@ from . import (
 from .search import format_search_results, google_search, is_factual_lookup, subject_of_a_take
 
 _log = logging.getLogger("wayne")
+_OLLAMA_CHAT = ollama.chat      # the real one: a test's stand-in is called as it is (see _model_stream)
 
 # Searches run on a worker so the holding line can be written meanwhile.
 _SEARCHES = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -217,7 +218,18 @@ _SILENCE_MOVES = {
               "your view on it — something you've just noticed. Only what it says."),
     "check": ("It has been a good while. Ask, lightly and in your own way, whether "
               "he's still there — without assuming he has gone."),
+    # He asked for a moment: it's his. One word to see if he's back, if it's been long enough that you'd say it.
+    "held": ("He asked you to give him a moment, and he isn't back yet. If it's been long enough that you'd "
+             "check, check the way you would — a word or two, what you'd call him, nothing more. If it hasn't, "
+             "reply with just [no reply]."),
+    # He's muted: he can hear you, he just isn't talking. People don't chase a muted line.
+    "muted": ("He's muted himself — the icon's on your screen — so he can hear you but isn't talking. You "
+              "wouldn't chase that. Reply with just [no reply], unless something of yours genuinely needs saying "
+              "now — then say it, briefly, as you would to someone on mute."),
 }
+# "Give me a minute", "hold on", "bear with me": his to take, answered with a word or not at all.
+_ASKS_FOR_TIME = re.compile(r"(?i)\b(give me|need|just|wait|hang on|hold on|one)\b[^.?!]{0,10}\b(sec|second|moment|"
+                            r"minute|min|mo|tick)s?\b|\b(hold|hang) on\b|\bbear with me\b|\bone sec\b")
 
 _WIPE_COMMANDS = ["clear memory", "forget everything", "protocol zero", "wipe logs"]
 _MEMORIZE_PREFIXES = ("remember that", "remember to", "note that", "don't forget")
@@ -348,6 +360,24 @@ def _tapback_emoji(said):
 
 # Someone on a call ringing someone else in: [add: Jason].
 _CALL_ADD = re.compile(r"\[\s*add\s*:\s*([^\]]+)\]", re.I)
+# Someone with company on their speaker taking him somewhere quieter — "I only need you" — or back to them.
+_STEP_AWAY = re.compile(r"\[\s*(?:step(?:s|ping)?\s+(?:away|out|aside)|walk(?:s|ing)?\s+away|somewhere\s+quiet(?:er)?)"
+                        r"\b[^\]]*\]", re.I)
+_GO_BACK = re.compile(r"\[\s*(?:go(?:es|ing)?\s+back|back\s+in(?:side)?|rejoin\w*)\b[^\]]*\]", re.I)
+# Their mic off for a minute — the door, a friend arriving — and back: "[mute: Steph's at the door]".
+_MUTE = re.compile(r"\[\s*(?:mute[sd]?|muting|on\s+mute)\s*(?::\s*([^\]]*))?\]", re.I)
+
+
+def _call_moves(session, text):
+    """The call markers of a line — stepping away from the room, going back, muting — noted, and taken out."""
+    if _STEP_AWAY.search(text or ""):
+        session._room_move = "away"
+    elif _GO_BACK.search(text or ""):
+        session._room_move = "back"
+    muting = _MUTE.search(text or "")
+    if muting:
+        session._muting = (muting.group(1) or "").strip() or "something where you are"
+    return _MUTE.sub("", _GO_BACK.sub("", _STEP_AWAY.sub("", text or "")))
 
 # Written at the end of a reply when they're the one closing the call.
 # Emoji are for texts. Read off a call's subtitles — "Always 🫡" — they're a
@@ -402,6 +432,7 @@ class ContactSession:
         self._recent_asides = deque(maxlen=6)
         self._looked = False   # a search has run this turn
         self._last_call = None  # how the previous call ended (see call_ended)
+        self._opening_cues = deque(maxlen=3)    # whether each of the last few replies opened on a sigh or a laugh
         self.call_started_at = time.time()
         # Texts that landed during a call but were overtaken before they could
         # be answered: they ride along with the next turn.
@@ -458,8 +489,42 @@ class ContactSession:
                     options=self._options(num_predict=1), **self._extra())
 
     def cancel(self):
-        """He's cut in: whatever of theirs the model is writing right now stops (see _chat_once)."""
+        """
+        He's cut in: whatever of theirs the model is writing right now stops — the connection cut, so even a
+        prompt still being read (seconds, with no next word to stop at) stops now, not when the first word comes.
+        """
         self._cancelled = getattr(self, "_cancelled", 0) + 1
+        for line in list(self.__dict__.get("_lines", ())):
+            try:
+                line._client.close()
+            except Exception:
+                pass
+
+    def _model_stream(self, payload, **overrides):
+        """The model's reply as a stream, on a connection of its own that `cancel` can cut."""
+        options, extra = self._options(**overrides), self._extra()
+        if ollama.chat is not _OLLAMA_CHAT:
+            return ollama.chat(model=self.contact.model, messages=payload, stream=True, options=options, **extra)
+        client = ollama.Client()
+        lines = self.__dict__.setdefault("_lines", set())
+        lines.add(client)
+        mine = getattr(self, "_cancelled", 0)
+
+        def parts():
+            try:
+                yield from client.chat(model=self.contact.model, messages=payload, stream=True, options=options,
+                                       **extra)
+            except Exception:
+                if getattr(self, "_cancelled", 0) != mine:
+                    return          # cut off by him: nothing more to say, and nothing wrong
+                raise
+            finally:
+                lines.discard(client)
+                try:
+                    client._client.close()
+                except Exception:
+                    pass
+        return parts()
 
     def _chat_once(self, payload, **overrides):
         """
@@ -468,8 +533,7 @@ class ContactSession:
         a whole prompt and wrote a whole line while his answer waited two to seven seconds.
         """
         mine = getattr(self, "_cancelled", 0)
-        response = ollama.chat(model=self.contact.model, messages=payload, stream=True,
-                               options=self._options(**overrides), **self._extra())
+        response = self._model_stream(payload, **overrides)
         if isinstance(response, dict):          # a fake that answers whole
             return response["message"]["content"].strip()
         parts = []
@@ -487,10 +551,7 @@ class ContactSession:
         return "".join(parts).strip()
 
     def _stream(self, payload, **overrides):
-        for part in ollama.chat(
-            model=self.contact.model, messages=payload,
-            stream=True, options=self._options(**overrides), **self._extra(),
-        ):
+        for part in self._model_stream(payload, **overrides):
             piece = part.get("message", {}).get("content", "")
             if piece:
                 yield piece
@@ -548,6 +609,7 @@ class ContactSession:
         listening_guard = identity.guard_vocatives(self.contact.id, listening) if listening else ()
         self._hanging_up = False
         self._call_add = []
+        self._room_move = self._muting = None
         away = not self._at_home()
 
         def finalize(sentence):
@@ -560,6 +622,11 @@ class ContactSession:
                 sentence.strip(), self.contact.forbidden_address + listening_guard)
             text = identity.scrub(text, self.contact.id, listening)
             text = guards.tidy_address(text)
+            if index == 0:
+                # "[sighs]" in front of every answer: kept now and then, never two replies running.
+                cues = self.__dict__.setdefault("_opening_cues", deque(maxlen=3))
+                text, opened = guards.spare_opening_cue(text, cues)
+                cues.append(opened)
             if index == 0 and named_lately:
                 # "Bruce, ..." again: people don't open with your name every time.
                 text = re.sub(rf"^\W*{re.escape(operator_name(self.contact))}\s*[,.…—-]+\s*", "", text)
@@ -629,6 +696,9 @@ class ContactSession:
             if adding:
                 self._call_add.append(adding.group(1).strip())
                 buffer = _CALL_ADD.sub("", buffer)
+            buffer = _call_moves(self, buffer)
+            if re.search(r"\[\s*(step|walk|go|back|mute)[^\]]*$", buffer, re.I):
+                continue        # half a marker so far; wait for the rest
             task = _GROUP_TASK.search(buffer)
             if task:
                 self._group_task = (task.group(1).strip(), task.group(2).strip())
@@ -897,9 +967,10 @@ class ContactSession:
         if also_ringing:
             instruction += (f"\n(He's ringing several of you at once — {', '.join(also_ringing)} too. "
                             "You're the first on the line; the others may join.)")
-        if rung and not incoming:
-            instruction += (f"\n(He's rung you {rung + 1} times in the last few minutes before you "
-                            "picked up. React to that the way you would.)")
+        if rung and not incoming and random.random() < (0.4 if rung == 1 else 0.7):
+            # Offered, not asked for: told to react, every one of them opened on "three calls in five minutes?".
+            instruction += (f"\n(He's tried you {rung + 1} times in the last few minutes. Most people just "
+                            "answer; mention it only if you really would, and not the way you did last time.)")
         self._last_call = None
         payload = prompting.build_payload(self.contact, self.history.for_model(), instruction)
 
@@ -922,7 +993,10 @@ class ContactSession:
                 cleaned = guards.strip_forbidden_address(
                     generated, self.contact.forbidden_address)
                 cleaned = guards.strip_presence(cleaned).strip()
+                cues = self.__dict__.setdefault("_opening_cues", deque(maxlen=3))
+                cleaned, opened = guards.spare_opening_cue(cleaned, cues)
                 if cleaned:
+                    cues.append(opened)
                     greeting = cleaned
                     break
         except Exception as exc:
@@ -996,8 +1070,27 @@ class ContactSession:
         )
         yield from self._speak_aside(instruction, temperature=0.9, cap=3)
 
+    def _mute_odds(self):
+        """How likely life where they are interrupts this turn: likelier with company or at home, never mid-fight."""
+        from . import cases
+        if getattr(self, "_muting", None):
+            return 0.0
+        case = cases.active(self.contact.id) if self.contact.id in cases.FIELD else None
+        if case and cases.phase(case)[0] in ("in it", "gone wrong", "arriving"):
+            return 0.0
+        whereabouts = presence.of(self.contact)
+        _, company = whereabouts.whereabouts()
+        doing = (whereabouts.now().get("doing") or "").lower()
+        busy_life = bool(company) or self._at_home() or bool(presence._SOCIAL.search(doing))
+        return 0.12 if busy_life else 0.05
+
     def _silence_kind(self):
         """Which way to break this silence. See `check_in`."""
+        if getattr(self, "he_muted", False):
+            return "muted"
+        asked_for_time = getattr(self, "_asked_for_time", 0)
+        if asked_for_time and time.time() - asked_for_time < 15 * 60:
+            return "held"
         last = self.history.last_assistant()
         # "Do go on... I'm all ears" leaves the floor to him as surely as a
         # question does, and was met with a change of subject.
@@ -1023,6 +1116,12 @@ class ContactSession:
         """
         notes = []
 
+        if _ASKS_FOR_TIME.search(prompt or "") and len(prompt or "") < 120:
+            self._asked_for_time = time.time()
+            notes.append("He's asked you to give him a moment. A word at most ('Sure.', 'Take your time.') or "
+                         "nothing — reply with just [no reply] — and then let him be.")
+        else:
+            self._asked_for_time = 0
         if confidence < 0.6:
             # Speech-to-text does not fail by going quiet — it fails by
             # producing a confident sentence nobody said, and answering that
@@ -1377,6 +1476,8 @@ class ContactSession:
         self._hanging_up = bool(_HANG_UP.search(text or ""))
         self._call_add = [m.strip() for m in _CALL_ADD.findall(text or "")]
         text = _CALL_ADD.sub("", text or "")
+        self._room_move = self._muting = None
+        text = _call_moves(self, text)
         text = _unemoji(self._plain(text))
         # Joining a call is a greeting and leaving one a goodbye: the guards
         # that strip those from ordinary turns emptied both to "Mm.".
@@ -2025,6 +2126,21 @@ class ContactSession:
             awareness.append(self.call.note_for(self, follow_up))
         elif via is None and self._said_this_call() >= 2 and head is None:
             awareness.append(CLOSING_DIRECTIVE)
+        if via is None and not from_contact and not texting:
+            # What's audible on the line — the room around them and what's just happened in it, and on a group
+            # call what's come down the others' phones — so a horn behind them is a horn they heard.
+            from ..audio import ambience
+            others = ([(m.contact.id, identity.label(m.contact.id, self.contact.id)) for m in self.call.members
+                       if m is not self] if self.call else [])
+            around = ambience.heard(self.contact.id, others=others)
+            if around:
+                awareness.append(around)
+            if random.random() < self._mute_odds():
+                awareness.append(
+                    "If something where you are needs you for a minute right now — someone at the door, a friend "
+                    "arriving, a pan boiling over, someone talking to you — you can tell him ('hold on —', or "
+                    "not) and end with [mute: what it is]: your mic goes off and you come back after. Only if it "
+                    "would really happen now; most of the time it doesn't.")
         vault_block = self.vault.as_block(prompt)
 
         # A plainly factual question is looked up before he is asked anything,

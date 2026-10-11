@@ -76,7 +76,8 @@ def read(text, invited, model, options, now=None):
         '"who": ["everyone"]} or {"plan": false}')
     try:
         reply = llm.ask(model, [{"role": "user", "content": instruction}],
-                        {**options, "temperature": 0.1, "num_predict": 140}, fmt="json", purpose="reading a plan")
+                        {**options, "temperature": 0.1, "num_predict": 140}, fmt="json", purpose="reading a plan",
+                        background=False)
         got = json.loads(reply)
     except Exception:
         return None

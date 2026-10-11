@@ -1,22 +1,38 @@
 """
-The sound of where someone is, under their voice on a call.
+The sound of where someone is, under their voice on a call — and what they hear of it.
 
-A phone call carries the room: the engine and the road from someone driving,
-the checkout beeping behind someone in the supermarket, wind on a rooftop, the
-drip of the cave. Each kind of place is a seamless loop made once with
-ElevenLabs' sound effects (eleven_text_to_sound_v2, looping, about twenty
-seconds — some 800 credits a place, once) and kept on disk ever after; the page
-plays it low under the call, and on a call with company only behind whoever is
-talking, the way a phone's noise gate lets a room through only with a voice.
+A phone call carries the room: the traffic and the chatter of a pavement, the
+espresso machine in a café, the bag thudding in a boxing gym, wind on a
+rooftop, the drip of the cave. The catalogue of it is soundscape.json: a
+hundred kinds of place, each a seamless loop (a bed), some laid over others (a
+crowd under a busy street, rain over anywhere outdoors, rain on the windows of
+anywhere with them), and a hundred and fifty sounds that happen in them — a
+horn, a siren, a bus pulling up, a punch landing — each at the distances it
+can happen at: right beside them, close by, far off, or going past.
+
+Every loop and every sound is made once with ElevenLabs' sound effects
+(eleven_text_to_sound_v2) the first time it's wanted, and kept on disk ever
+after — within a monthly allowance of credits (WAYNE_SFX_CREDITS), past which a
+place that hasn't been made yet is simply quieter.
+
+What happens when is decided here, not in the page: `plan` lays out the next
+couple of minutes for whoever is on the call (which loops, how loud, which
+sounds at what moment, from how far, panned where), the page plays it, and
+`heard` tells the person what's just been audible around them — so a horn
+going off behind Alfred is a horn he heard, and "washing your hands?" over the
+hose in the garden gets an answer. Everyone else on a group call hears it too,
+down Dick's phone, and may remark on it, or not.
 
 Which place is worked out from what they're doing and where (see `scene_for`)
-— the same truth the map and their words come from. Nothing here runs without
-a key, and nothing is made twice.
+— the same truth the map and their words come from.
 """
+import json
 import logging
+import random
 import re
 import threading
 import time
+from pathlib import Path
 
 import requests
 
@@ -25,225 +41,138 @@ from .. import config, paths
 log = logging.getLogger("wayne")
 
 LOOP_SECONDS = 20
-# Every loop is told the same things: seamless, no music, nobody speaking words
-# that could be mistaken for the call.
+# Every loop is told the same things: seamless, no music, nobody speaking words that could be mistaken for the call.
 _TAIL = " Seamless loop. No music. Any voices distant and indistinct."
-SCENES = {
-    "car": "Inside a moving car: steady engine hum, tyre and road noise, an indicator ticking now and then.",
-    "subway": "Inside a subway carriage: wheels rumbling on the rails, the carriage rattling, a muffled announcement.",
-    "rooftop": "Wind gusting over a city rooftop at night, traffic far below, a police siren far away now and then.",
-    "street_day": "A busy city street by day: traffic passing, footsteps, car horns in the distance.",
-    "street_night": "A city street at night: sparse traffic hiss, a distant siren, a dog barking far off.",
-    "grocery": "A supermarket: shopping trolleys rattling, checkout scanners beeping in the distance, a fridge humming.",
-    "cafe": "A busy coffee shop: cups and saucers clinking, an espresso machine hissing, murmured conversation.",
-    "bar": "A lively bar at night: glasses clinking, crowd chatter and laughter.",
-    "office": "A quiet office: keyboards typing, air conditioning humming, a phone ringing in the distance.",
-    "lab": "A high-tech workshop: servers humming, cooling fans, soft electronic beeps.",
-    "cave": "A vast cave: water dripping and echoing, bats fluttering far off, the low hum of computers.",
-    "manor": "A large quiet old house: a grandfather clock ticking, old wood creaking, wind outside.",
-    "home": "A quiet apartment: a refrigerator humming, city traffic faint through a window.",
-    "park": "A city park by day: birdsong, leaves rustling in a light breeze, children playing in the distance.",
-    "garden": "A garden: birdsong, a light breeze through hedges, a distant lawnmower.",
-    "hospital": "A hospital corridor: monitors beeping in the distance, quiet footsteps, a muffled intercom.",
-    "gym": "A gym: weights clanking, a treadmill whirring, a heavy bag being hit.",
-    "police": "A busy police station: phones ringing, radio chatter, a door buzzing.",
-    "docks": "A harbour at night: water lapping at the pilings, a foghorn far off, gulls, rope creaking.",
-    "campus": "A university campus: students chatting, footsteps on paths, a bell in the distance.",
-    "scuffle": "A fight nearby, muffled: grunts, blows landing, a body hitting crates, glass breaking.",
-    # What they're doing
-    "kitchen": "Cooking in a home kitchen: a pan sizzling, a pot simmering, a knife on a chopping board.",
-    "shower": "A shower running in a tiled bathroom, water drumming steadily.",
-    "walking": "Footsteps walking along a city pavement, traffic passing, the odd voice going by.",
-    "running": "Fast running footsteps on pavement and heavy steady breathing.",
-    "gliding": "Wind rushing past at speed while gliding high above a city at night, fabric snapping.",
-    "studio": "An empty dance studio: soft footsteps and turns on a sprung wooden floor, a creak of the barre.",
-    # Whose home it is
-    "cats_home": "A quiet, stylish apartment at night with cats: soft purring close by, paws padding across the floor.",
-    "dog_home": "A small apartment with a dog: a dog's tags jingling, paws clicking on the floor, a contented huff.",
-    "houseboat": "Inside a houseboat at a marina at night: water lapping at the hull, ropes creaking, a halyard tapping a mast.",
-    "clocktower": "Inside a clock tower: huge gears ticking and turning slowly overhead, computer fans humming.",
-    "safehouse": "A bare safehouse in a run-down building: a dripping pipe, distant traffic, the building creaking.",
-    # The weather, out in it
-    "rain_street": "Steady rain falling on a city street at night, water running in gutters, tyres hissing.",
-    "rain_roof": "Heavy rain drumming on a rooftop at night, wind gusting, water pouring off ledges.",
-    "storm": "A thunderstorm over a city at night: heavy rain, wind, thunder rolling and cracking.",
-    "snow": "A snowy city street at night, muffled and hushed, wind sighing, footsteps crunching.",
-}
+_TAIL_MUSIC = " Seamless loop. Any voices distant and indistinct."
+# What a second of sound effects costs at most (ElevenLabs bills 11–40 credits a second when the length is
+# set): the allowance is counted at the dear end.
+CREDITS_PER_SECOND = 40
 
-# The things that happen in a place now and then, over its loop: made once each
-# (a few seconds, not looped), heard at random — a siren passing, two shots
-# between buildings, a punch landing in the fight they're in.
-ONE_SHOTS = {
-    # The street
-    "siren": "A police siren passing at a distance on a city street at night, fading away.",
-    "horn": "A car horn blaring in traffic and an angry shout.",
-    "car_pass": "A car driving past quickly on a wet street, tyres hissing.",
-    "motorbike": "A motorcycle revving and roaring past, fading down the street.",
-    "bus": "A city bus pulling up, air brakes hissing, doors folding open.",
-    "alarm": "A car alarm going off a few streets away, then cutting out.",
-    "dog": "A dog barking a few streets away at night.",
-    "scream": "A distant scream somewhere in the city at night, cut short.",
-    "gunshots": "Two distant gunshots echoing between tall buildings at night.",
-    "helicopter": "A police helicopter passing low overhead, rotor thump fading into the distance.",
-    "train": "An elevated train rattling past on its tracks.",
-    "thunder": "Distant thunder rolling over a city.",
-    # Up high
-    "wind_gust": "A strong gust of wind buffeting a rooftop, whistling through railings.",
-    "grapple": "A grapnel gun firing, the cable zipping out and catching with a clank.",
-    "cape": "Heavy fabric flapping hard in the wind.",
-    # A fight
-    "punch": "A heavy punch landing, a grunt, a body stumbling into crates — close by.",
-    "kick": "A hard kick connecting and a man groaning as he hits the ground.",
-    "glass": "A bottle smashing on concrete nearby.",
-    # Inside
-    "door": "A heavy metal door banging shut somewhere in a building.",
-    "phone_buzz": "A phone vibrating on a wooden table.",
-    "phone_ring": "An office desk phone ringing twice.",
-    "keyboard": "A quick burst of fast typing on a mechanical keyboard.",
-    "printer": "An office printer whirring and pushing out a page.",
-    "elevator": "An elevator chime and doors sliding open.",
-    "kettle": "A kettle coming to the boil and clicking off.",
-    "clock": "A grandfather clock chiming the hour in a big quiet house.",
-    "computer_beep": "A few soft electronic alert beeps from a computer console.",
-    "police_radio": "A short burst of police radio chatter, crackling and indistinct.",
-    "announcement": "A muffled public-address announcement echoing, indistinct.",
-    # Out and about
-    "trolley": "A shopping trolley rattling over a shop floor.",
-    "checkout": "A supermarket checkout scanner beeping a few times.",
-    "espresso": "An espresso machine hissing and steaming milk.",
-    "till": "A cash register drawer ringing open.",
-    "glasses": "Glasses clinking in a toast and a burst of laughter.",
-    "cheer": "A crowd cheering at something on the bar's television.",
-    "weights": "Gym weights clanking down onto a rack.",
-    "bell": "A campus bell ringing the hour in the distance.",
-    "birds": "A burst of birdsong in a park.",
-    # The water and the cave
-    "foghorn": "A ship's foghorn far off across the harbour.",
-    "gulls": "Seagulls crying over a harbour.",
-    "bats": "A flurry of bats fluttering through a cave, echoing.",
-    "drip": "Water dripping into a pool in a vast echoing cave.",
-    "subway_brakes": "A subway train braking into a station, doors chiming and sliding open.",
-    # At home, theirs
-    "meow": "A cat meowing close by, curious.",
-    "purr": "A cat purring loudly right next to the phone.",
-    "cat_jump": "A cat jumping down onto a wooden floor and trotting away.",
-    "dog_bark": "A dog barking twice inside an apartment, excited.",
-    "dog_tags": "A dog shaking itself, tags jingling.",
-    "sizzle": "Food hitting a hot pan and sizzling loudly.",
-    "chop": "A knife chopping quickly on a wooden board.",
-    "plates": "Plates and cutlery clinking as a table is laid.",
-    "tap": "A kitchen tap running briefly and turning off.",
-    "shower_door": "A glass shower door sliding open, water still running.",
-    "hull": "Water slapping against a boat's hull, the boat rocking and creaking.",
-    "gears": "A big clockwork gear clunking into place.",
-    "slide": "A pistol slide being racked, metallic and close.",
-    "footsteps": "Footsteps on a stone floor, coming closer and passing.",
-    "rustle": "A paper grocery bag rustling as it's set down.",
-    "jet": "A jet thruster whining past overhead and fading.",
-    "window_rain": "A gust of rain spattering against a window.",
-}
-# For each kind of place, what's heard over it and about how often (seconds between, on average).
-SCENE_SHOTS = {
-    "scuffle": [("punch", 7), ("kick", 14), ("glass", 45), ("gunshots", 300), ("scream", 400)],
-    "rooftop": [("wind_gust", 35), ("siren", 70), ("cape", 90), ("helicopter", 180), ("grapple", 240),
-                ("gunshots", 420), ("thunder", 600)],
-    "street_night": [("siren", 75), ("car_pass", 60), ("dog", 120), ("alarm", 300), ("train", 240),
-                     ("gunshots", 500), ("scream", 900)],
-    "street_day": [("horn", 60), ("car_pass", 45), ("bus", 150), ("siren", 160), ("motorbike", 200), ("train", 220)],
-    "car": [("horn", 90), ("motorbike", 160), ("siren", 180), ("car_pass", 70)],
-    "subway": [("subway_brakes", 120), ("announcement", 160)],
-    "grocery": [("trolley", 40), ("checkout", 50), ("announcement", 180)],
-    "cafe": [("espresso", 45), ("till", 90), ("glasses", 150)],
-    "bar": [("glasses", 40), ("cheer", 110), ("door", 150)],
-    "office": [("keyboard", 40), ("phone_ring", 120), ("printer", 160), ("elevator", 200)],
-    "lab": [("computer_beep", 45), ("keyboard", 60), ("door", 300)],
-    "cave": [("drip", 25), ("bats", 90), ("computer_beep", 70)],
-    "manor": [("clock", 600), ("door", 240), ("kettle", 500)],
-    "home": [("phone_buzz", 200), ("kettle", 400), ("siren", 400)],
-    "park": [("birds", 40), ("dog", 120)],
-    "garden": [("birds", 35)],
-    "hospital": [("announcement", 90), ("computer_beep", 60), ("door", 150)],
-    "gym": [("weights", 30), ("punch", 50)],
-    "police": [("police_radio", 45), ("phone_ring", 90), ("door", 120)],
-    "docks": [("foghorn", 130), ("gulls", 70), ("door", 200)],
-    "campus": [("bell", 300), ("birds", 90)],
-    "kitchen": [("sizzle", 35), ("chop", 50), ("tap", 90), ("plates", 120)],
-    "shower": [("shower_door", 240)],
-    "walking": [("car_pass", 40), ("horn", 120), ("dog", 150)],
-    "running": [("car_pass", 50), ("dog", 140)],
-    "gliding": [("wind_gust", 25), ("cape", 30), ("grapple", 90), ("siren", 120), ("jet", 400)],
-    "studio": [("footsteps", 60)],
-    "cats_home": [("purr", 60), ("meow", 90), ("cat_jump", 150)],
-    "dog_home": [("dog_tags", 70), ("dog_bark", 160)],
-    "houseboat": [("hull", 50), ("gulls", 120), ("foghorn", 300)],
-    "clocktower": [("gears", 40), ("computer_beep", 70), ("keyboard", 80)],
-    "safehouse": [("drip", 30), ("slide", 300), ("siren", 150), ("door", 200)],
-    "rain_street": [("car_pass", 45), ("thunder", 400), ("siren", 160)],
-    "rain_roof": [("wind_gust", 40), ("thunder", 250), ("grapple", 200)],
-    "storm": [("thunder", 35), ("window_rain", 60)],
-    "snow": [("footsteps", 90), ("wind_gust", 120)],
-}
-# Out in the weather: what the place sounds like when it's raining, storming, snowing.
-_WEATHERED = {"street_day": "rain_street", "street_night": "rain_street", "walking": "rain_street",
-              "running": "rain_street", "rooftop": "rain_roof", "gliding": "rain_roof", "park": "rain_street",
-              "docks": "rain_street"}
+_CATALOGUE = json.loads((Path(__file__).with_name("soundscape.json")).read_text())
+CATALOGUE_SCENES = _CATALOGUE["scenes"]
+CATALOGUE_SOUNDS = _CATALOGUE["sounds"]
 
-# What they're doing, said any of the ways it gets said, to a kind of place.
+# The names the rest of the console has always used: every loop's prompt, and every sound's first prompt.
+SCENES = {name: spec["prompt"] for name, spec in CATALOGUE_SCENES.items()}
+ONE_SHOTS = {name: next(iter(spec["variants"].values())) for name, spec in CATALOGUE_SOUNDS.items()}
+SCENE_SHOTS = {name: [(row[0], row[1]) for row in spec.get("sounds", [])] for name, spec in CATALOGUE_SCENES.items()}
+
+# How a sound is heard from each distance, beyond how it was made: louder or quieter, panned, a far one dulled,
+# one going past swept across. Ranges, so no two horns are quite the same.
+_DISTANCE = {
+    "near": {"gain": (1.0, 1.45), "pan": 0.35, "lp": None},
+    "mid": {"gain": (0.55, 0.85), "pan": 0.6, "lp": (5000, 8000)},
+    "far": {"gain": (0.22, 0.42), "pan": 0.85, "lp": (1800, 3200)},
+    "pass": {"gain": (0.9, 1.3), "pan": 0.9, "lp": None},
+}
+_SAID_FROM = {"near": "right by you", "mid": "close by", "far": "in the distance", "pass": "going past"}
+MIN_GAP = 2.5            # seconds between two sounds in one place: never a pile-up
+HORIZON = 150            # how far ahead a plan is laid out; the page asks again every minute and a half
+
+# Out in the weather: what's laid over a place, and what it sounds like from inside one with windows.
+_WEATHER_LAYER = {"rain": ("rain_layer", 0.85), "storm": ("storm", 0.9), "snow": ("snow", 0.6),
+                  "wind": ("wind_layer", 0.6)}
+_HIGH_UP = {"rooftop", "rooftop_day", "stakeout", "gliding"}
+_IN_A_VEHICLE = {"car", "taxi"}
+
+# What they're doing, said any of the ways it gets said, to a kind of place. Most particular first.
 _DOING = [
     (r"shower|bath\b|bathing", "shower"),
-    (r"cook\w*|making (dinner|lunch|breakfast)|kitchen|baking|chopping", "kitchen"),
-    (r"grappl\w*|glid\w*|swinging|on the rooftops|rooftop run|parkour", "gliding"),
+    (r"cook\w*|making (dinner|lunch|breakfast|tea)|kitchen|baking|chopping|dinner on|washing up", "kitchen"),
+    (r"trapeze|acrobat\w*|tumbling|\bflips?\b|aerial\w*|gymnastics|circus", "acrobatics"),
+    (r"heavy bag|boxing|sparring|speed bag|punching bag|wildcat", "boxing"),
+    (r"dojo|martial|\bkata\b|staff work|bo staff|escrima|katana", "dojo"),
+    (r"lifting|weights|deadlift|bench press|squats?\b", "gym"),
+    (r"\b(swim\w*|laps)\b|\bpool\b", "pool"),
+    (r"grappl\w*|glid\w*|swinging|on the rooftops|rooftop run|parkour|free ?run\w*", "gliding"),
+    (r"flying patrol|in the suit|armou?r", "flying"),
+    (r"stake ?out|staking (it )?out|surveil\w*|casing|watching (the|a) (building|warehouse|place|door|street|docks|house|lot|club)",
+     "stakeout"),
+    (r"on scene|crime scene|scene of|behind the tape|cordon", "crime_scene"),
+    (r"precinct|gcpd|station house|bullpen|commissioner'?s office", "police"),
     (r"\b(run|running|jog\w*|sprint\w*)\b", "running"),
+    (r"walk\w* (haley|the dog|\w+'s dog)|dog walk", "dog_walk"),
     (r"\b(walk\w*|stroll\w*|on foot|heading home)\b", "walking"),
-    (r"ballet|dance class|barre|dancing alone", "studio"),
-    (r"grocer|supermarket|shopping|groceries", "grocery"),
+    (r"ballet|dance class|barre|danc\w*", "studio"),
+    (r"grocer|supermarket|groceries", "grocery"),
+    (r"\bmall\b|shopping", "mall"),
+    (r"\bmarket\b", "market"),
+    (r"diner|pancakes|waffles?", "diner"),
     (r"coffee|caf[eé]|espresso|brunch", "cafe"),
-    (r"\b(bar|drinks?|club|pub|nightclub|party)\b", "bar"),
-    (r"\b(gym|training|sparring|workout|boxing|heavy bag)\b", "gym"),
-    (r"stake ?out|patrol|rooftop|swinging|on the beat", "rooftop"),
+    (r"restaurant|dinner (at|with|out)|lunch (at|with)|dining|bistro|steakhouse", "restaurant"),
+    (r"gala|fundraiser|benefit|black[- ]tie|charity|reception\b", "gala"),
+    (r"nightclub|\bclub\b|rave", "club"),
+    (r"\b(bar|drinks?|pub|party|hi-hat|jazz)\b", "bar"),
+    (r"gaming|video ?games?|game night|playing (mario|smash|halo|fifa|madden|call of duty|street fighter|the switch|"
+     r"the xbox|the playstation)|on the (xbox|playstation|switch)", "game_night"),
+    (r"movie night|film night|watching (a |the )?(film|movie)s? (together|with)", "movie_night"),
+    (r"(watch\w*) (a |the )?(film|movie|tv|show|series|news|telly)|netflix|\btv\b", "home_tv"),
+    (r"cinema|the movies|\bfilm\b at", "cinema"),
+    (r"ballgame|baseball|knights game|stadium|the game at", "stadium"),
+    (r"\b(gym|training|workout|treadmill|cardio)\b", "gym"),
+    (r"patrol|on the beat|rooftop", "rooftop"),
     (r"\bcave\b", "cave"),
-    (r"\b(lab|workshop|tinker\w*|r&d|server|code|coding|hack\w*|clock ?tower|oracle)\b", "lab"),
-    (r"hospital|clinic|surgery|ward\b|shift at", "hospital"),
-    (r"\b(class|lecture|campus|seminar|studying|library)\b", "campus"),
-    (r"\b(office|meeting|board|paperwork|emails?)\b", "office"),
-    (r"precinct|gcpd|station house|bullpen", "police"),
-    (r"garden\w*|roses|pruning", "garden"),
+    (r"hangar|flight checks|engine work", "hangar"),
+    (r"\bflight\b|plane|flying to|jet to", "jet_cabin"),
+    (r"airport", "airport"),
+    (r"weld\w*|tinker\w*|workshop|fixing (the|a) (bike|car)|garage", "workshop"),
+    (r"\blab\b|r&d|experiment", "lab"),
+    (r"server|cod(e|ing)|hack\w*|clock ?tower|oracle|monitors?|feeds", "lab"),
+    (r"surgery|operating", "hospital"),
+    (r"\b(er|emergency room)\b|a&e", "er"),
+    (r"hospital|clinic|ward\b|shift at|leslie", "hospital"),
+    (r"lecture|seminar|\bclass\b", "lecture"),
+    (r"library|studying|reading room|archives?", "library"),
+    (r"campus|university|college", "campus"),
+    (r"board meeting|board ?room|meeting|briefing|conference call", "boardroom"),
+    (r"\b(office|paperwork|emails?|desk)\b", "office"),
+    (r"interrogat\w*|holding cell|booking", "police"),
+    (r"arkham", "asylum"),
+    (r"blackgate|prison|visiting (hours|room)", "prison"),
+    (r"court(house|room)?\b|hearing|testif\w*", "court"),
+    (r"church|\bmass\b|chapel|confession", "church"),
+    (r"cemetery|grave\w*", "cemetery"),
+    (r"greenhouse|orchids", "greenhouse"),
+    (r"garden\w*|roses|pruning|weeding|lawn", "garden"),
     (r"\bpark\b", "park"),
-    (r"asleep|sleep\w*|in bed|napping", "home"),
+    (r"pier|boardwalk|amusement", "pier"),
+    (r"marina|harbou?r|docks?\b|waterfront|river|skat\w*", "waterfront"),
+    (r"bridge", "bridge"),
+    (r"subway|metro|the train\b", "subway"),
+    (r"\bbus\b", "bus_ride"),
+    (r"\bcab\b|taxi", "taxi"),
+    (r"driv\w*|in the car|behind the wheel", "car"),
+    (r"asleep|sleep\w*|in bed|napping", "bedroom"),
 ]
 # The map's icon for where they are, to a kind of place.
-_ICON = {"manor": "manor", "police": "police", "hospital": "hospital", "lab": "lab", "clock": "lab",
-         "university": "campus", "school": "campus", "diner": "cafe", "bar": "bar", "club": "bar",
-         "nightlife": "bar", "dock": "docks", "marina": "docks", "park": "park", "garden": "garden",
-         "gym": "gym", "tower": "office", "home": "home", "market": "street_day", "station": "street_day"}
-_BY = {"driving": "car", "on the subway": "subway", "over the rooftops": "rooftop", "on the bike": "rooftop"}
+_ICON = {"manor": "manor", "police": "police", "hospital": "hospital", "lab": "lab", "clock": "clocktower",
+         "university": "campus", "school": "campus", "diner": "diner", "bar": "bar", "club": "club",
+         "nightlife": "bar", "dock": "docks", "marina": "waterfront", "park": "park", "garden": "garden",
+         "gym": "gym", "tower": "exec_office", "home": "home", "market": "market", "station": "platform",
+         "cemetery": "cemetery", "church": "church", "stadium": "stadium", "circus": "acrobatics",
+         "museum": "library", "prison": "prison", "asylum": "asylum", "hotel": "hotel_lobby", "theatre": "cinema",
+         "airport": "airport", "heliport": "rooftop_day", "fire": "police", "library": "library",
+         "industry": "warehouse", "water": "waterfront", "beach": "waterfront", "lighthouse": "docks",
+         "naval": "docks", "news": "office", "civic": "court", "zoo": "park", "observatory": "rooftop"}
+_OFFICE_OF = {"police": "police_office", "hospital": "hospital", "lab": "lab", "news": "office"}
+_BY = {"driving": "car", "on the subway": "subway", "over the rooftops": "gliding", "on the bike": "bike",
+       "on foot": "walking", "on the Batwing": "jet_cabin", "on the Batwing, with him": "jet_cabin"}
+_CASE_KIND = [(r"shoot|gunfight|gunman|gunmen|firefight|sniper|shots fired", "gunfight"),
+              (r"\bfire\b|arson|blaze", "fire_scene")]
 
 _locks, _failed = {}, {}
 _guard = threading.Lock()
+_plans = {}
+_plans_lock = threading.Lock()
 
 
 def available():
     return bool(config.AMBIENCE and config.ELEVENLABS_API_KEY)
 
 
+# --- where they are ---------------------------------------------------------------------------
+
 def scene_for(contact, t=None):
-    """
-    The kind of place they're in right now, from their day — and, out in the
-    open, the weather over it: a rooftop in the rain is rain on a rooftop.
-    """
-    from ..engine import world
-    scene = _scene(contact, t)
-    sky = world.sky()
-    if sky == "storm" and scene in _WEATHERED:
-        return "storm"
-    if sky == "snow" and scene in _WEATHERED:
-        return "snow"
-    if sky == "rain" and scene in _WEATHERED:
-        return _WEATHERED[scene]
-    return scene
-
-
-def _scene(contact, t=None):
     """The kind of place they're in right now, from their day — or "" for nothing worth hearing."""
     from ..engine import cases, places, presence
     t = t or time.time()
@@ -252,29 +181,35 @@ def _scene(contact, t=None):
     if case:
         stage = cases.phase(case, t)[0]
         if stage in ("in it", "gone wrong"):
-            return "scuffle"
-        if stage in ("arriving", "wrapping up", "en route"):
+            kind = (case.get("kind") or "").lower()
+            return next((scene for pattern, scene in _CASE_KIND if re.search(pattern, kind)), "scuffle")
+        if stage == "wrapping up":
+            return "crime_scene"
+        if stage in ("arriving", "en route"):
             return "rooftop" if getattr(contact, "beat", None) else "street_night"
     trip = whereabouts.get("trip") or {}
     if trip.get("end", 0) > t and len(trip.get("pts") or []) > 1:
         by = trip.get("by") or ""
         if by in _BY:
             return _BY[by]
-        return "street_night" if _night(t) else "street_day"
+        return _street(t)
     doing = (whereabouts.now(t).get("doing") or "").lower()
-    for pattern, scene in _DOING:
-        if re.search(pattern, doing):
-            return scene
     where, _ = whereabouts.whereabouts(t)
     home = getattr(contact, "home", "") or ""
     spot = places.resolve(where)
     data = places.gazetteer()
     icon = next((p.get("icon") for p in data["places"] if spot and p["name"] == spot["name"]), "") or ""
-    if icon in _ICON:
-        return _ICON[icon]
+    for pattern, scene in _DOING:
+        if re.search(pattern, doing):
+            # An office is the building's kind of office: Jim's at GCPD Central has the bullpen through the door.
+            if scene in ("office", "boardroom", "exec_office") and icon in _OFFICE_OF:
+                return _OFFICE_OF[icon]
+            return _by_hour(scene, t)
     if where and (where == home or "home" in where.lower()):
         return getattr(contact, "home_sound", "") or ("manor" if "manor" in where.lower() else "home")
-    return ("street_night" if _night(t) else "street_day") if where else ""
+    if icon in _ICON:
+        return _by_hour(_ICON[icon], t)
+    return _street(t) if where else ""
 
 
 def _night(t):
@@ -282,52 +217,303 @@ def _night(t):
     return hour >= 20 or hour < 6
 
 
+def _rush(t):
+    local = time.localtime(t)
+    minutes = local.tm_hour * 60 + local.tm_min
+    return local.tm_wday < 5 and (7 * 60 + 30 <= minutes <= 9 * 60 + 30 or 16 * 60 + 30 <= minutes <= 19 * 60)
+
+
+def _street(t):
+    return "street_night" if _night(t) else "street_rush" if _rush(t) else "street_day"
+
+
+def _by_hour(scene, t):
+    """The same place by night: a park at night, a rooftop by day, the pier when it's shut."""
+    night = _night(t)
+    return {"park": "park_night" if night else "park", "rooftop": "rooftop" if night else "rooftop_day",
+            "pier": "pier_night" if night else "pier"}.get(scene, scene)
+
+
+def _sky():
+    try:
+        from ..engine import world
+        return world.sky()
+    except Exception:
+        return ""
+
+
+def beds_for(scene, sky=None):
+    """The loops laid down for a place, as [(name, gain)]: its own, what's under it, and the weather over it."""
+    spec = CATALOGUE_SCENES.get(scene)
+    if not spec:
+        return []
+    sky = _sky() if sky is None else sky
+    beds = [(scene, 1.0)] + [(name, gain) for name, gain in spec.get("layers", [])]
+    if sky in _WEATHER_LAYER:
+        layer, gain = _WEATHER_LAYER[sky]
+        if scene in _IN_A_VEHICLE and sky in ("rain", "storm"):
+            beds.append(("car_rain", 0.8))
+        elif spec.get("outdoor"):
+            beds.append(("rain_roof", gain) if scene in _HIGH_UP and sky in ("rain", "storm") else (layer, gain))
+        elif spec.get("windows") and sky in ("rain", "storm"):
+            beds.append(("window_rain", 0.45))
+    return beds
+
+
 def shots_for(scene):
     """The one-off sounds over a scene: [{"name", "every"}] — seconds between, on average."""
     return [{"name": name, "every": every} for name, every in SCENE_SHOTS.get(scene, [])]
 
 
-def path(scene):
-    return paths.DATA_DIR / "ambience" / f"{scene}.mp3"
+# --- what happens there, and when -------------------------------------------------------------
+
+def _variant_file(sound, distance):
+    """The clip's name for a sound from a distance: its first-made as it always was, the rest by distance."""
+    variants = list(CATALOGUE_SOUNDS[sound]["variants"])
+    return sound if distance == variants[0] else f"{sound}-{distance}"
 
 
-def clip(scene):
+def _cue(sound, at, distance, rng):
+    shape = _DISTANCE[distance]
+    pan = round(rng.uniform(-shape["pan"], shape["pan"]), 2)
+    cue = {"id": f"{sound}-{int(at * 1000)}", "at": round(at, 2), "sound": sound, "distance": distance,
+           "file": _variant_file(sound, distance), "gain": round(rng.uniform(*shape["gain"]), 2), "pan": pan}
+    if shape["lp"]:
+        cue["lp"] = int(rng.uniform(*shape["lp"]))
+    if distance == "pass":
+        side = rng.choice((-1, 1))
+        cue["sweep"] = [-side * shape["pan"], side * shape["pan"]]
+    return cue
+
+
+def _windows(rhythm, start, end, rng, state):
+    """For a place with bursts and rests (a training hall): the stretches where something's happening."""
+    on_lo, on_hi, off_lo, off_hi = rhythm
+    windows, t, on = [], state.get("t", start), state.get("on", True)
+    while t < end:
+        length = rng.uniform(on_lo, on_hi) if on else rng.uniform(off_lo, off_hi)
+        if on:
+            windows.append((t, t + length))
+        t, on = t + length, not on
+    state.update(t=t, on=on)
+    return windows
+
+
+def _lay_out(scene, start, end, rng, state, sky=None):
+    """The sounds of a place between two moments: each at its own rate, from its own distances, spaced apart."""
+    spec = CATALOGUE_SCENES.get(scene) or {}
+    rows = [list(r) for r in spec.get("sounds", [])]
+    sky = _sky() if sky is None else sky
+    if sky == "storm" and (spec.get("outdoor") or spec.get("windows")):
+        rows.append(["thunder", 45, "near,far"])
+    windows = _windows(spec["rhythm"], start, end, rng, state) if spec.get("rhythm") else None
+    found = []
+    for sound, every, distances in rows:
+        if sound not in CATALOGUE_SOUNDS:
+            continue
+        t = start + rng.expovariate(1.0 / every)
+        while t < end:
+            if windows is None or any(a <= t < b for a, b in windows):
+                found.append(_cue(sound, t, rng.choice(distances.split(",")), rng))
+            t += rng.expovariate(1.0 / every)
+    found.sort(key=lambda c: c["at"])
+    spaced, last = [], state.get("last", start - MIN_GAP)
+    for cue in found:
+        if cue["at"] - last >= MIN_GAP:
+            spaced.append(cue)
+            last = cue["at"]
+    state["last"] = last
+    return spaced
+
+
+def plan(contact, t=None, rng=None):
     """
-    The loop for a scene — or a one-off sound (`ONE_SHOTS`) — made the first
-    time it's wanted and kept: a path, or None — no key, switched off, an
-    unknown name, or ElevenLabs saying no (asked again only after a while).
+    The next couple of minutes of where they are, for the page to play: the
+    loops and how loud, and each sound with its moment, distance, pan and tone.
+    Asked again while it runs, it carries on — the sounds already promised
+    stay where they were — unless they've moved, when it starts afresh.
+    """
+    t = t or time.time()
+    rng = rng or random.Random()
+    scene = scene_for(contact, t)
+    if not scene or scene not in CATALOGUE_SCENES:
+        with _plans_lock:
+            _plans.pop(contact.id, None)
+        return {"scene": "", "beds": [], "cues": [], "cuts": [], "level": 1.0, "now": t}
+    sky = _sky()
+    with _plans_lock:
+        kept = _plans.get(contact.id)
+        if not kept or kept["scene"] != scene or kept.get("sky") != sky:
+            kept = {"scene": scene, "sky": sky, "cues": [], "until": t, "state": {}}
+        if kept["until"] < t + HORIZON:
+            kept["cues"] += _lay_out(scene, max(kept["until"], t), t + HORIZON, rng, kept["state"], sky)
+            kept["until"] = t + HORIZON
+        kept["cues"] = [c for c in kept["cues"] if c["at"] > t - 120]
+        kept["fetched"] = t
+        _plans[contact.id] = kept
+        cues = [c for c in kept["cues"] if c["at"] >= t]
+    spec = CATALOGUE_SCENES[scene]
+    cuts = [{"file": _variant_file(name, next(iter(CATALOGUE_SOUNDS[name]["variants"]))), "p": p}
+            for name, p in spec.get("cuts", []) if name in CATALOGUE_SOUNDS]
+    return {"scene": scene, "beds": [{"name": n, "gain": g} for n, g in beds_for(scene, sky)],
+            "cues": cues, "cuts": cuts, "level": spec.get("level", 1.0), "now": t}
+
+
+def forget(contact_id):
+    """Off the call: nothing's playing behind them any more."""
+    with _plans_lock:
+        _plans.pop(contact_id, None)
+
+
+# --- what they hear of it ---------------------------------------------------------------------
+
+def _room(scene, sky):
+    spec = CATALOGUE_SCENES.get(scene) or {}
+    parts = [spec.get("say", "")]
+    parts += [CATALOGUE_SCENES[name]["say"] for name, _ in spec.get("layers", []) if name in CATALOGUE_SCENES]
+    for name, _ in beds_for(scene, sky)[1 + len(spec.get("layers", [])):]:
+        parts.append(CATALOGUE_SCENES.get(name, {}).get("say", ""))
+    return ", ".join(p for p in parts if p)
+
+
+def _ago(seconds):
+    return "just now" if seconds < 8 else "a few seconds ago" if seconds < 20 else "a little while ago"
+
+
+def _just_heard(kept, t, loud_only=False):
+    recent = [c for c in kept["cues"] if t - 45 <= c["at"] <= t
+              and (not loud_only or c["distance"] in ("near", "pass") or c["sound"] in ("gunshots", "siren", "thunder"))]
+    recent.sort(key=lambda c: -c["at"])
+    return [f"{CATALOGUE_SOUNDS[c['sound']]['say']}, {_SAID_FROM[c['distance']]}, {_ago(t - c['at'])}"
+            for c in recent[:3]]
+
+
+def heard(contact_id, t=None, others=()):
+    """
+    What's audible on the line right now, for whoever's speaking: the room
+    around them and what's just happened in it — and on a group call, what's
+    come down the others' phones (`others`: [(id, name as they know them)]).
+    "" when nothing's playing (no call, no sound, the page not asking).
+    """
+    t = t or time.time()
+    with _plans_lock:
+        mine = _plans.get(contact_id)
+        theirs = [(name, _plans.get(cid)) for cid, name in others]
+    lines = []
+    if mine and t - mine.get("fetched", 0) < 200:
+        lines.append(f"Around you on the line, and down it to him: {_room(mine['scene'], mine.get('sky'))}.")
+        recent = _just_heard(mine, t)
+        if recent:
+            lines.append("Just now: " + "; ".join(recent) + ".")
+    for name, kept in theirs:
+        if kept and t - kept.get("fetched", 0) < 200:
+            recent = _just_heard(kept, t, loud_only=True)
+            if recent:
+                lines.append(f"Down {name}'s phone: " + "; ".join(recent) + ".")
+    if not lines:
+        return ""
+    return (" ".join(lines) + " That's your world, heard as it happens: if he asks about a sound you know what "
+            "it was, and something loud or close might get a word out of you, as it would anyone — or nothing. "
+            "Don't narrate it.")
+
+
+# --- the clips --------------------------------------------------------------------------------
+
+def path(name):
+    return paths.DATA_DIR / "ambience" / f"{name}.mp3"
+
+
+def _what(name):
+    """(prompt, seconds, looped, music) for a clip name: a loop, a sound's first-made, or a sound from a distance."""
+    if name in CATALOGUE_SCENES:
+        spec = CATALOGUE_SCENES[name]
+        return spec["prompt"], LOOP_SECONDS, True, bool(spec.get("music"))
+    sound, _, distance = name.partition("-")
+    spec = CATALOGUE_SOUNDS.get(sound)
+    if not spec:
+        return None
+    variants = spec["variants"]
+    distance = distance or next(iter(variants))
+    if distance not in variants:
+        return None
+    return variants[distance], spec.get("seconds", 4), False, False
+
+
+def _spent_key(t=None):
+    return "spent:" + time.strftime("%Y-%m", time.localtime(t or time.time()))
+
+
+def _allowance(seconds):
+    """Whether making this much more fits this month's allowance — and, if so, counted."""
+    from .. import store
+    cost = int(seconds * CREDITS_PER_SECOND)
+    cap = config.SFX_CREDITS
+    if cap <= 0:
+        return False
+    space = store.space("ambience")
+    spent = int(space.get(_spent_key()) or 0)
+    if spent + cost > cap:
+        return False
+    space.put(_spent_key(), spent + cost)
+    return True
+
+
+def spent(t=None):
+    from .. import store
+    return int(store.space("ambience").get(_spent_key(t)) or 0)
+
+
+def clip(name):
+    """
+    The clip for a loop or a sound — made the first time it's wanted and kept:
+    a path, or None — no key, switched off, an unknown name, the month's
+    allowance used up, or ElevenLabs saying no (asked again only after a while).
     Blocking: run off the event loop.
     """
-    shot = scene in ONE_SHOTS
-    if (scene not in SCENES and not shot) or not available():
+    what = _what(name)
+    if what is None or not available():
         return None
-    target = path(scene)
+    target = path(name)
     if target.exists() and target.stat().st_size > 1000:
         return target
+    prompt, seconds, looped, music = what
     with _guard:
-        lock = _locks.setdefault(scene, threading.Lock())
+        lock = _locks.setdefault(name, threading.Lock())
     with lock:
         if target.exists() and target.stat().st_size > 1000:
             return target
-        if time.time() - _failed.get(scene, 0) < 600:
+        if time.time() - _failed.get(name, 0) < 600:
+            return None
+        if not _allowance(seconds):
+            _failed[name] = time.time()
+            log.info("ambience %s not made: this month's sound allowance (WAYNE_SFX_CREDITS) is spent", name)
             return None
         try:
             response = requests.post(
                 "https://api.elevenlabs.io/v1/sound-generation",
                 params={"output_format": "mp3_44100_128"},
-                json=({"text": ONE_SHOTS[scene] + " No music.", "duration_seconds": 4, "loop": False,
-                       "prompt_influence": 0.55, "model_id": "eleven_text_to_sound_v2"} if shot else
-                      {"text": SCENES[scene] + _TAIL, "duration_seconds": LOOP_SECONDS, "loop": True,
-                       "prompt_influence": 0.45, "model_id": "eleven_text_to_sound_v2"}),
+                json=({"text": prompt + (_TAIL_MUSIC if music else _TAIL), "duration_seconds": seconds,
+                       "loop": True, "prompt_influence": 0.45, "model_id": "eleven_text_to_sound_v2"} if looped else
+                      {"text": prompt + " No music.", "duration_seconds": seconds, "loop": False,
+                       "prompt_influence": 0.55, "model_id": "eleven_text_to_sound_v2"}),
                 headers={"xi-api-key": config.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
                 timeout=60)
             if response.status_code != 200 or len(response.content) < 1000:
                 raise RuntimeError(f"{response.status_code}: {response.text[:160]}")
         except Exception as exc:
-            _failed[scene] = time.time()
-            log.warning("ambience %s couldn't be made: %s", scene, str(exc)[:200])
+            _failed[name] = time.time()
+            log.warning("ambience %s couldn't be made: %s", name, str(exc)[:200])
             return None
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(response.content)
-        log.info("ambience %s made (%d KB)", scene, len(response.content) // 1024)
+        log.info("ambience %s made (%d KB)", name, len(response.content) // 1024)
         return target
+
+
+def every_clip():
+    """[(name, seconds)] for everything the catalogue could ever play — what a full render would make."""
+    out = [(name, LOOP_SECONDS) for name in CATALOGUE_SCENES]
+    for sound, spec in CATALOGUE_SOUNDS.items():
+        for distance in spec["variants"]:
+            out.append((_variant_file(sound, distance), spec.get("seconds", 4)))
+    return out

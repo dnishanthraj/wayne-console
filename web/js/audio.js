@@ -107,11 +107,16 @@
 
     item.decoded
       .then(function (decoded) {
+        // Mid-exertion — the bag, the mat, a landing — their own room can cut in between two sentences.
+        return cutIn(item.speaker).then(function () { return decoded; });
+      })
+      .then(function (decoded) {
         if (item.generation !== generation) return;   // stopped while loading
         var source = ctx.createBufferSource();
         source.buffer = decoded;
         source.connect(distant[item.speaker] ? roomChain() : analyser);
         source.onended = function () {
+          lastLine[item.speaker || ''] = Date.now();
           if (current === source) { current = null; next(); }
         };
         current = source;
@@ -140,91 +145,187 @@
   }
 
   /* --- the room behind the voice --------------------------------------------
-     A loop of where they are, low under the call: straight to the speakers, not
-     through the analyser, so the instrument only ever shows the voice. Each
-     bed fades in and out rather than switching, and rises a little while its
-     speaker talks — on a call with company only then, as a phone's noise gate
-     lets a room through only with a voice. */
+     Where each of them is, under the call, all the time: the loops of the
+     place (a pavement's traffic and its crowd, rain over it if it's raining)
+     and the sounds that happen there — a horn beside them, a siren going past,
+     a train far off — when the server says, so what they hear is what he hears
+     (see wayne.audio.ambience). Louder while that one talks; on a group call,
+     still there behind the others, quieter. Each bed has its own analyser, so
+     a person's ring moves with a horn behind them; and a muted line carries no
+     room at all. Straight to the speakers, never into the voice's analyser. */
   var beds = {};
-  var BED_QUIET = 0.05, BED_TALKING = 0.11;
+  var BED_IDLE = 0.07, BED_TALKING = 0.12, BED_BEHIND = 0.045;   // × how loud the place is
+  var lastLine = {};
 
-  // A one-off sound over a bed — a siren passing, a punch landing — now and
-  // then, at random, through the bed's own gain so it's heard as theirs.
-  var shotBuffers = {};
-  function shotBuffer(name) {
-    if (!shotBuffers[name]) {
-      shotBuffers[name] = fetch('/api/ambience/file/' + encodeURIComponent(name))
+  var buffers = {};
+  function buffer(name) {
+    if (!buffers[name]) {
+      buffers[name] = fetch('/api/ambience/file/' + encodeURIComponent(name))
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
         .then(function (buf) { return context().decodeAudioData(buf); });
-      shotBuffers[name].catch(function () { delete shotBuffers[name]; });
+      buffers[name].catch(function () { delete buffers[name]; });
     }
-    return shotBuffers[name];
+    return buffers[name];
   }
-  function scheduleShots(id, entry, shots) {
-    (shots || []).forEach(function (shot) {
-      function next() {
-        // Exponential gaps: sometimes two close together, sometimes a long quiet.
-        var wait = -Math.log(1 - Math.random()) * shot.every * 1000;
-        entry.timers.push(setTimeout(function () {
-          if (beds[id] !== entry) return;
-          shotBuffer(shot.name).then(function (decoded) {
-            if (beds[id] !== entry) return;
-            var source = context().createBufferSource(), lift = context().createGain();
-            lift.gain.value = 1.6;          // a shade above the room it's in
-            source.buffer = decoded;
-            source.connect(lift).connect(entry.gain);
-            source.start();
-          }).catch(function () {});
-          next();
-        }, wait));
+
+  function makeEntry(spec) {
+    var c = context();
+    var entry = { key: bedKey(spec), mix: c.createGain(), gate: c.createGain(), gain: c.createGain(),
+                  analyser: c.createAnalyser(), sources: [], cueTimers: {}, cuts: [], level: 1,
+                  gated: false, talking: false, muted: false };
+    entry.analyser.fftSize = 1024;
+    entry.analyser.smoothingTimeConstant = 0.6;
+    entry.gain.gain.value = 0;
+    entry.mix.connect(entry.gate);
+    entry.gate.connect(entry.analyser);          // what the ring reads: the room as it is, whatever the volume
+    entry.gate.connect(entry.gain);
+    entry.gain.connect(c.destination);
+    (spec.beds || []).forEach(function (layer) {
+      buffer(layer.name).then(function (decoded) {
+        if (entry.dead) return;
+        var source = c.createBufferSource(), g = c.createGain();
+        source.buffer = decoded;
+        source.loop = true;
+        g.gain.value = layer.gain;
+        source.connect(g).connect(entry.mix);
+        // Started somewhere in the loop, so two people in the same kind of place aren't in step.
+        source.start(0, Math.random() * Math.max(0.1, decoded.duration - 0.1));
+        entry.sources.push(source);
+      }).catch(function () { /* that layer isn't made: the rest still play */ });
+    });
+    return entry;
+  }
+
+  function bedKey(spec) { return (spec.beds || []).map(function (b) { return b.name + ':' + b.gain; }).join('|'); }
+
+  /* One sound in someone's room: from its distance, panned, a far one dulled, one going past swept across. */
+  function playCue(entry, cue) {
+    buffer(cue.file).then(function (decoded) {
+      if (entry.dead) return;
+      var c = context(), now = c.currentTime, dur = decoded.duration;
+      var source = c.createBufferSource(), g = c.createGain(), node = source;
+      source.buffer = decoded;
+      if (cue.lp) {
+        var lp = c.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = cue.lp;
+        node.connect(lp);
+        node = lp;
       }
-      next();
+      if (c.createStereoPanner) {
+        var pan = c.createStereoPanner();
+        pan.pan.value = cue.pan || 0;
+        if (cue.sweep) {
+          pan.pan.setValueAtTime(cue.sweep[0], now);
+          pan.pan.linearRampToValueAtTime(cue.sweep[1], now + dur);
+        }
+        node.connect(pan);
+        node = pan;
+      }
+      var peak = (cue.gain || 1) * 1.5;            // a shade above the room it's in
+      if (cue.sweep) {
+        // Coming, here, gone.
+        g.gain.setValueAtTime(peak * 0.35, now);
+        g.gain.linearRampToValueAtTime(peak, now + dur * 0.5);
+        g.gain.linearRampToValueAtTime(peak * 0.25, now + dur);
+      } else {
+        g.gain.value = peak;
+      }
+      node.connect(g).connect(entry.mix);
+      source.start();
+    }).catch(function () {});
+  }
+
+  function scheduleCues(entry, cues) {
+    Object.keys(entry.cueTimers).forEach(function (id) { clearTimeout(entry.cueTimers[id]); });
+    entry.cueTimers = {};
+    (cues || []).forEach(function (cue) {
+      var wait = cue.at * 1000 - Date.now();
+      if (wait < -500) return;
+      if (wait > 4000) setTimeout(function () { if (!entry.dead) buffer(cue.file); }, wait - 4000);
+      else buffer(cue.file);
+      entry.cueTimers[cue.id] = setTimeout(function () {
+        delete entry.cueTimers[cue.id];
+        if (!entry.dead) playCue(entry, cue);
+      }, Math.max(0, wait));
     });
   }
 
-  function bed(id, url, gated, shots) {
-    var c = context(), current = beds[id];
-    if (current && current.url === url) { current.gated = gated; level(id, false); return; }
-    unbed(id);
-    var entry = beds[id] = { url: url, gated: gated, gain: c.createGain(), source: null, timers: [] };
-    scheduleShots(id, entry, shots);
-    entry.gain.gain.value = 0;
-    entry.gain.connect(c.destination);
-    fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
-      .then(function (buf) { return c.decodeAudioData(buf); })
-      .then(function (decoded) {
-        if (beds[id] !== entry) return;           // replaced or gone while it loaded
-        var source = c.createBufferSource();
-        source.buffer = decoded;
-        source.loop = true;
-        source.connect(entry.gain);
-        source.start();
-        entry.source = source;
-        level(id, false);
-      }).catch(function () { /* no room to hear: the call goes on without it */ });
+  /* The bed for someone on the call: the plan the server laid out for the next couple of minutes. Asked again
+     with the same place, it only takes the new moments; somewhere else, the old room fades as the new comes up. */
+  function bed(id, spec, gated) {
+    var entry = beds[id];
+    if (!entry || entry.key !== bedKey(spec)) {
+      var old = entry;
+      entry = beds[id] = makeEntry(spec);
+      if (old) {
+        entry.talking = old.talking;
+        entry.muted = old.muted;
+        retire(old);
+      }
+    }
+    entry.level = spec.level || 1;
+    entry.gated = gated;
+    entry.cuts = spec.cuts || [];
+    (entry.cuts).forEach(function (cut) { buffer(cut.file); });
+    scheduleCues(entry, spec.cues);
+    level(id, entry.talking);
   }
 
   function level(id, talking) {
     var entry = beds[id];
     if (!entry) return;
-    var to = talking ? BED_TALKING : (entry.gated ? 0 : BED_QUIET);
+    entry.talking = !!talking;
+    var to = entry.muted ? 0 : (talking ? BED_TALKING : entry.gated ? BED_BEHIND : BED_IDLE) * entry.level;
     var now = context().currentTime;
     entry.gain.gain.cancelScheduledValues(now);
     entry.gain.gain.setTargetAtTime(to, now, talking ? 0.25 : 0.9);
+  }
+
+  /* Their mic's off: nothing of their room comes down the line, and their ring goes still with it. */
+  function muteBed(id, on) {
+    var entry = beds[id];
+    if (!entry) return;
+    entry.muted = !!on;
+    var now = context().currentTime;
+    entry.gate.gain.cancelScheduledValues(now);
+    entry.gate.gain.setTargetAtTime(on ? 0 : 1, now, 0.08);
+    level(id, entry.talking);
+  }
+
+  /* Between two of their sentences, maybe a sound of what they're doing — the bag, a landing — and a beat for
+     it, as a voice would stop for it. Only mid-reply, never before the first word. */
+  function cutIn(speaker) {
+    var ids = Object.keys(beds);
+    var entry = beds[speaker] || (ids.length === 1 ? beds[ids[0]] : null);
+    var mid = Date.now() - (lastLine[speaker || ''] || 0) < 1800;
+    if (!entry || entry.muted || !mid || !entry.cuts.length) return Promise.resolve();
+    var roll = Math.random(), sum = 0;
+    var cut = entry.cuts.filter(function (c) { sum += c.p; return roll < sum; })[0];
+    if (!cut) return Promise.resolve();
+    return buffer(cut.file).then(function (decoded) {
+      playCue(entry, { file: cut.file, gain: 0.9, pan: 0 });
+      return new Promise(function (resolve) { setTimeout(resolve, Math.min(2600, decoded.duration * 800)); });
+    }).catch(function () {});
+  }
+
+  function retire(entry) {
+    entry.dead = true;
+    Object.keys(entry.cueTimers).forEach(function (cid) { clearTimeout(entry.cueTimers[cid]); });
+    var now = context().currentTime;
+    entry.gain.gain.cancelScheduledValues(now);
+    entry.gain.gain.setTargetAtTime(0, now, 0.6);
+    setTimeout(function () {
+      entry.sources.forEach(function (s) { try { s.stop(); } catch (e) { /* already stopped */ } });
+      entry.gain.disconnect();
+    }, 2500);
   }
 
   function unbed(id) {
     var entry = beds[id];
     if (!entry) return;
     delete beds[id];
-    (entry.timers || []).forEach(clearTimeout);
-    var now = context().currentTime;
-    entry.gain.gain.cancelScheduledValues(now);
-    entry.gain.gain.setTargetAtTime(0, now, 0.6);
-    setTimeout(function () {
-      try { if (entry.source) entry.source.stop(); } catch (e) { /* already stopped */ }
-      entry.gain.disconnect();
-    }, 2500);
+    retire(entry);
   }
 
   global.ConsoleAudio = {
@@ -236,6 +337,8 @@
     bed: bed,
     unbed: unbed,
     bedLevel: level,
+    muteBed: muteBed,
+    bedAnalyser: function (id) { return beds[id] && !beds[id].dead ? beds[id].analyser : null; },
     beds: function () { return Object.keys(beds); },
     on: function (name, fn) { handlers[name] = fn; },
     get analyser() { return analyser; },

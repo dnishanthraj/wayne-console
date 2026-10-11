@@ -1039,7 +1039,9 @@
     var contacts = everyone();
     Object.keys(contacts).forEach(function (id) {
       var c = contacts[id], p = c.presence;
-      if (!p || c.family_app === false) return;
+      if (!p) return;
+      // Not on the family's app — Jim — is never live on it: only where he was last seen, on the scanner or the news.
+      if (c.family_app === false) { if (p.last_seen) ghosts.push(c); return; }
       if (p.spot) {
         if (travelling(c)) moving.push(c);
         else {
@@ -1152,7 +1154,7 @@
     list.innerHTML = '';
     (contacts.bruce ? ['bruce'] : []).concat(opts.order()).forEach(function (id) {
       var c = contacts[id];
-      if (!c || c.family_app === false) return;     // not on the family's app at all — Jim isn't family
+      if (!c || (c.family_app === false && !(c.presence && c.presence.last_seen))) return;   // Jim: only once he's been seen
       var p = c.presence || {};
       var li = document.createElement('li');
       li.className = 'gm-roster__item' + (p.spot ? '' : p.last_seen ? ' is-ghost' : ' is-hidden') + (selected === id ? ' is-on' : '');

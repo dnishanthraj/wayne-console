@@ -71,6 +71,9 @@
   };
 
   Visualizer.prototype.setMode = function (mode) { this.mode = mode; };
+  /* Whose room it shows under them — the traffic behind Dick, the horn that just went off — as a function
+     giving their id (or nothing), since the call changes under it. */
+  Visualizer.prototype.setRoom = function (whose) { this.roomOf = whose; };
   Visualizer.prototype.setLevel = function (level) { this.level = level; };
   // Whoever's talking: the strip takes their colour.
   Visualizer.prototype.setAccent = function (hex) { this.fixedAccent = hexToRgb(hex, this.fixedAccent); };
@@ -144,6 +147,32 @@
       this.targets[BARS - 1 - i] = value;
       this.targets[half - 1 - i] = value;
       this.targets[half + i] = value;
+    }
+  };
+
+  /* The room behind them, under whatever else the ring is showing: a horn going off moves it, the drone of a
+     street keeps it alive — quieter than a voice, and never more than it. */
+  Visualizer.prototype._readRoom = function () {
+    var audio = global.ConsoleAudio, id = this.roomOf && this.roomOf();
+    var room = id && audio && audio.bedAnalyser ? audio.bedAnalyser(id) : null;
+    if (!room) return;
+    if (!this.roomFreq || this.roomFreq.length !== room.frequencyBinCount) {
+      this.roomFreq = new Uint8Array(room.frequencyBinCount);
+      this.roomBands = this._bands(room.context.sampleRate, room.frequencyBinCount);
+    }
+    room.getByteFrequencyData(this.roomFreq);
+    var quarter = BARS / 4, half = BARS / 2;
+    // The steady bed is a faint shimmer; what stands out of it — the horn, the bird, the punch — is what moves.
+    if (!this.roomAvg) this.roomAvg = new Float32Array(quarter);
+    for (var i = 0; i < quarter; i++) {
+      var band = this.roomBands[i], peak = 0;
+      for (var j = band[0]; j < band[1]; j++) if (this.roomFreq[j] > peak) peak = this.roomFreq[j];
+      var v = peak / 255;
+      this.roomAvg[i] += (v - this.roomAvg[i]) * 0.015;
+      var value = Math.min(0.6, 0.1 * v + Math.max(0, v - this.roomAvg[i] - 0.04) * 1.4);
+      [i, BARS - 1 - i, half - 1 - i, half + i].forEach(function (k) {
+        if (value > this.targets[k]) this.targets[k] = value;
+      }, this);
     }
   };
 
@@ -222,6 +251,7 @@
     } else {
       this._readIdle();
     }
+    if (this.mode !== 'listening') this._readRoom();
 
     var rise = 1 - Math.pow(1 - SMOOTHING, frames);
     var fall = 1 - Math.pow(1 - DECAY, frames);
@@ -271,13 +301,10 @@
     var colour = this.mode === 'listening' ? this.alert : this.accent;
     var rgb = colour[0] + ',' + colour[1] + ',' + colour[2];
 
-    // Mean amplitude drives the core, so the centre breathes with the voice.
-    var sum = 0;
-    for (var k = 0; k < BARS; k++) sum += this.values[k];
-    var mean = sum / BARS;
-
+    // The centre holds still: only the bars move. A core that brightened with the voice lit up the portrait
+    // behind it on every word, like a lamp behind their head.
     var glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-    glow.addColorStop(0, 'rgba(' + rgb + ',' + (0.09 + mean * 0.4) + ')');
+    glow.addColorStop(0, 'rgba(' + rgb + ',0.09)');
     glow.addColorStop(1, 'rgba(' + rgb + ',0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -306,9 +333,9 @@
       ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(' + rgb + ',' + (0.35 + mean * 0.55) + ')';
+    ctx.fillStyle = 'rgba(' + rgb + ',0.35)';
     ctx.beginPath();
-    ctx.arc(cx, cy, (2.2 + mean * 4) * this.dpr, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2.2 * this.dpr, 0, Math.PI * 2);
     ctx.fill();
   };
 

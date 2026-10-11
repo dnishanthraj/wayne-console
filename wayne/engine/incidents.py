@@ -938,7 +938,8 @@ def write_log(report, model, options, now=None):
                        "evidence, and the outcome if it's contained or cleared." + rules)
     try:
         reply = llm.ask(model, [{"role": "user", "content": instruction}],
-                        {**options, "temperature": 0.9, "num_predict": 600}, fmt="json", purpose="an incident log")
+                        {**options, "temperature": 0.9, "num_predict": 600}, fmt="json", purpose="an incident log",
+                        background=False)       # he opened it: he's waiting on it
         fresh = json.loads(reply).get("log") or []
     except Exception:
         return kept["entries"]

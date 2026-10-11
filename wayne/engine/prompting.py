@@ -609,7 +609,8 @@ def boot_prompt(contact, returning, since_last="", previous_greeting=""):
         instruction = (
             "The link is live. Greet him in one short, natural sentence."
             if not returning else
-            "The link is live again. Acknowledge the reconnection in one or two sentences."
+            "The link is live again. Pick up in one or two sentences, the way you'd answer someone ringing "
+            "back — which usually means just answering."
         )
 
     gap = f"\nLast exchange: {since_last}." if (returning and since_last) else ""

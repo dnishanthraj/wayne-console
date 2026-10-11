@@ -30,6 +30,8 @@ from .. import operator as wayne_operator
 MAX_CONTACTS = 7          # him and seven of them: the whole family on one line
 # Contact turns per operator turn: the people he addressed, plus one follow-up.
 MAX_TURNS = 3
+# How much less someone on another's speaker chimes in, or fills a pause, than someone on their own line.
+ROOM_GUEST = 0.35
 # How often, after the people he spoke to have answered, someone else jumps in.
 CHIME = 0.5
 
@@ -68,6 +70,8 @@ class Call:
         self.asked_him_at = 0.0
         # Who's on someone else's phone, on speaker: {their id: the host's id}.
         self.speakerphone = {}
+        # Who has muted themselves, and why: they hear the call, they don't take a turn till they're back.
+        self.muted = {}
 
     # --- membership ------------------------------------------------------
 
@@ -162,7 +166,14 @@ class Call:
             if on == session.contact.id:
                 name = next((self.label(m.contact.id, session, full=False) for m in self.members
                              if m.contact.id == guest), guest)
-                note += f" You've got him on speaker — {name} is right here with you and can hear him."
+                note += (f" You've got him on speaker — {name} is right here with you and can hear him. If he wants "
+                         f"you on your own, or it isn't for {name}'s ears, you can step away somewhere quieter: end "
+                         "with [step away] (and later [go back] to rejoin them).")
+        for cid, why in self.muted.items():
+            if cid != session.contact.id:
+                name = next((self.label(m.contact.id, session, full=False) for m in self.members
+                             if m.contact.id == cid), cid)
+                note += f" {name} is on mute for a minute ({why}) — they'll be back; they can't answer till then."
         room = self.in_the_room(session)
         if room:
             note += (f" {' and '.join(room)} {'is' if len(room) == 1 else 'are'} right there with you — the same room, "
@@ -233,6 +244,9 @@ class Call:
 
         over = next((m for m in self.members if m.contact.id == talked_over), None) if interrupted else None
         speakers = self.addressed(prompt) or [over or self.last_speaker or self.members[0]]
+        # Someone on mute hears it and can't answer yet; whoever else is there may say so.
+        speakers = [m for m in speakers if m.contact.id not in self.muted] or \
+            [m for m in self.members if m.contact.id not in self.muted][:1] or speakers
         self._last_operator_line = prompt
         self._operator_line_open = True
         self.transcript.append(("me", prompt))
@@ -274,9 +288,14 @@ class Call:
         chance = CHIME * min(1.0, 0.55 + 0.25 * (len(self.members) - 1))
         extra = 0
         while extra < 2 and len(self.members) > 1 and random.random() < chance:
-            others = [m for m in self.members if m is not self.last_speaker]
+            others = [m for m in self.members if m is not self.last_speaker and m.contact.id not in self.muted]
+            if not others:
+                break
+            # Someone on another's speaker is in the background: in when they've something, not every line —
+            # and every switch of voice is the model reading a whole new prompt.
             weights = [(0.3 + (getattr(m.contact, "initiative", None) or {}).get("per_day", 0.5) * 0.5)
-                       * (1.6 if m not in spoken else 1.0) for m in others]
+                       * (1.6 if m not in spoken else 1.0)
+                       * (ROOM_GUEST if m.contact.id in self.speakerphone else 1.0) for m in others]
             member = random.choices(others, weights=weights)[0]
             line = yield from self.chime(member)
             if not line:
@@ -331,11 +350,12 @@ class Call:
                 yield from self.answered(newcomer, line)
         return line
 
-    def farewell(self, member):
-        """A contact being let go says a quick goodbye before leaving the call."""
+    def farewell(self, member, why=None):
+        """A contact leaving the call says a quick goodbye: let go by him, or `why` they're going themselves."""
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
-            "He's letting you drop off the call. Say a quick goodbye — one line.")
+            + (f"{why} Say a quick goodbye down the line as you go — one line." if why else
+               "He's letting you drop off the call. Say a quick goodbye — one line."))
         line = yield from self._speak_aside(member, instruction, "You can drop off now.",
                                             farewell=True)
         if line:
@@ -399,6 +419,19 @@ class Call:
 
     def _lull_instruction(self, member, quiet_for):
         others = ", ".join(self.label(m.contact.id, member) for m in self.others(member))
+        host = self.speakerphone.get(member.contact.id)
+        if host:
+            # In the background on someone's speaker: mostly talking to the room — the game, the film, each other.
+            from . import presence
+            holder = next((self.label(m.contact.id, member) for m in self.members if m.contact.id == host), "them")
+            doing = (presence.of(member.contact).now().get("doing") or "").strip()
+            return (
+                "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
+                f"You're in the room with {holder}, who's on the phone to him — you're in the background, not on the "
+                "line yourself. If you'd say anything now it's most likely to whoever's here with you, about what "
+                f"you're doing{f' ({doing})' if doing else ''} — a line across the room, the way people carry on "
+                "while someone's on a call — or, now and then, something called out to him. A few words. If you'd "
+                "leave it, reply with exactly SKIP.")
         return (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             f"The call's going — you're on with {identity.full_name_for(member.contact.id)} and {others}, and the last line has "

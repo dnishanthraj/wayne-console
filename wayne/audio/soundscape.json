@@ -1,0 +1,4390 @@
+{
+ "_doc": "Every room the people on the line can be in, and every sound that happens there — made once each with ElevenLabs' sound effects and kept (see wayne/audio/ambience.py). Scenes are looping beds; sounds come in distances (near, mid, far, pass — a drive-by). docs/soundscape.md is this, readable.",
+ "sounds": {
+  "horn": {
+   "say": "a car horn",
+   "seconds": 4,
+   "variants": {
+    "mid": "A car horn blaring in traffic and an angry shout.",
+    "near": "A car horn blasting loudly right beside you on a city street.",
+    "far": "A car horn honking a few blocks away, faint, echoing between buildings.",
+    "pass": "A car honking its horn as it speeds past, Doppler shift, fading."
+   }
+  },
+  "horn_truck": {
+   "say": "a truck's air horn",
+   "seconds": 4,
+   "variants": {
+    "near": "A truck's deep air horn blasting close by on a city street.",
+    "far": "A truck's air horn sounding far off across the city."
+   }
+  },
+  "siren": {
+   "say": "a police siren",
+   "seconds": 6,
+   "variants": {
+    "far": "A police siren passing at a distance on a city street at night, fading away.",
+    "pass": "A police car speeding past with its siren wailing, Doppler shift, fading.",
+    "near": "A police siren starting up right next to you, a loud yelp then a wail."
+   }
+  },
+  "ambulance": {
+   "say": "an ambulance",
+   "seconds": 6,
+   "variants": {
+    "pass": "An ambulance siren rushing past down a city street, Doppler shift, fading away.",
+    "far": "An ambulance siren wailing somewhere across the city."
+   }
+  },
+  "firetruck": {
+   "say": "a fire engine",
+   "seconds": 6,
+   "variants": {
+    "pass": "A fire engine roaring past, air horn blasting and siren wailing, fading.",
+    "far": "Fire engine sirens and an air horn far across the city."
+   }
+  },
+  "car_pass": {
+   "say": "a car going past",
+   "seconds": 4,
+   "variants": {
+    "pass": "A car driving past quickly on a wet street, tyres hissing.",
+    "mid": "A car driving by at normal speed on a dry city street."
+   }
+  },
+  "truck_pass": {
+   "say": "a lorry going past",
+   "seconds": 5,
+   "variants": {
+    "pass": "A heavy truck rumbling past, engine roaring, air brakes hissing."
+   }
+  },
+  "motorbike": {
+   "say": "a motorbike",
+   "seconds": 4,
+   "variants": {
+    "pass": "A motorcycle revving and roaring past, fading down the street.",
+    "far": "A motorbike revving hard somewhere a few streets away."
+   }
+  },
+  "bus": {
+   "say": "a bus",
+   "seconds": 4,
+   "variants": {
+    "near": "A city bus pulling up, air brakes hissing, doors folding open.",
+    "pass": "A city bus pulling away from a stop and rumbling past."
+   }
+  },
+  "brakes": {
+   "say": "tyres screeching",
+   "seconds": 4,
+   "variants": {
+    "near": "Car tyres screeching to a sudden stop close by, then a horn.",
+    "far": "Tyres screeching somewhere a few streets away."
+   }
+  },
+  "crash": {
+   "say": "a car crash",
+   "seconds": 5,
+   "variants": {
+    "far": "A car crash a few blocks away: metal crunching, glass breaking, then a horn stuck on."
+   }
+  },
+  "alarm": {
+   "say": "a car alarm",
+   "seconds": 5,
+   "variants": {
+    "far": "A car alarm going off a few streets away, then cutting out.",
+    "near": "A car alarm going off loudly right next to you, then cutting out."
+   }
+  },
+  "dog": {
+   "say": "a dog barking",
+   "seconds": 4,
+   "variants": {
+    "far": "A dog barking a few streets away at night.",
+    "near": "A dog barking twice right nearby on the street."
+   }
+  },
+  "scream": {
+   "say": "someone screaming",
+   "seconds": 4,
+   "variants": {
+    "far": "A distant scream somewhere in the city at night, cut short."
+   }
+  },
+  "gunshots": {
+   "say": "gunshots",
+   "seconds": 4,
+   "variants": {
+    "far": "Two distant gunshots echoing between tall buildings at night.",
+    "mid": "Three gunshots a block away, sharp cracks echoing off buildings.",
+    "near": "Gunshots fired close by, deafening cracks."
+   }
+  },
+  "helicopter": {
+   "say": "a helicopter",
+   "seconds": 7,
+   "variants": {
+    "pass": "A police helicopter passing low overhead, rotor thump fading into the distance.",
+    "far": "A helicopter circling far off over the city, faint rotor thump."
+   }
+  },
+  "train": {
+   "say": "a train",
+   "seconds": 7,
+   "variants": {
+    "pass": "An elevated train rattling past on its tracks.",
+    "far": "An elevated train screeching around a bend in the distance."
+   }
+  },
+  "thunder": {
+   "say": "thunder",
+   "seconds": 6,
+   "variants": {
+    "far": "Distant thunder rolling over a city.",
+    "near": "A sharp crack of thunder directly overhead, then a long rumble."
+   }
+  },
+  "shout": {
+   "say": "someone shouting",
+   "seconds": 4,
+   "variants": {
+    "far": "A man shouting something indistinct across a city street.",
+    "near": "Two people arguing loudly right nearby, the words indistinct."
+   }
+  },
+  "laugh_group": {
+   "say": "people laughing as they went by",
+   "seconds": 4,
+   "variants": {
+    "pass": "A group of friends laughing and talking indistinctly as they walk past.",
+    "mid": "A burst of laughter from a group of people nearby."
+   }
+  },
+  "whistle": {
+   "say": "a traffic cop's whistle",
+   "seconds": 4,
+   "variants": {
+    "mid": "A traffic cop blowing sharp blasts on a whistle at a busy intersection."
+   }
+  },
+  "jackhammer": {
+   "say": "a jackhammer",
+   "seconds": 5,
+   "variants": {
+    "mid": "A jackhammer pounding concrete across the street.",
+    "far": "A jackhammer pounding somewhere down the block."
+   }
+  },
+  "reverse_beep": {
+   "say": "a truck backing up",
+   "seconds": 4,
+   "variants": {
+    "mid": "A truck reversing, its warning beeper beeping steadily."
+   }
+  },
+  "pigeons": {
+   "say": "pigeons taking off",
+   "seconds": 4,
+   "variants": {
+    "near": "A flock of pigeons taking off in a flurry of wings right beside you.",
+    "mid": "Pigeons cooing and fluttering on a ledge nearby."
+   }
+  },
+  "bike_bell": {
+   "say": "a bike bell",
+   "seconds": 4,
+   "variants": {
+    "pass": "A bicycle bell ringing twice as a bike whizzes past."
+   }
+  },
+  "skateboard": {
+   "say": "a skateboard",
+   "seconds": 4,
+   "variants": {
+    "pass": "A skateboard rolling past on the pavement and clacking off a kerb."
+   }
+  },
+  "heels": {
+   "say": "someone in heels",
+   "seconds": 4,
+   "variants": {
+    "pass": "High heels clicking quickly past on the pavement."
+   }
+  },
+  "manhole": {
+   "say": "a manhole cover",
+   "seconds": 4,
+   "variants": {
+    "pass": "A car driving over a loose manhole cover with a loud double clank."
+   }
+  },
+  "steam": {
+   "say": "steam from a vent",
+   "seconds": 4,
+   "variants": {
+    "near": "Steam hissing loudly from a street vent."
+   }
+  },
+  "dumpster": {
+   "say": "a dumpster lid",
+   "seconds": 4,
+   "variants": {
+    "mid": "A dumpster lid slamming shut in an alley."
+   }
+  },
+  "bottle_kick": {
+   "say": "a bottle skittering",
+   "seconds": 4,
+   "variants": {
+    "near": "A glass bottle kicked and skittering across an alley."
+   }
+  },
+  "fire_escape": {
+   "say": "a fire escape rattling",
+   "seconds": 4,
+   "variants": {
+    "mid": "A metal fire escape rattling and creaking in the wind."
+   }
+  },
+  "cat_yowl": {
+   "say": "alley cats",
+   "seconds": 4,
+   "variants": {
+    "far": "Alley cats yowling at each other."
+   }
+  },
+  "plane": {
+   "say": "a plane overhead",
+   "seconds": 7,
+   "variants": {
+    "far": "A jet plane passing high overhead, a long distant roar."
+   }
+  },
+  "ferry": {
+   "say": "a ferry horn",
+   "seconds": 5,
+   "variants": {
+    "far": "A ferry horn sounding long and low across a river."
+   }
+  },
+  "foghorn": {
+   "say": "a foghorn",
+   "seconds": 5,
+   "variants": {
+    "far": "A ship's foghorn far off across the harbour."
+   }
+  },
+  "gulls": {
+   "say": "gulls",
+   "seconds": 4,
+   "variants": {
+    "mid": "Seagulls crying over a harbour.",
+    "near": "A seagull screeching right overhead."
+   }
+  },
+  "vendor": {
+   "say": "a vendor calling out",
+   "seconds": 4,
+   "variants": {
+    "mid": "A street vendor calling out indistinctly, a cart rattling."
+   }
+  },
+  "church_bells": {
+   "say": "church bells",
+   "seconds": 6,
+   "variants": {
+    "far": "Church bells ringing the hour across the city."
+   }
+  },
+  "car_door": {
+   "say": "a car door",
+   "seconds": 4,
+   "variants": {
+    "mid": "A car door slamming shut nearby."
+   }
+  },
+  "owl": {
+   "say": "an owl",
+   "seconds": 4,
+   "variants": {
+    "far": "An owl hooting in the trees at night."
+   }
+  },
+  "crickets_burst": {
+   "say": "crickets",
+   "seconds": 4,
+   "variants": {
+    "near": "A burst of crickets chirping close by in the grass."
+   }
+  },
+  "wind_gust": {
+   "say": "the wind",
+   "seconds": 4,
+   "variants": {
+    "near": "A strong gust of wind buffeting a rooftop, whistling through railings."
+   }
+  },
+  "grapple": {
+   "say": "the grapnel",
+   "seconds": 4,
+   "variants": {
+    "near": "A grapnel gun firing, the cable zipping out and catching with a clank."
+   }
+  },
+  "cape": {
+   "say": "the cape in the wind",
+   "seconds": 4,
+   "variants": {
+    "near": "Heavy fabric flapping hard in the wind."
+   }
+  },
+  "glide_whoosh": {
+   "say": "air rushing past",
+   "seconds": 4,
+   "variants": {
+    "near": "A rush of wind as someone swoops past at speed, fabric snapping."
+   }
+  },
+  "landing_roof": {
+   "say": "boots on the roof",
+   "seconds": 4,
+   "variants": {
+    "near": "Boots landing hard on a gravel rooftop, a short skid."
+   }
+  },
+  "vent_hum": {
+   "say": "an air-con unit",
+   "seconds": 4,
+   "variants": {
+    "mid": "A rooftop air-conditioning unit clattering on and humming."
+   }
+  },
+  "punch": {
+   "say": "a punch landing",
+   "seconds": 4,
+   "variants": {
+    "near": "A heavy punch landing, a grunt, a body stumbling into crates — close by."
+   }
+  },
+  "kick": {
+   "say": "a kick",
+   "seconds": 4,
+   "variants": {
+    "near": "A hard kick connecting and a man groaning as he hits the ground."
+   }
+  },
+  "glass": {
+   "say": "glass breaking",
+   "seconds": 4,
+   "variants": {
+    "near": "A bottle smashing on concrete nearby.",
+    "mid": "A window shattering down the street."
+   }
+  },
+  "body_fall": {
+   "say": "someone going down",
+   "seconds": 4,
+   "variants": {
+    "near": "A man thrown down hard onto concrete, groaning."
+   }
+  },
+  "batarang": {
+   "say": "a batarang",
+   "seconds": 4,
+   "variants": {
+    "near": "A thrown metal blade whistling through the air and thunking into wood."
+   }
+  },
+  "smoke": {
+   "say": "a smoke pellet",
+   "seconds": 4,
+   "variants": {
+    "near": "A smoke pellet bursting with a sharp hiss."
+   }
+  },
+  "taser": {
+   "say": "an electric shock",
+   "seconds": 4,
+   "variants": {
+    "near": "An electric shock crackling and a man yelping."
+   }
+  },
+  "pipe": {
+   "say": "a pipe on a railing",
+   "seconds": 4,
+   "variants": {
+    "near": "A lead pipe clanging hard off a metal railing."
+   }
+  },
+  "gunfire_burst": {
+   "say": "automatic fire",
+   "seconds": 5,
+   "variants": {
+    "mid": "A burst of automatic gunfire inside a warehouse, echoing."
+   }
+  },
+  "ricochet": {
+   "say": "a ricochet",
+   "seconds": 4,
+   "variants": {
+    "near": "A bullet ricocheting off metal with a whine."
+   }
+  },
+  "slide": {
+   "say": "a gun being racked",
+   "seconds": 4,
+   "variants": {
+    "near": "A pistol slide being racked, metallic and close."
+   }
+  },
+  "thugs": {
+   "say": "men shouting",
+   "seconds": 4,
+   "variants": {
+    "mid": "Thugs shouting indistinctly and running in, boots on concrete."
+   }
+  },
+  "landing_mat": {
+   "say": "a landing on the mat",
+   "seconds": 4,
+   "variants": {
+    "near": "Someone landing a flip on a gym mat: a solid thud and a sharp breath."
+   }
+  },
+  "trapeze": {
+   "say": "the trapeze",
+   "seconds": 4,
+   "variants": {
+    "near": "A trapeze bar swinging high, ropes creaking, a rush of air and a firm catch."
+   }
+  },
+  "net": {
+   "say": "the safety net",
+   "seconds": 4,
+   "variants": {
+    "near": "Someone dropping into a safety net, the net bouncing and ropes creaking."
+   }
+  },
+  "tumble": {
+   "say": "tumbling",
+   "seconds": 4,
+   "variants": {
+    "near": "Fast tumbling across a sprung floor: thumps and a slap of hands."
+   }
+  },
+  "heavy_bag": {
+   "say": "the heavy bag",
+   "seconds": 4,
+   "variants": {
+    "near": "A heavy punching bag hit in a fast combination, its chain rattling."
+   }
+  },
+  "speed_bag": {
+   "say": "a speed bag",
+   "seconds": 4,
+   "variants": {
+    "mid": "A speed bag worked in a fast rattling rhythm."
+   }
+  },
+  "skip_rope": {
+   "say": "a skipping rope",
+   "seconds": 4,
+   "variants": {
+    "mid": "A skipping rope whipping and slapping the floor fast."
+   }
+  },
+  "barbell": {
+   "say": "a barbell dropped",
+   "seconds": 4,
+   "variants": {
+    "near": "A loaded barbell dropped onto rubber gym flooring, plates rattling.",
+    "mid": "A barbell dropped across the gym, plates clanging."
+   }
+  },
+  "weights": {
+   "say": "weights",
+   "seconds": 4,
+   "variants": {
+    "near": "Gym weights clanking down onto a rack."
+   }
+  },
+  "effort": {
+   "say": "a grunt of effort",
+   "seconds": 4,
+   "variants": {
+    "near": "A sharp exhale of effort and a short grunt, close to a phone."
+   }
+  },
+  "breath": {
+   "say": "heavy breathing",
+   "seconds": 4,
+   "variants": {
+    "near": "Heavy, steady breathing after exertion, close to a phone."
+   }
+  },
+  "kiai": {
+   "say": "a shout and a strike",
+   "seconds": 4,
+   "variants": {
+    "mid": "A sharp martial-arts shout and a strike landing on a pad in a dojo."
+   }
+  },
+  "staff": {
+   "say": "a staff",
+   "seconds": 4,
+   "variants": {
+    "near": "A bo staff spinning, whooshing through the air and cracking against a pad."
+   }
+  },
+  "footwork": {
+   "say": "quick footwork",
+   "seconds": 4,
+   "variants": {
+    "near": "Quick bare-foot footwork squeaking and thudding on a mat."
+   }
+  },
+  "treadmill_beep": {
+   "say": "a treadmill beeping",
+   "seconds": 4,
+   "variants": {
+    "mid": "A treadmill beeping as its speed changes."
+   }
+  },
+  "splash": {
+   "say": "a dive",
+   "seconds": 4,
+   "variants": {
+    "near": "Someone diving into a pool with a big splash, water echoing."
+   }
+  },
+  "door": {
+   "say": "a door",
+   "seconds": 4,
+   "variants": {
+    "mid": "A heavy metal door banging shut somewhere in a building.",
+    "near": "A wooden door closing nearby."
+   }
+  },
+  "knock": {
+   "say": "a knock at the door",
+   "seconds": 4,
+   "variants": {
+    "near": "A knock on a door, three times."
+   }
+  },
+  "doorbell": {
+   "say": "the door buzzer",
+   "seconds": 4,
+   "variants": {
+    "mid": "An apartment door buzzer sounding."
+   }
+  },
+  "phone_buzz": {
+   "say": "a phone buzzing",
+   "seconds": 4,
+   "variants": {
+    "near": "A phone vibrating on a wooden table."
+   }
+  },
+  "phone_ring": {
+   "say": "a phone ringing",
+   "seconds": 4,
+   "variants": {
+    "mid": "An office desk phone ringing twice."
+   }
+  },
+  "keyboard": {
+   "say": "typing",
+   "seconds": 4,
+   "variants": {
+    "near": "A quick burst of fast typing on a mechanical keyboard."
+   }
+  },
+  "printer": {
+   "say": "the printer",
+   "seconds": 4,
+   "variants": {
+    "mid": "An office printer whirring and pushing out a page."
+   }
+  },
+  "elevator": {
+   "say": "the lift",
+   "seconds": 4,
+   "variants": {
+    "mid": "An elevator chime and doors sliding open."
+   }
+  },
+  "kettle": {
+   "say": "the kettle",
+   "seconds": 4,
+   "variants": {
+    "near": "A kettle coming to the boil and clicking off."
+   }
+  },
+  "clock": {
+   "say": "the clock chiming",
+   "seconds": 6,
+   "variants": {
+    "mid": "A grandfather clock chiming the hour in a big quiet house."
+   }
+  },
+  "computer_beep": {
+   "say": "the computer",
+   "seconds": 4,
+   "variants": {
+    "near": "A few soft electronic alert beeps from a computer console."
+   }
+  },
+  "police_radio": {
+   "say": "police radio",
+   "seconds": 4,
+   "variants": {
+    "mid": "A short burst of police radio chatter, crackling and indistinct."
+   }
+  },
+  "announcement": {
+   "say": "an announcement",
+   "seconds": 4,
+   "variants": {
+    "far": "A muffled public-address announcement echoing, indistinct."
+   }
+  },
+  "microwave": {
+   "say": "the microwave",
+   "seconds": 4,
+   "variants": {
+    "near": "A microwave beeping three times."
+   }
+  },
+  "fridge": {
+   "say": "the fridge",
+   "seconds": 4,
+   "variants": {
+    "near": "A fridge door opening, bottles clinking, and closing."
+   }
+  },
+  "tv_laugh": {
+   "say": "the TV",
+   "seconds": 4,
+   "variants": {
+    "mid": "A television in the next room: a muffled studio audience laughing."
+   }
+  },
+  "vacuum": {
+   "say": "a vacuum cleaner",
+   "seconds": 5,
+   "variants": {
+    "far": "A vacuum cleaner running in another room."
+   }
+  },
+  "washing": {
+   "say": "the washing machine",
+   "seconds": 5,
+   "variants": {
+    "mid": "A washing machine thumping into its spin cycle."
+   }
+  },
+  "pipes": {
+   "say": "the pipes",
+   "seconds": 4,
+   "variants": {
+    "mid": "Old radiator pipes clanking and knocking."
+   }
+  },
+  "neighbours": {
+   "say": "the neighbours",
+   "seconds": 4,
+   "variants": {
+    "far": "Muffled voices of neighbours arguing through a wall."
+   }
+  },
+  "baby": {
+   "say": "a baby crying",
+   "seconds": 4,
+   "variants": {
+    "far": "A baby crying in another apartment."
+   }
+  },
+  "pages": {
+   "say": "pages turning",
+   "seconds": 4,
+   "variants": {
+    "near": "Pages being turned in a book."
+   }
+  },
+  "pen": {
+   "say": "a pen clicking",
+   "seconds": 4,
+   "variants": {
+    "near": "A pen clicking twice."
+   }
+  },
+  "chair": {
+   "say": "a chair creaking",
+   "seconds": 4,
+   "variants": {
+    "near": "An office chair rolling and creaking."
+   }
+  },
+  "cough": {
+   "say": "someone coughing",
+   "seconds": 4,
+   "variants": {
+    "mid": "Someone coughing politely nearby."
+   }
+  },
+  "coffee_pour": {
+   "say": "coffee being poured",
+   "seconds": 4,
+   "variants": {
+    "near": "Coffee being poured into a mug."
+   }
+  },
+  "pager": {
+   "say": "a pager",
+   "seconds": 4,
+   "variants": {
+    "mid": "A hospital pager beeping."
+   }
+  },
+  "monitor_alarm": {
+   "say": "a monitor alarm",
+   "seconds": 4,
+   "variants": {
+    "mid": "A hospital patient monitor alarm beeping urgently."
+   }
+  },
+  "gurney": {
+   "say": "a gurney",
+   "seconds": 4,
+   "variants": {
+    "pass": "A hospital gurney rattling past down a corridor."
+   }
+  },
+  "intercom": {
+   "say": "the intercom",
+   "seconds": 4,
+   "variants": {
+    "far": "A muffled hospital intercom paging a doctor."
+   }
+  },
+  "cell_door": {
+   "say": "a cell door",
+   "seconds": 4,
+   "variants": {
+    "mid": "A heavy steel cell door sliding shut with a clang."
+   }
+  },
+  "buzzer": {
+   "say": "a security buzzer",
+   "seconds": 4,
+   "variants": {
+    "mid": "A prison security buzzer sounding and a gate unlocking."
+   }
+  },
+  "handcuffs": {
+   "say": "handcuffs",
+   "seconds": 4,
+   "variants": {
+    "near": "Handcuffs ratcheting shut."
+   }
+  },
+  "camera_shutter": {
+   "say": "cameras",
+   "seconds": 4,
+   "variants": {
+    "near": "Camera shutters clicking rapidly, paparazzi."
+   }
+  },
+  "applause": {
+   "say": "applause",
+   "seconds": 4,
+   "variants": {
+    "mid": "A ballroom crowd applauding politely."
+   }
+  },
+  "champagne": {
+   "say": "a cork popping",
+   "seconds": 4,
+   "variants": {
+    "near": "A champagne cork popping and glasses clinking."
+   }
+  },
+  "cutlery": {
+   "say": "cutlery",
+   "seconds": 4,
+   "variants": {
+    "near": "Cutlery dropped onto a plate with a clatter."
+   }
+  },
+  "diner_bell": {
+   "say": "the order bell",
+   "seconds": 4,
+   "variants": {
+    "mid": "A diner kitchen bell dinging, order up."
+   }
+  },
+  "griddle": {
+   "say": "the griddle",
+   "seconds": 4,
+   "variants": {
+    "mid": "Food sizzling on a diner griddle."
+   }
+  },
+  "blender": {
+   "say": "a blender",
+   "seconds": 4,
+   "variants": {
+    "mid": "A blender whirring loudly at a counter."
+   }
+  },
+  "door_chime": {
+   "say": "the shop bell",
+   "seconds": 4,
+   "variants": {
+    "mid": "A bell over a shop door jingling."
+   }
+  },
+  "trolley": {
+   "say": "a shopping trolley",
+   "seconds": 4,
+   "variants": {
+    "near": "A shopping trolley rattling over a shop floor."
+   }
+  },
+  "checkout": {
+   "say": "the checkout",
+   "seconds": 4,
+   "variants": {
+    "mid": "A supermarket checkout scanner beeping a few times."
+   }
+  },
+  "espresso": {
+   "say": "the espresso machine",
+   "seconds": 4,
+   "variants": {
+    "mid": "An espresso machine hissing and steaming milk."
+   }
+  },
+  "till": {
+   "say": "the till",
+   "seconds": 4,
+   "variants": {
+    "mid": "A cash register drawer ringing open."
+   }
+  },
+  "glasses": {
+   "say": "glasses clinking",
+   "seconds": 4,
+   "variants": {
+    "mid": "Glasses clinking in a toast and a burst of laughter."
+   }
+  },
+  "cheer": {
+   "say": "a cheer",
+   "seconds": 4,
+   "variants": {
+    "mid": "A crowd cheering at something on a bar's television."
+   }
+  },
+  "crowd_roar": {
+   "say": "the crowd",
+   "seconds": 6,
+   "variants": {
+    "far": "A stadium crowd roaring at a big play."
+   }
+  },
+  "bell": {
+   "say": "a bell",
+   "seconds": 4,
+   "variants": {
+    "far": "A campus bell ringing the hour in the distance."
+   }
+  },
+  "birds": {
+   "say": "birds",
+   "seconds": 4,
+   "variants": {
+    "near": "A burst of birdsong in a park."
+   }
+  },
+  "hose": {
+   "say": "the hose",
+   "seconds": 5,
+   "variants": {
+    "near": "A garden hose spraying water onto plants and soil, then shut off."
+   }
+  },
+  "watering_can": {
+   "say": "the watering can",
+   "seconds": 4,
+   "variants": {
+    "near": "Water pouring from a watering can onto leaves and soil."
+   }
+  },
+  "shears": {
+   "say": "the shears",
+   "seconds": 4,
+   "variants": {
+    "near": "Garden shears snipping a few times at a rose bush."
+   }
+  },
+  "trowel": {
+   "say": "digging",
+   "seconds": 4,
+   "variants": {
+    "near": "A trowel digging into soil and a pot being set down."
+   }
+  },
+  "wheelbarrow": {
+   "say": "a wheelbarrow",
+   "seconds": 4,
+   "variants": {
+    "mid": "A wheelbarrow squeaking along a gravel path."
+   }
+  },
+  "welding": {
+   "say": "a welding torch",
+   "seconds": 4,
+   "variants": {
+    "near": "A welding torch hissing and crackling."
+   }
+  },
+  "drill": {
+   "say": "a drill",
+   "seconds": 4,
+   "variants": {
+    "near": "A power drill whirring into metal."
+   }
+  },
+  "hammer": {
+   "say": "hammering",
+   "seconds": 4,
+   "variants": {
+    "near": "A hammer striking metal on an anvil.",
+    "mid": "Hammering on metal across a workshop."
+   }
+  },
+  "engine_rev": {
+   "say": "an engine revving",
+   "seconds": 4,
+   "variants": {
+    "mid": "A car engine revving in an echoing garage."
+   }
+  },
+  "turbine": {
+   "say": "a jet engine spooling",
+   "seconds": 6,
+   "variants": {
+    "mid": "A jet turbine spooling up inside a hangar, whining higher and higher."
+   }
+  },
+  "servo": {
+   "say": "servos",
+   "seconds": 4,
+   "variants": {
+    "near": "Robotic servo motors whirring."
+   }
+  },
+  "batcomputer": {
+   "say": "the computer",
+   "seconds": 4,
+   "variants": {
+    "near": "A supercomputer chirping: soft electronic chimes and a scanning tone."
+   }
+  },
+  "bats": {
+   "say": "bats",
+   "seconds": 4,
+   "variants": {
+    "mid": "A flurry of bats fluttering through a cave, echoing."
+   }
+  },
+  "drip": {
+   "say": "water dripping",
+   "seconds": 4,
+   "variants": {
+    "near": "Water dripping into a pool in a vast echoing cave."
+   }
+  },
+  "subway_brakes": {
+   "say": "a train coming in",
+   "seconds": 6,
+   "variants": {
+    "near": "A subway train braking into a station, doors chiming and sliding open."
+   }
+  },
+  "bus_bell": {
+   "say": "the stop bell",
+   "seconds": 4,
+   "variants": {
+    "near": "A bus stop-request bell dinging."
+   }
+  },
+  "taxi_radio": {
+   "say": "the cab's radio",
+   "seconds": 4,
+   "variants": {
+    "mid": "A taxi dispatcher's radio crackling with indistinct chatter."
+   }
+  },
+  "cabin_chime": {
+   "say": "a cabin chime",
+   "seconds": 4,
+   "variants": {
+    "mid": "A soft aircraft cabin chime."
+   }
+  },
+  "rat": {
+   "say": "rats",
+   "seconds": 4,
+   "variants": {
+    "near": "Rats skittering and squeaking in a tunnel."
+   }
+  },
+  "church_door": {
+   "say": "a heavy door",
+   "seconds": 4,
+   "variants": {
+    "far": "A heavy church door creaking open and booming shut, echoing."
+   }
+  },
+  "meow": {
+   "say": "the cat",
+   "seconds": 4,
+   "variants": {
+    "near": "A cat meowing close by, curious."
+   }
+  },
+  "purr": {
+   "say": "the cat purring",
+   "seconds": 4,
+   "variants": {
+    "near": "A cat purring loudly right next to the phone."
+   }
+  },
+  "cat_jump": {
+   "say": "the cat",
+   "seconds": 4,
+   "variants": {
+    "near": "A cat jumping down onto a wooden floor and trotting away."
+   }
+  },
+  "dog_bark": {
+   "say": "the dog",
+   "seconds": 4,
+   "variants": {
+    "near": "A dog barking twice inside an apartment, excited."
+   }
+  },
+  "dog_tags": {
+   "say": "the dog",
+   "seconds": 4,
+   "variants": {
+    "near": "A dog shaking itself, tags jingling."
+   }
+  },
+  "sizzle": {
+   "say": "the pan",
+   "seconds": 4,
+   "variants": {
+    "near": "Food hitting a hot pan and sizzling loudly."
+   }
+  },
+  "chop": {
+   "say": "chopping",
+   "seconds": 4,
+   "variants": {
+    "near": "A knife chopping quickly on a wooden board."
+   }
+  },
+  "plates": {
+   "say": "plates",
+   "seconds": 4,
+   "variants": {
+    "near": "Plates and cutlery clinking as a table is laid."
+   }
+  },
+  "tap": {
+   "say": "the tap",
+   "seconds": 4,
+   "variants": {
+    "near": "A kitchen tap running briefly and turning off."
+   }
+  },
+  "shower_door": {
+   "say": "the shower door",
+   "seconds": 4,
+   "variants": {
+    "near": "A glass shower door sliding open, water still running."
+   }
+  },
+  "hull": {
+   "say": "the boat",
+   "seconds": 4,
+   "variants": {
+    "near": "Water slapping against a boat's hull, the boat rocking and creaking."
+   }
+  },
+  "gears": {
+   "say": "the clockwork",
+   "seconds": 4,
+   "variants": {
+    "near": "A big clockwork gear clunking into place."
+   }
+  },
+  "footsteps": {
+   "say": "footsteps",
+   "seconds": 4,
+   "variants": {
+    "mid": "Footsteps on a stone floor, coming closer and passing."
+   }
+  },
+  "rustle": {
+   "say": "a bag",
+   "seconds": 4,
+   "variants": {
+    "near": "A paper grocery bag rustling as it's set down."
+   }
+  },
+  "jet": {
+   "say": "a jet",
+   "seconds": 4,
+   "variants": {
+    "pass": "A jet thruster whining past overhead and fading."
+   }
+  },
+  "window_rain": {
+   "say": "rain on the window",
+   "seconds": 4,
+   "variants": {
+    "near": "A gust of rain spattering against a window."
+   }
+  },
+  "controller": {
+   "say": "someone mashing a controller",
+   "seconds": 4,
+   "variants": {
+    "near": "A game controller's buttons being mashed fast, a thumbstick clicking."
+   }
+  },
+  "game_boom": {
+   "say": "the game",
+   "seconds": 4,
+   "variants": {
+    "mid": "A video game explosion and gunfire from TV speakers across a living room.",
+    "near": "A video game's victory fanfare blaring from a TV."
+   }
+  },
+  "game_groan": {
+   "say": "them groaning at the game",
+   "seconds": 4,
+   "variants": {
+    "mid": "A couple of friends groaning and laughing at a lost round of a video game."
+   }
+  },
+  "game_cheer": {
+   "say": "them cheering",
+   "seconds": 4,
+   "variants": {
+    "mid": "Two friends whooping and cheering at a win on a video game."
+   }
+  },
+  "popcorn": {
+   "say": "popcorn",
+   "seconds": 4,
+   "variants": {
+    "near": "A hand rustling in a bag of popcorn, a crunch."
+   }
+  },
+  "film_boom": {
+   "say": "the film",
+   "seconds": 4,
+   "variants": {
+    "mid": "A film's explosion and score swell, muffled through a living room TV.",
+    "far": "A car chase in a film playing in the next room, muffled."
+   }
+  },
+  "film_laugh": {
+   "say": "everyone laughing at the film",
+   "seconds": 4,
+   "variants": {
+    "mid": "A small group laughing together at something in a film."
+   }
+  },
+  "film_gasp": {
+   "say": "a gasp at the film",
+   "seconds": 4,
+   "variants": {
+    "mid": "A couple of people gasping at a scary moment in a film, then nervous laughter."
+   }
+  }
+ },
+ "scenes": {
+  "chatter": {
+   "prompt": "A busy pavement crowd: many overlapping indistinct conversations and footsteps of passers-by.",
+   "say": "people talking as they pass",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "rain_layer": {
+   "prompt": "Steady rain falling on a city street, water running in gutters, tyres hissing on wet roads.",
+   "say": "rain coming down",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "rain_roof": {
+   "prompt": "Heavy rain drumming on a rooftop at night, wind gusting, water pouring off ledges.",
+   "say": "rain hammering down",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "storm": {
+   "prompt": "A thunderstorm over a city at night: heavy rain, wind, thunder rolling and cracking.",
+   "say": "a storm",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "snow": {
+   "prompt": "A snowy city street at night, muffled and hushed, wind sighing, footsteps crunching.",
+   "say": "snow, everything muffled",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "wind_layer": {
+   "prompt": "Strong wind gusting through city streets, whistling around buildings and street signs.",
+   "say": "a hard wind",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "window_rain": {
+   "prompt": "Rain pattering steadily against a window, heard from inside a quiet room.",
+   "say": "rain on the windows",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "car_rain": {
+   "prompt": "Rain drumming on a car roof, windscreen wipers thumping steadily.",
+   "say": "rain on the roof, the wipers",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "crickets": {
+   "prompt": "Crickets and insects chirping in grass on a warm night.",
+   "say": "crickets",
+   "level": 1.0,
+   "layer_only": true
+  },
+  "street_day": {
+   "prompt": "A busy city street by day: traffic passing, footsteps, car horns in the distance.",
+   "say": "traffic, people walking past",
+   "level": 1.4,
+   "outdoor": true,
+   "layers": [
+    [
+     "chatter",
+     0.55
+    ]
+   ],
+   "sounds": [
+    [
+     "horn",
+     35,
+     "near,mid,far,pass"
+    ],
+    [
+     "car_pass",
+     25,
+     "pass,mid"
+    ],
+    [
+     "bus",
+     120,
+     "near,pass"
+    ],
+    [
+     "siren",
+     150,
+     "far,pass"
+    ],
+    [
+     "motorbike",
+     160,
+     "pass,far"
+    ],
+    [
+     "truck_pass",
+     90,
+     "pass"
+    ],
+    [
+     "laugh_group",
+     140,
+     "pass"
+    ],
+    [
+     "shout",
+     220,
+     "far"
+    ],
+    [
+     "pigeons",
+     300,
+     "near,mid"
+    ],
+    [
+     "bike_bell",
+     240,
+     "pass"
+    ],
+    [
+     "heels",
+     180,
+     "pass"
+    ],
+    [
+     "manhole",
+     220,
+     "pass"
+    ],
+    [
+     "brakes",
+     400,
+     "near,far"
+    ],
+    [
+     "alarm",
+     420,
+     "far"
+    ],
+    [
+     "train",
+     260,
+     "pass,far"
+    ],
+    [
+     "horn_truck",
+     300,
+     "near,far"
+    ],
+    [
+     "ambulance",
+     500,
+     "pass,far"
+    ],
+    [
+     "vendor",
+     300,
+     "mid"
+    ],
+    [
+     "car_door",
+     160,
+     "mid"
+    ],
+    [
+     "skateboard",
+     400,
+     "pass"
+    ],
+    [
+     "dog",
+     300,
+     "near,far"
+    ]
+   ]
+  },
+  "street_rush": {
+   "prompt": "Rush hour gridlock on a big city avenue: idling engines, buses, a wall of commuters' footsteps and chatter, horns everywhere.",
+   "say": "rush-hour traffic, horns, crowds",
+   "level": 1.6,
+   "outdoor": true,
+   "layers": [
+    [
+     "chatter",
+     0.6
+    ]
+   ],
+   "sounds": [
+    [
+     "horn",
+     15,
+     "near,mid,far,pass"
+    ],
+    [
+     "whistle",
+     90,
+     "mid"
+    ],
+    [
+     "bus",
+     80,
+     "near,pass"
+    ],
+    [
+     "horn_truck",
+     120,
+     "near,far"
+    ],
+    [
+     "shout",
+     120,
+     "far,near"
+    ],
+    [
+     "siren",
+     140,
+     "far,pass"
+    ],
+    [
+     "brakes",
+     240,
+     "near,far"
+    ],
+    [
+     "motorbike",
+     150,
+     "pass"
+    ],
+    [
+     "car_door",
+     120,
+     "mid"
+    ],
+    [
+     "laugh_group",
+     160,
+     "pass"
+    ],
+    [
+     "bike_bell",
+     200,
+     "pass"
+    ],
+    [
+     "ambulance",
+     400,
+     "pass"
+    ]
+   ]
+  },
+  "street_night": {
+   "prompt": "A city street at night: sparse traffic hiss, a distant siren, a dog barking far off.",
+   "say": "a few cars, sirens somewhere",
+   "level": 1.1,
+   "outdoor": true,
+   "sounds": [
+    [
+     "siren",
+     75,
+     "far,pass"
+    ],
+    [
+     "car_pass",
+     45,
+     "pass"
+    ],
+    [
+     "dog",
+     120,
+     "far"
+    ],
+    [
+     "alarm",
+     300,
+     "far"
+    ],
+    [
+     "train",
+     240,
+     "far,pass"
+    ],
+    [
+     "gunshots",
+     600,
+     "far"
+    ],
+    [
+     "scream",
+     900,
+     "far"
+    ],
+    [
+     "laugh_group",
+     240,
+     "pass"
+    ],
+    [
+     "steam",
+     300,
+     "near"
+    ],
+    [
+     "manhole",
+     260,
+     "pass"
+    ],
+    [
+     "motorbike",
+     200,
+     "pass,far"
+    ],
+    [
+     "cat_yowl",
+     400,
+     "far"
+    ],
+    [
+     "helicopter",
+     420,
+     "pass,far"
+    ],
+    [
+     "horn",
+     150,
+     "far,pass"
+    ],
+    [
+     "ambulance",
+     500,
+     "pass,far"
+    ],
+    [
+     "shout",
+     400,
+     "far"
+    ],
+    [
+     "bottle_kick",
+     500,
+     "near"
+    ]
+   ]
+  },
+  "alley": {
+   "prompt": "A narrow alley at night: water dripping from fire escapes, steam hissing from a vent, traffic muffled beyond the buildings.",
+   "say": "dripping, steam, the street muffled beyond",
+   "level": 0.9,
+   "outdoor": true,
+   "sounds": [
+    [
+     "drip",
+     40,
+     "near"
+    ],
+    [
+     "steam",
+     90,
+     "near"
+    ],
+    [
+     "dumpster",
+     180,
+     "mid"
+    ],
+    [
+     "bottle_kick",
+     240,
+     "near"
+    ],
+    [
+     "fire_escape",
+     200,
+     "mid"
+    ],
+    [
+     "cat_yowl",
+     300,
+     "far"
+    ],
+    [
+     "siren",
+     200,
+     "far"
+    ],
+    [
+     "rat",
+     200,
+     "near"
+    ],
+    [
+     "gunshots",
+     700,
+     "far"
+    ],
+    [
+     "shout",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "plaza": {
+   "prompt": "A busy city plaza: a crowd milling and chatting, a fountain splashing, traffic around the edges.",
+   "say": "a crowd, a fountain, pigeons",
+   "level": 1.3,
+   "outdoor": true,
+   "sounds": [
+    [
+     "pigeons",
+     60,
+     "near,mid"
+    ],
+    [
+     "laugh_group",
+     90,
+     "pass,mid"
+    ],
+    [
+     "vendor",
+     120,
+     "mid"
+    ],
+    [
+     "horn",
+     120,
+     "far"
+    ],
+    [
+     "siren",
+     240,
+     "far"
+    ],
+    [
+     "church_bells",
+     900,
+     "far"
+    ],
+    [
+     "bike_bell",
+     200,
+     "pass"
+    ],
+    [
+     "skateboard",
+     240,
+     "pass"
+    ]
+   ]
+  },
+  "market": {
+   "prompt": "An open-air street market: vendors calling out indistinctly, crates set down, bags rustling, a crowd haggling.",
+   "say": "the stalls, people haggling",
+   "level": 1.3,
+   "outdoor": true,
+   "sounds": [
+    [
+     "vendor",
+     40,
+     "mid"
+    ],
+    [
+     "rustle",
+     60,
+     "near"
+    ],
+    [
+     "laugh_group",
+     120,
+     "pass"
+    ],
+    [
+     "horn",
+     150,
+     "far"
+    ],
+    [
+     "pigeons",
+     200,
+     "near"
+    ],
+    [
+     "till",
+     150,
+     "mid"
+    ]
+   ]
+  },
+  "construction": {
+   "prompt": "A construction site beside a city street: an excavator rumbling, metal clanging, a generator droning, traffic going past.",
+   "say": "the building site, machinery",
+   "level": 1.6,
+   "outdoor": true,
+   "sounds": [
+    [
+     "jackhammer",
+     40,
+     "mid,far"
+    ],
+    [
+     "reverse_beep",
+     60,
+     "mid"
+    ],
+    [
+     "hammer",
+     50,
+     "mid"
+    ],
+    [
+     "horn",
+     120,
+     "far"
+    ],
+    [
+     "truck_pass",
+     90,
+     "pass"
+    ],
+    [
+     "whistle",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "bridge": {
+   "prompt": "On a long suspension bridge: traffic rushing past close by, wind gusting, the deck humming, water far below.",
+   "say": "traffic rushing past on the bridge, the wind",
+   "level": 1.5,
+   "outdoor": true,
+   "sounds": [
+    [
+     "truck_pass",
+     30,
+     "pass"
+    ],
+    [
+     "horn",
+     60,
+     "pass,far"
+    ],
+    [
+     "motorbike",
+     90,
+     "pass"
+    ],
+    [
+     "wind_gust",
+     45,
+     "near"
+    ],
+    [
+     "siren",
+     180,
+     "pass,far"
+    ],
+    [
+     "ferry",
+     300,
+     "far"
+    ],
+    [
+     "foghorn",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "docks": {
+   "prompt": "A harbour at night: water lapping at the pilings, a foghorn far off, gulls, rope creaking.",
+   "say": "water against the pilings, gulls, a foghorn",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "foghorn",
+     130,
+     "far"
+    ],
+    [
+     "gulls",
+     70,
+     "mid,near"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ],
+    [
+     "reverse_beep",
+     260,
+     "mid"
+    ],
+    [
+     "ferry",
+     300,
+     "far"
+    ],
+    [
+     "alarm",
+     600,
+     "far"
+    ],
+    [
+     "hull",
+     150,
+     "near"
+    ]
+   ]
+  },
+  "waterfront": {
+   "prompt": "A riverside promenade: water slapping the embankment, joggers' footsteps, gulls, traffic on the road behind.",
+   "say": "the river, gulls, joggers going by",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "gulls",
+     60,
+     "mid,near"
+    ],
+    [
+     "ferry",
+     200,
+     "far"
+    ],
+    [
+     "bike_bell",
+     150,
+     "pass"
+    ],
+    [
+     "dog",
+     180,
+     "near,far"
+    ],
+    [
+     "laugh_group",
+     200,
+     "pass"
+    ],
+    [
+     "helicopter",
+     400,
+     "pass,far"
+    ],
+    [
+     "skateboard",
+     300,
+     "pass"
+    ]
+   ]
+  },
+  "dog_walk": {
+   "prompt": "Walking a dog along a riverside path: the dog's tags jingling, its paws, water lapping, gulls.",
+   "say": "the dog's tags, the water, gulls",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "dog_tags",
+     40,
+     "near"
+    ],
+    [
+     "gulls",
+     70,
+     "mid"
+    ],
+    [
+     "dog",
+     150,
+     "far,near"
+    ],
+    [
+     "bike_bell",
+     200,
+     "pass"
+    ],
+    [
+     "laugh_group",
+     240,
+     "pass"
+    ]
+   ]
+  },
+  "park": {
+   "prompt": "A city park by day: birdsong, leaves rustling in a light breeze, children playing in the distance.",
+   "say": "birds, kids playing somewhere, the city past the trees",
+   "level": 0.9,
+   "outdoor": true,
+   "sounds": [
+    [
+     "birds",
+     40,
+     "near"
+    ],
+    [
+     "dog",
+     120,
+     "far,near"
+    ],
+    [
+     "bike_bell",
+     180,
+     "pass"
+    ],
+    [
+     "laugh_group",
+     200,
+     "pass"
+    ],
+    [
+     "siren",
+     300,
+     "far"
+    ],
+    [
+     "plane",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "park_night": {
+   "prompt": "A big city park at night: wind in the trees, an owl, traffic far beyond the trees.",
+   "say": "wind in the trees, traffic far off",
+   "level": 0.8,
+   "outdoor": true,
+   "layers": [
+    [
+     "crickets",
+     0.5
+    ]
+   ],
+   "sounds": [
+    [
+     "owl",
+     150,
+     "far"
+    ],
+    [
+     "siren",
+     200,
+     "far"
+    ],
+    [
+     "dog",
+     240,
+     "far"
+    ]
+   ]
+  },
+  "garden": {
+   "prompt": "A garden: birdsong, a light breeze through hedges, a distant lawnmower.",
+   "say": "birds, a breeze, a mower somewhere",
+   "level": 0.8,
+   "outdoor": true,
+   "sounds": [
+    [
+     "birds",
+     35,
+     "near"
+    ],
+    [
+     "shears",
+     45,
+     "near"
+    ],
+    [
+     "watering_can",
+     70,
+     "near"
+    ],
+    [
+     "hose",
+     110,
+     "near"
+    ],
+    [
+     "trowel",
+     120,
+     "near"
+    ],
+    [
+     "wheelbarrow",
+     240,
+     "mid"
+    ],
+    [
+     "plane",
+     400,
+     "far"
+    ],
+    [
+     "church_bells",
+     1200,
+     "far"
+    ]
+   ]
+  },
+  "greenhouse": {
+   "prompt": "Inside a glass greenhouse: a mister hissing softly, water dripping off leaves, birds muffled outside the glass.",
+   "say": "the mister hissing, water dripping, birds outside",
+   "level": 0.7,
+   "windows": true,
+   "sounds": [
+    [
+     "drip",
+     50,
+     "near"
+    ],
+    [
+     "watering_can",
+     60,
+     "near"
+    ],
+    [
+     "shears",
+     80,
+     "near"
+    ],
+    [
+     "birds",
+     90,
+     "near"
+    ],
+    [
+     "tap",
+     200,
+     "near"
+    ]
+   ]
+  },
+  "cemetery": {
+   "prompt": "A cemetery at night: wind through old trees, an iron gate creaking, the city far away.",
+   "say": "wind, a gate creaking, the city a long way off",
+   "level": 0.7,
+   "outdoor": true,
+   "layers": [
+    [
+     "crickets",
+     0.4
+    ]
+   ],
+   "sounds": [
+    [
+     "owl",
+     120,
+     "far"
+    ],
+    [
+     "wind_gust",
+     90,
+     "near"
+    ],
+    [
+     "church_bells",
+     900,
+     "far"
+    ],
+    [
+     "dog",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "pier": {
+   "prompt": "An old seaside amusement pier: rides rattling and clanking, distant screams of fun on a coaster, game booth bells, waves under the boards.",
+   "say": "rides rattling, people screaming on the coaster, the sea under the boards",
+   "level": 1.4,
+   "outdoor": true,
+   "sounds": [
+    [
+     "gulls",
+     80,
+     "mid"
+    ],
+    [
+     "laugh_group",
+     90,
+     "pass,mid"
+    ],
+    [
+     "cheer",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "pier_night": {
+   "prompt": "A derelict amusement pier at night: loose signs banging in the wind, rusted rides creaking, waves under the boards.",
+   "say": "signs banging, old rides creaking, the sea",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "wind_gust",
+     60,
+     "near"
+    ],
+    [
+     "fire_escape",
+     120,
+     "mid"
+    ],
+    [
+     "gulls",
+     200,
+     "mid"
+    ],
+    [
+     "foghorn",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "rooftop": {
+   "prompt": "Wind gusting over a city rooftop at night, traffic far below, a police siren far away now and then.",
+   "say": "wind, the city down below, sirens",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "wind_gust",
+     35,
+     "near"
+    ],
+    [
+     "siren",
+     70,
+     "far,pass"
+    ],
+    [
+     "cape",
+     90,
+     "near"
+    ],
+    [
+     "helicopter",
+     180,
+     "pass,far"
+    ],
+    [
+     "grapple",
+     240,
+     "near"
+    ],
+    [
+     "gunshots",
+     420,
+     "far"
+    ],
+    [
+     "thunder",
+     600,
+     "far"
+    ],
+    [
+     "vent_hum",
+     300,
+     "mid"
+    ],
+    [
+     "plane",
+     400,
+     "far"
+    ],
+    [
+     "horn",
+     150,
+     "far"
+    ],
+    [
+     "train",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "rooftop_day": {
+   "prompt": "A city rooftop by day: wind, an air-conditioning unit humming, traffic noise rising from the street, pigeons.",
+   "say": "wind, traffic below, pigeons",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "pigeons",
+     90,
+     "near,mid"
+    ],
+    [
+     "horn",
+     60,
+     "far"
+    ],
+    [
+     "siren",
+     200,
+     "far"
+    ],
+    [
+     "helicopter",
+     300,
+     "pass,far"
+    ],
+    [
+     "plane",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "stakeout": {
+   "prompt": "Perched still on a high ledge at night: a light wind, the city's hum far below, almost silent.",
+   "say": "almost nothing — wind, the city far below",
+   "level": 0.6,
+   "outdoor": true,
+   "sounds": [
+    [
+     "siren",
+     150,
+     "far"
+    ],
+    [
+     "wind_gust",
+     120,
+     "near"
+    ],
+    [
+     "dog",
+     300,
+     "far"
+    ],
+    [
+     "horn",
+     200,
+     "far"
+    ],
+    [
+     "train",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "gliding": {
+   "prompt": "Wind rushing past at speed while gliding high above a city at night, fabric snapping.",
+   "say": "wind roaring past",
+   "level": 1.5,
+   "outdoor": true,
+   "sounds": [
+    [
+     "wind_gust",
+     25,
+     "near"
+    ],
+    [
+     "cape",
+     30,
+     "near"
+    ],
+    [
+     "grapple",
+     90,
+     "near"
+    ],
+    [
+     "siren",
+     120,
+     "far"
+    ],
+    [
+     "jet",
+     400,
+     "pass"
+    ],
+    [
+     "landing_roof",
+     60,
+     "near"
+    ]
+   ],
+   "cuts": [
+    [
+     "grapple",
+     0.2
+    ],
+    [
+     "cape",
+     0.2
+    ],
+    [
+     "landing_roof",
+     0.15
+    ]
+   ]
+  },
+  "running": {
+   "prompt": "Fast running footsteps on pavement and heavy steady breathing.",
+   "say": "your own feet and breathing, the street",
+   "level": 1.1,
+   "outdoor": true,
+   "sounds": [
+    [
+     "car_pass",
+     50,
+     "pass"
+    ],
+    [
+     "dog",
+     140,
+     "near,far"
+    ],
+    [
+     "horn",
+     100,
+     "pass"
+    ]
+   ],
+   "cuts": [
+    [
+     "breath",
+     0.3
+    ]
+   ]
+  },
+  "walking": {
+   "prompt": "Footsteps walking along a city pavement, traffic passing, the odd voice going by.",
+   "say": "traffic, people passing",
+   "level": 1.2,
+   "outdoor": true,
+   "layers": [
+    [
+     "chatter",
+     0.35
+    ]
+   ],
+   "sounds": [
+    [
+     "car_pass",
+     35,
+     "pass"
+    ],
+    [
+     "horn",
+     60,
+     "near,far,pass"
+    ],
+    [
+     "dog",
+     150,
+     "near,far"
+    ],
+    [
+     "bus",
+     150,
+     "near,pass"
+    ],
+    [
+     "bike_bell",
+     200,
+     "pass"
+    ],
+    [
+     "laugh_group",
+     180,
+     "pass"
+    ],
+    [
+     "siren",
+     200,
+     "far,pass"
+    ],
+    [
+     "heels",
+     200,
+     "pass"
+    ]
+   ]
+  },
+  "crime_scene": {
+   "prompt": "An active crime scene at night: police radios crackling, patrol cars idling, officers talking indistinctly, crime-scene tape snapping in the wind, a crowd murmuring behind the cordon.",
+   "say": "police radios, patrol cars idling, people behind the tape",
+   "level": 1.3,
+   "outdoor": true,
+   "sounds": [
+    [
+     "police_radio",
+     30,
+     "mid"
+    ],
+    [
+     "camera_shutter",
+     60,
+     "near"
+    ],
+    [
+     "siren",
+     120,
+     "far,pass"
+    ],
+    [
+     "car_door",
+     90,
+     "mid"
+    ],
+    [
+     "shout",
+     180,
+     "far"
+    ]
+   ]
+  },
+  "fire_scene": {
+   "prompt": "A building on fire at night: flames roaring and crackling, fire hoses spraying, engines idling, radios.",
+   "say": "the fire, hoses, engines",
+   "level": 1.6,
+   "outdoor": true,
+   "sounds": [
+    [
+     "firetruck",
+     120,
+     "pass"
+    ],
+    [
+     "shout",
+     60,
+     "far"
+    ],
+    [
+     "glass",
+     90,
+     "mid"
+    ],
+    [
+     "police_radio",
+     60,
+     "mid"
+    ]
+   ]
+  },
+  "car": {
+   "prompt": "Inside a moving car: steady engine hum, tyre and road noise, an indicator ticking now and then.",
+   "say": "the car, the road",
+   "level": 1.1,
+   "sounds": [
+    [
+     "horn",
+     70,
+     "far,pass,near"
+    ],
+    [
+     "motorbike",
+     140,
+     "pass"
+    ],
+    [
+     "siren",
+     160,
+     "pass,far"
+    ],
+    [
+     "car_pass",
+     50,
+     "pass"
+    ],
+    [
+     "truck_pass",
+     120,
+     "pass"
+    ],
+    [
+     "brakes",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "taxi": {
+   "prompt": "In the back of a city cab: the engine, road noise, the meter ticking.",
+   "say": "the cab, the driver's radio",
+   "level": 1.2,
+   "sounds": [
+    [
+     "horn",
+     40,
+     "near,far,pass"
+    ],
+    [
+     "taxi_radio",
+     90,
+     "mid"
+    ],
+    [
+     "siren",
+     160,
+     "pass"
+    ],
+    [
+     "brakes",
+     300,
+     "near"
+    ]
+   ]
+  },
+  "bus_ride": {
+   "prompt": "Riding a city bus: diesel engine droning, the bus rattling, passengers murmuring.",
+   "say": "the bus, people talking, the stop bell",
+   "level": 1.3,
+   "sounds": [
+    [
+     "bus_bell",
+     70,
+     "near"
+    ],
+    [
+     "announcement",
+     150,
+     "far"
+    ],
+    [
+     "horn",
+     90,
+     "far"
+    ],
+    [
+     "laugh_group",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "subway": {
+   "prompt": "Inside a subway carriage: wheels rumbling on the rails, the carriage rattling, a muffled announcement.",
+   "say": "the train rattling, an announcement",
+   "level": 1.5,
+   "sounds": [
+    [
+     "subway_brakes",
+     120,
+     "near"
+    ],
+    [
+     "announcement",
+     160,
+     "far"
+    ],
+    [
+     "laugh_group",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "platform": {
+   "prompt": "A subway platform: a crowd waiting, echoing footsteps, a train rumbling in the tunnel.",
+   "say": "the platform, a train coming",
+   "level": 1.4,
+   "sounds": [
+    [
+     "subway_brakes",
+     90,
+     "near"
+    ],
+    [
+     "announcement",
+     120,
+     "far"
+    ],
+    [
+     "heels",
+     150,
+     "pass"
+    ]
+   ]
+  },
+  "station": {
+   "prompt": "A big railway station concourse: echoing crowd chatter, rolling suitcases, departure chimes.",
+   "say": "the station, announcements",
+   "level": 1.3,
+   "sounds": [
+    [
+     "announcement",
+     60,
+     "far"
+    ],
+    [
+     "heels",
+     120,
+     "pass"
+    ],
+    [
+     "laugh_group",
+     180,
+     "pass"
+    ]
+   ]
+  },
+  "bike": {
+   "prompt": "Riding a motorcycle through a city at night: engine roar, wind buffeting a helmet, traffic whipping past.",
+   "say": "the bike's engine, the wind",
+   "level": 1.7,
+   "sounds": [
+    [
+     "horn",
+     80,
+     "pass"
+    ],
+    [
+     "truck_pass",
+     100,
+     "pass"
+    ],
+    [
+     "siren",
+     200,
+     "pass"
+    ]
+   ]
+  },
+  "flying": {
+   "prompt": "Inside an armoured flight suit over a city at night: jet thrusters roaring, wind tearing past the helmet, soft system beeps.",
+   "say": "the thrusters, the wind, the suit's systems",
+   "level": 1.6,
+   "sounds": [
+    [
+     "computer_beep",
+     60,
+     "near"
+    ],
+    [
+     "helicopter",
+     300,
+     "pass"
+    ],
+    [
+     "thunder",
+     500,
+     "far"
+    ]
+   ]
+  },
+  "jet_cabin": {
+   "prompt": "Inside a private jet cruising: a deep steady engine hum, air vents hissing.",
+   "say": "the plane's engines",
+   "level": 1.0,
+   "sounds": [
+    [
+     "cabin_chime",
+     300,
+     "mid"
+    ]
+   ]
+  },
+  "helicopter_cabin": {
+   "prompt": "Inside a helicopter in flight: heavy rotor thump, turbine whine, radio static.",
+   "say": "the rotors",
+   "level": 1.7
+  },
+  "boat": {
+   "prompt": "On a small motorboat at night: the outboard motor droning, water slapping the hull, wind.",
+   "say": "the motor, the water",
+   "level": 1.5,
+   "outdoor": true,
+   "sounds": [
+    [
+     "foghorn",
+     150,
+     "far"
+    ],
+    [
+     "gulls",
+     120,
+     "mid"
+    ],
+    [
+     "hull",
+     60,
+     "near"
+    ]
+   ]
+  },
+  "airport": {
+   "prompt": "An airport terminal: an echoing crowd, rolling suitcases, a jet roaring outside the glass.",
+   "say": "the terminal, announcements",
+   "level": 1.2,
+   "windows": true,
+   "sounds": [
+    [
+     "announcement",
+     60,
+     "far"
+    ],
+    [
+     "plane",
+     120,
+     "far"
+    ]
+   ]
+  },
+  "office": {
+   "prompt": "A quiet office: keyboards typing, air conditioning humming, a phone ringing in the distance.",
+   "say": "the office — keyboards, a phone somewhere",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "keyboard",
+     40,
+     "near"
+    ],
+    [
+     "phone_ring",
+     120,
+     "mid"
+    ],
+    [
+     "printer",
+     160,
+     "mid"
+    ],
+    [
+     "elevator",
+     200,
+     "mid"
+    ],
+    [
+     "chair",
+     120,
+     "near"
+    ],
+    [
+     "coffee_pour",
+     300,
+     "near"
+    ]
+   ]
+  },
+  "exec_office": {
+   "prompt": "A quiet executive office high in a tower: air conditioning, the city faint through thick glass, a clock.",
+   "say": "quiet — the city faint through the glass",
+   "level": 0.6,
+   "windows": true,
+   "sounds": [
+    [
+     "phone_ring",
+     300,
+     "mid"
+    ],
+    [
+     "helicopter",
+     500,
+     "far"
+    ],
+    [
+     "elevator",
+     400,
+     "mid"
+    ],
+    [
+     "pen",
+     200,
+     "near"
+    ]
+   ]
+  },
+  "boardroom": {
+   "prompt": "A boardroom mid-meeting: muffled indistinct voices, papers shuffled, chairs creaking, air conditioning.",
+   "say": "a meeting going on",
+   "level": 0.7,
+   "windows": true,
+   "sounds": [
+    [
+     "pages",
+     90,
+     "near"
+    ],
+    [
+     "chair",
+     100,
+     "near"
+    ],
+    [
+     "cough",
+     200,
+     "mid"
+    ],
+    [
+     "pen",
+     150,
+     "near"
+    ]
+   ]
+  },
+  "lab": {
+   "prompt": "A high-tech workshop: servers humming, cooling fans, soft electronic beeps.",
+   "say": "servers humming, beeps",
+   "level": 0.8,
+   "sounds": [
+    [
+     "computer_beep",
+     45,
+     "near"
+    ],
+    [
+     "keyboard",
+     60,
+     "near"
+    ],
+    [
+     "door",
+     300,
+     "mid"
+    ],
+    [
+     "servo",
+     200,
+     "near"
+    ],
+    [
+     "drill",
+     300,
+     "near"
+    ]
+   ]
+  },
+  "server_room": {
+   "prompt": "A server room: fans and cooling roaring, electronic chirps.",
+   "say": "the servers roaring",
+   "level": 1.3,
+   "sounds": [
+    [
+     "computer_beep",
+     60,
+     "near"
+    ],
+    [
+     "door",
+     300,
+     "mid"
+    ]
+   ]
+  },
+  "workshop": {
+   "prompt": "A workshop: a lathe whirring, tools clinking on a bench.",
+   "say": "machines, tools",
+   "level": 1.2,
+   "sounds": [
+    [
+     "drill",
+     60,
+     "near"
+    ],
+    [
+     "hammer",
+     70,
+     "near,mid"
+    ],
+    [
+     "welding",
+     120,
+     "near"
+    ]
+   ]
+  },
+  "garage": {
+   "prompt": "A garage: a car engine idling, tools on concrete, a compressor kicking on.",
+   "say": "the garage, an engine",
+   "level": 1.2,
+   "sounds": [
+    [
+     "engine_rev",
+     90,
+     "mid"
+    ],
+    [
+     "hammer",
+     120,
+     "mid"
+    ],
+    [
+     "drill",
+     150,
+     "near"
+    ]
+   ]
+  },
+  "hangar": {
+   "prompt": "A huge aircraft hangar: echoing space, tools clanking, a jet engine idling, wind at the doors.",
+   "say": "the hangar, an engine running, tools",
+   "level": 1.3,
+   "sounds": [
+    [
+     "turbine",
+     120,
+     "mid"
+    ],
+    [
+     "hammer",
+     90,
+     "mid"
+    ],
+    [
+     "drill",
+     120,
+     "near"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ],
+    [
+     "jet",
+     300,
+     "pass"
+    ]
+   ]
+  },
+  "hospital": {
+   "prompt": "A hospital corridor: monitors beeping in the distance, quiet footsteps, a muffled intercom.",
+   "say": "monitors beeping, the intercom",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "intercom",
+     90,
+     "far"
+    ],
+    [
+     "pager",
+     120,
+     "mid"
+    ],
+    [
+     "monitor_alarm",
+     300,
+     "mid"
+    ],
+    [
+     "gurney",
+     150,
+     "pass"
+    ],
+    [
+     "door",
+     150,
+     "mid"
+    ]
+   ]
+  },
+  "er": {
+   "prompt": "A busy hospital emergency room: urgent indistinct voices, gurneys rattling, monitors beeping, phones.",
+   "say": "the ER — monitors, people rushing",
+   "level": 1.4,
+   "sounds": [
+    [
+     "gurney",
+     60,
+     "pass"
+    ],
+    [
+     "monitor_alarm",
+     90,
+     "mid"
+    ],
+    [
+     "intercom",
+     80,
+     "far"
+    ],
+    [
+     "pager",
+     70,
+     "mid"
+    ],
+    [
+     "phone_ring",
+     120,
+     "mid"
+    ]
+   ]
+  },
+  "police": {
+   "prompt": "A busy police station: phones ringing, radio chatter, a door buzzing.",
+   "say": "phones, radio chatter, the bullpen",
+   "level": 1.1,
+   "windows": true,
+   "sounds": [
+    [
+     "police_radio",
+     45,
+     "mid"
+    ],
+    [
+     "phone_ring",
+     90,
+     "mid"
+    ],
+    [
+     "door",
+     120,
+     "mid"
+    ],
+    [
+     "buzzer",
+     200,
+     "mid"
+    ],
+    [
+     "handcuffs",
+     300,
+     "near"
+    ],
+    [
+     "keyboard",
+     120,
+     "near"
+    ],
+    [
+     "laugh_group",
+     240,
+     "mid"
+    ],
+    [
+     "coffee_pour",
+     300,
+     "near"
+    ]
+   ]
+  },
+  "police_office": {
+   "prompt": "A commissioner's office at night: the bullpen muffled through the door, a radio murmuring, a clock ticking.",
+   "say": "the bullpen through the door, the radio",
+   "level": 0.7,
+   "windows": true,
+   "sounds": [
+    [
+     "police_radio",
+     90,
+     "mid"
+    ],
+    [
+     "phone_ring",
+     200,
+     "mid"
+    ],
+    [
+     "knock",
+     400,
+     "near"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "court": {
+   "prompt": "A courthouse corridor: echoing footsteps, hushed indistinct conversations, a heavy door.",
+   "say": "the courthouse corridor",
+   "level": 0.8,
+   "sounds": [
+    [
+     "footsteps",
+     60,
+     "mid"
+    ],
+    [
+     "door",
+     120,
+     "mid"
+    ],
+    [
+     "cough",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "prison": {
+   "prompt": "A prison corridor: buzzers, steel doors clanging, distant shouting, fluorescent hum.",
+   "say": "doors clanging, buzzers, shouting somewhere",
+   "level": 1.2,
+   "sounds": [
+    [
+     "cell_door",
+     50,
+     "mid"
+    ],
+    [
+     "buzzer",
+     70,
+     "mid"
+    ],
+    [
+     "shout",
+     90,
+     "far"
+    ],
+    [
+     "footsteps",
+     100,
+     "mid"
+    ]
+   ]
+  },
+  "asylum": {
+   "prompt": "A corridor in an old asylum: fluorescent lights buzzing, a distant wail, a door clanging, footsteps echoing.",
+   "say": "lights buzzing, someone wailing down the hall",
+   "level": 1.0,
+   "sounds": [
+    [
+     "cell_door",
+     90,
+     "mid"
+    ],
+    [
+     "scream",
+     200,
+     "far"
+    ],
+    [
+     "buzzer",
+     150,
+     "mid"
+    ],
+    [
+     "footsteps",
+     120,
+     "mid"
+    ]
+   ]
+  },
+  "library": {
+   "prompt": "A quiet library: pages turning, a cough, a chair creaking, the air conditioning.",
+   "say": "quiet — pages, the odd cough",
+   "level": 0.5,
+   "windows": true,
+   "sounds": [
+    [
+     "pages",
+     40,
+     "near"
+    ],
+    [
+     "cough",
+     120,
+     "mid"
+    ],
+    [
+     "chair",
+     150,
+     "near"
+    ],
+    [
+     "footsteps",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "campus": {
+   "prompt": "A university campus: students chatting, footsteps on paths, a bell in the distance.",
+   "say": "students about, footsteps",
+   "level": 1.0,
+   "outdoor": true,
+   "sounds": [
+    [
+     "bell",
+     300,
+     "far"
+    ],
+    [
+     "birds",
+     90,
+     "near"
+    ],
+    [
+     "laugh_group",
+     120,
+     "pass"
+    ],
+    [
+     "bike_bell",
+     180,
+     "pass"
+    ],
+    [
+     "skateboard",
+     200,
+     "pass"
+    ]
+   ]
+  },
+  "lecture": {
+   "prompt": "A lecture hall: a lecturer's voice echoing indistinctly at the front, pens scratching, seats creaking.",
+   "say": "a lecture going on",
+   "level": 0.7,
+   "sounds": [
+    [
+     "cough",
+     90,
+     "mid"
+    ],
+    [
+     "pages",
+     60,
+     "near"
+    ],
+    [
+     "chair",
+     120,
+     "near"
+    ]
+   ]
+  },
+  "church": {
+   "prompt": "Inside a large old church: echoing quiet, a creak of pews, footsteps on stone.",
+   "say": "the quiet of the church",
+   "level": 0.5,
+   "sounds": [
+    [
+     "footsteps",
+     120,
+     "mid"
+    ],
+    [
+     "church_door",
+     300,
+     "far"
+    ],
+    [
+     "cough",
+     300,
+     "mid"
+    ]
+   ]
+  },
+  "cafe": {
+   "prompt": "A busy coffee shop: cups and saucers clinking, an espresso machine hissing, murmured conversation.",
+   "say": "the café — cups, the espresso machine",
+   "level": 1.1,
+   "windows": true,
+   "sounds": [
+    [
+     "espresso",
+     45,
+     "mid"
+    ],
+    [
+     "till",
+     90,
+     "mid"
+    ],
+    [
+     "glasses",
+     150,
+     "mid"
+    ],
+    [
+     "blender",
+     200,
+     "mid"
+    ],
+    [
+     "door_chime",
+     150,
+     "mid"
+    ],
+    [
+     "laugh_group",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "diner": {
+   "prompt": "A late-night diner: a griddle sizzling, plates clattering, coffee being poured, a few quiet conversations.",
+   "say": "the griddle, plates, coffee being poured",
+   "level": 1.1,
+   "windows": true,
+   "sounds": [
+    [
+     "diner_bell",
+     60,
+     "mid"
+    ],
+    [
+     "griddle",
+     70,
+     "mid"
+    ],
+    [
+     "coffee_pour",
+     90,
+     "near"
+    ],
+    [
+     "cutlery",
+     150,
+     "near"
+    ],
+    [
+     "door_chime",
+     150,
+     "mid"
+    ]
+   ]
+  },
+  "restaurant": {
+   "prompt": "An upscale restaurant: soft murmured conversation, cutlery on china, wine glasses.",
+   "say": "a restaurant — quiet talk, cutlery",
+   "level": 0.9,
+   "windows": true,
+   "sounds": [
+    [
+     "champagne",
+     300,
+     "near"
+    ],
+    [
+     "glasses",
+     120,
+     "mid"
+    ],
+    [
+     "cutlery",
+     120,
+     "near"
+    ],
+    [
+     "laugh_group",
+     180,
+     "mid"
+    ]
+   ]
+  },
+  "bar": {
+   "prompt": "A lively bar at night: glasses clinking, crowd chatter and laughter.",
+   "say": "the bar — glasses, people laughing",
+   "level": 1.4,
+   "sounds": [
+    [
+     "glasses",
+     40,
+     "mid"
+    ],
+    [
+     "cheer",
+     110,
+     "mid"
+    ],
+    [
+     "door",
+     150,
+     "mid"
+    ],
+    [
+     "laugh_group",
+     90,
+     "mid"
+    ]
+   ]
+  },
+  "club": {
+   "prompt": "A nightclub: heavy bass thumping, a packed crowd shouting over it.",
+   "say": "the club, the bass, the crowd",
+   "level": 1.7,
+   "sounds": [
+    [
+     "glasses",
+     60,
+     "mid"
+    ],
+    [
+     "cheer",
+     120,
+     "mid"
+    ]
+   ],
+   "music": true
+  },
+  "gala": {
+   "prompt": "A charity gala in a grand ballroom: an elegant crowd murmuring, champagne glasses clinking, a string quartet faint in the distance.",
+   "say": "the gala crowd, glasses, a quartet somewhere",
+   "level": 1.1,
+   "sounds": [
+    [
+     "camera_shutter",
+     120,
+     "near"
+    ],
+    [
+     "applause",
+     300,
+     "mid"
+    ],
+    [
+     "champagne",
+     150,
+     "near"
+    ],
+    [
+     "laugh_group",
+     120,
+     "mid"
+    ]
+   ],
+   "music": true
+  },
+  "hotel_lobby": {
+   "prompt": "A grand hotel lobby: soft conversations, rolling luggage, a revolving door, a reception bell.",
+   "say": "a hotel lobby",
+   "level": 0.9,
+   "sounds": [
+    [
+     "elevator",
+     90,
+     "mid"
+    ],
+    [
+     "heels",
+     120,
+     "pass"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "cinema": {
+   "prompt": "A cinema lobby: a popcorn machine popping, crowd chatter, a ticket machine beeping.",
+   "say": "the cinema lobby",
+   "level": 1.0,
+   "sounds": [
+    [
+     "laugh_group",
+     100,
+     "mid"
+    ],
+    [
+     "till",
+     120,
+     "mid"
+    ]
+   ]
+  },
+  "mall": {
+   "prompt": "A shopping mall: echoing crowd chatter, an escalator humming, shop doors chiming, a fountain.",
+   "say": "the mall",
+   "level": 1.2,
+   "sounds": [
+    [
+     "door_chime",
+     80,
+     "mid"
+    ],
+    [
+     "announcement",
+     200,
+     "far"
+    ],
+    [
+     "laugh_group",
+     120,
+     "pass"
+    ]
+   ]
+  },
+  "grocery": {
+   "prompt": "A supermarket: shopping trolleys rattling, checkout scanners beeping in the distance, a fridge humming.",
+   "say": "the shop — trolleys, the checkouts",
+   "level": 1.0,
+   "sounds": [
+    [
+     "trolley",
+     40,
+     "near"
+    ],
+    [
+     "checkout",
+     50,
+     "mid"
+    ],
+    [
+     "announcement",
+     180,
+     "far"
+    ],
+    [
+     "rustle",
+     90,
+     "near"
+    ]
+   ]
+  },
+  "stadium": {
+   "prompt": "A ballpark crowd: chatter, cheers rising and falling, vendors calling out.",
+   "say": "the crowd at the game",
+   "level": 1.6,
+   "outdoor": true,
+   "sounds": [
+    [
+     "crowd_roar",
+     60,
+     "far"
+    ],
+    [
+     "vendor",
+     80,
+     "mid"
+    ],
+    [
+     "cheer",
+     120,
+     "mid"
+    ]
+   ]
+  },
+  "gym": {
+   "prompt": "A gym: weights clanking, a treadmill whirring, a heavy bag being hit.",
+   "say": "weights clanking, treadmills",
+   "level": 1.2,
+   "sounds": [
+    [
+     "weights",
+     30,
+     "near"
+    ],
+    [
+     "barbell",
+     70,
+     "near,mid"
+    ],
+    [
+     "treadmill_beep",
+     120,
+     "mid"
+    ],
+    [
+     "effort",
+     60,
+     "near"
+    ]
+   ],
+   "cuts": [
+    [
+     "barbell",
+     0.12
+    ],
+    [
+     "effort",
+     0.2
+    ]
+   ]
+  },
+  "boxing": {
+   "prompt": "A boxing gym: heavy bags thudding, a speed bag rattling, skipping ropes slapping.",
+   "say": "bags thudding, a speed bag, ropes",
+   "level": 1.3,
+   "sounds": [
+    [
+     "heavy_bag",
+     20,
+     "near"
+    ],
+    [
+     "speed_bag",
+     50,
+     "mid"
+    ],
+    [
+     "skip_rope",
+     60,
+     "mid"
+    ],
+    [
+     "whistle",
+     150,
+     "mid"
+    ]
+   ],
+   "cuts": [
+    [
+     "heavy_bag",
+     0.35
+    ],
+    [
+     "effort",
+     0.2
+    ],
+    [
+     "breath",
+     0.15
+    ]
+   ]
+  },
+  "dojo": {
+   "prompt": "A quiet dojo: bare feet shuffling on mats, breathing, the hum of the lights.",
+   "say": "the mats, strikes, breathing",
+   "level": 0.8,
+   "sounds": [
+    [
+     "kiai",
+     40,
+     "mid"
+    ],
+    [
+     "staff",
+     50,
+     "near"
+    ],
+    [
+     "footwork",
+     30,
+     "near"
+    ]
+   ],
+   "rhythm": [
+    20,
+    50,
+    10,
+    30
+   ],
+   "cuts": [
+    [
+     "staff",
+     0.3
+    ],
+    [
+     "effort",
+     0.25
+    ]
+   ]
+  },
+  "acrobatics": {
+   "prompt": "A big empty training hall: a high ceiling's echo, ropes and rigging creaking softly, a ventilation hum.",
+   "say": "the hall echoing, the rigging creaking",
+   "level": 0.8,
+   "sounds": [
+    [
+     "landing_mat",
+     12,
+     "near"
+    ],
+    [
+     "trapeze",
+     25,
+     "near"
+    ],
+    [
+     "tumble",
+     30,
+     "near"
+    ],
+    [
+     "net",
+     60,
+     "near"
+    ],
+    [
+     "effort",
+     20,
+     "near"
+    ],
+    [
+     "breath",
+     40,
+     "near"
+    ]
+   ],
+   "rhythm": [
+    20,
+    60,
+    8,
+    30
+   ],
+   "cuts": [
+    [
+     "landing_mat",
+     0.3
+    ],
+    [
+     "effort",
+     0.25
+    ],
+    [
+     "breath",
+     0.2
+    ],
+    [
+     "trapeze",
+     0.1
+    ]
+   ]
+  },
+  "studio": {
+   "prompt": "An empty dance studio: soft footsteps and turns on a sprung wooden floor, a creak of the barre.",
+   "say": "the studio floor",
+   "level": 0.6,
+   "sounds": [
+    [
+     "footwork",
+     30,
+     "near"
+    ]
+   ],
+   "rhythm": [
+    20,
+    60,
+    10,
+    40
+   ],
+   "cuts": [
+    [
+     "footwork",
+     0.2
+    ],
+    [
+     "breath",
+     0.1
+    ]
+   ]
+  },
+  "pool": {
+   "prompt": "An indoor pool: water splashing and echoing, the filters humming.",
+   "say": "the pool, splashing",
+   "level": 1.0,
+   "sounds": [
+    [
+     "splash",
+     60,
+     "near"
+    ],
+    [
+     "whistle",
+     200,
+     "mid"
+    ]
+   ],
+   "cuts": [
+    [
+     "breath",
+     0.25
+    ]
+   ]
+  },
+  "cave_training": {
+   "prompt": "The training floor of a vast cave: echoing mats, water dripping, a hum of machines, bats far off.",
+   "say": "the cave echoing, the mats",
+   "level": 0.9,
+   "sounds": [
+    [
+     "landing_mat",
+     15,
+     "near"
+    ],
+    [
+     "heavy_bag",
+     25,
+     "near"
+    ],
+    [
+     "staff",
+     40,
+     "near"
+    ],
+    [
+     "drip",
+     40,
+     "near"
+    ],
+    [
+     "bats",
+     120,
+     "mid"
+    ]
+   ],
+   "rhythm": [
+    25,
+    60,
+    10,
+    30
+   ],
+   "cuts": [
+    [
+     "landing_mat",
+     0.25
+    ],
+    [
+     "effort",
+     0.25
+    ],
+    [
+     "heavy_bag",
+     0.15
+    ]
+   ]
+  },
+  "cave": {
+   "prompt": "A vast cave: water dripping and echoing, bats fluttering far off, the low hum of computers.",
+   "say": "the cave — water dripping, the computers",
+   "level": 0.9,
+   "sounds": [
+    [
+     "drip",
+     25,
+     "near"
+    ],
+    [
+     "bats",
+     90,
+     "mid"
+    ],
+    [
+     "batcomputer",
+     60,
+     "near"
+    ],
+    [
+     "welding",
+     300,
+     "near"
+    ],
+    [
+     "engine_rev",
+     400,
+     "mid"
+    ]
+   ]
+  },
+  "manor": {
+   "prompt": "A large quiet old house: a grandfather clock ticking, old wood creaking, wind outside.",
+   "say": "the house — the clock, old wood creaking",
+   "level": 0.6,
+   "windows": true,
+   "sounds": [
+    [
+     "clock",
+     600,
+     "mid"
+    ],
+    [
+     "door",
+     240,
+     "mid"
+    ],
+    [
+     "kettle",
+     500,
+     "near"
+    ],
+    [
+     "footsteps",
+     300,
+     "mid"
+    ]
+   ]
+  },
+  "home": {
+   "prompt": "A quiet apartment: a refrigerator humming, city traffic faint through a window.",
+   "say": "home — quiet, traffic outside",
+   "level": 0.7,
+   "windows": true,
+   "sounds": [
+    [
+     "phone_buzz",
+     200,
+     "near"
+    ],
+    [
+     "kettle",
+     400,
+     "near"
+    ],
+    [
+     "siren",
+     400,
+     "far"
+    ],
+    [
+     "neighbours",
+     500,
+     "far"
+    ],
+    [
+     "pipes",
+     400,
+     "mid"
+    ],
+    [
+     "horn",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "home_tv": {
+   "prompt": "A living room with the television on low: muffled TV voices, a sofa creaking, the city outside.",
+   "say": "the TV on low",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "tv_laugh",
+     60,
+     "mid"
+    ],
+    [
+     "microwave",
+     300,
+     "near"
+    ],
+    [
+     "phone_buzz",
+     200,
+     "near"
+    ]
+   ]
+  },
+  "game_night": {
+   "prompt": "A living room on a games night: a video game playing loud on the TV, controllers clicking, friends trash-talking and laughing, indistinct.",
+   "say": "the game on the TV, everyone trash-talking",
+   "level": 1.2,
+   "windows": true,
+   "sounds": [
+    [
+     "controller",
+     25,
+     "near"
+    ],
+    [
+     "game_boom",
+     30,
+     "mid,near"
+    ],
+    [
+     "game_groan",
+     70,
+     "mid"
+    ],
+    [
+     "game_cheer",
+     90,
+     "mid"
+    ],
+    [
+     "phone_buzz",
+     300,
+     "near"
+    ],
+    [
+     "fridge",
+     240,
+     "near"
+    ]
+   ]
+  },
+  "movie_night": {
+   "prompt": "A living room on a movie night: a film playing on the TV, muffled dialogue and score, a sofa creaking, people murmuring now and then.",
+   "say": "the film playing, people murmuring",
+   "level": 0.9,
+   "windows": true,
+   "sounds": [
+    [
+     "film_boom",
+     60,
+     "mid"
+    ],
+    [
+     "popcorn",
+     50,
+     "near"
+    ],
+    [
+     "film_laugh",
+     120,
+     "mid"
+    ],
+    [
+     "film_gasp",
+     240,
+     "mid"
+    ],
+    [
+     "microwave",
+     400,
+     "near"
+    ]
+   ],
+   "music": true
+  },
+  "bedroom": {
+   "prompt": "A bedroom at night: very quiet, a clock ticking, a car passing outside now and then.",
+   "say": "quiet — a car outside now and then",
+   "level": 0.4,
+   "windows": true,
+   "sounds": [
+    [
+     "car_pass",
+     120,
+     "pass"
+    ],
+    [
+     "siren",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "kitchen": {
+   "prompt": "Cooking in a home kitchen: a pan sizzling, a pot simmering, a knife on a chopping board.",
+   "say": "the kitchen — the pan, the chopping board",
+   "level": 1.0,
+   "windows": true,
+   "sounds": [
+    [
+     "sizzle",
+     35,
+     "near"
+    ],
+    [
+     "chop",
+     50,
+     "near"
+    ],
+    [
+     "tap",
+     90,
+     "near"
+    ],
+    [
+     "plates",
+     120,
+     "near"
+    ],
+    [
+     "microwave",
+     300,
+     "near"
+    ],
+    [
+     "fridge",
+     200,
+     "near"
+    ]
+   ]
+  },
+  "shower": {
+   "prompt": "A shower running in a tiled bathroom, water drumming steadily.",
+   "say": "the shower running",
+   "level": 1.0,
+   "sounds": [
+    [
+     "shower_door",
+     240,
+     "near"
+    ]
+   ]
+  },
+  "cats_home": {
+   "prompt": "A quiet, stylish apartment at night with cats: soft purring close by, paws padding across the floor.",
+   "say": "the cats, purring",
+   "level": 0.7,
+   "windows": true,
+   "sounds": [
+    [
+     "purr",
+     60,
+     "near"
+    ],
+    [
+     "meow",
+     90,
+     "near"
+    ],
+    [
+     "cat_jump",
+     150,
+     "near"
+    ]
+   ]
+  },
+  "dog_home": {
+   "prompt": "A small apartment with a dog: a dog's tags jingling, paws clicking on the floor, a contented huff.",
+   "say": "the dog padding about",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "dog_tags",
+     70,
+     "near"
+    ],
+    [
+     "dog_bark",
+     160,
+     "near"
+    ]
+   ]
+  },
+  "houseboat": {
+   "prompt": "Inside a houseboat at a marina at night: water lapping at the hull, ropes creaking, a halyard tapping a mast.",
+   "say": "water against the hull, ropes creaking",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "hull",
+     50,
+     "near"
+    ],
+    [
+     "gulls",
+     120,
+     "mid"
+    ],
+    [
+     "foghorn",
+     300,
+     "far"
+    ]
+   ]
+  },
+  "clocktower": {
+   "prompt": "Inside a clock tower: huge gears ticking and turning slowly overhead, computer fans humming.",
+   "say": "the clockwork overhead, the computers",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "gears",
+     40,
+     "near"
+    ],
+    [
+     "computer_beep",
+     70,
+     "near"
+    ],
+    [
+     "keyboard",
+     80,
+     "near"
+    ]
+   ]
+  },
+  "safehouse": {
+   "prompt": "A bare safehouse in a run-down building: a dripping pipe, distant traffic, the building creaking.",
+   "say": "a pipe dripping, the building creaking",
+   "level": 0.8,
+   "windows": true,
+   "sounds": [
+    [
+     "drip",
+     30,
+     "near"
+    ],
+    [
+     "slide",
+     300,
+     "near"
+    ],
+    [
+     "siren",
+     150,
+     "far"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ],
+    [
+     "neighbours",
+     400,
+     "far"
+    ]
+   ]
+  },
+  "warehouse": {
+   "prompt": "An abandoned warehouse: pigeons in the rafters, water dripping, loose metal creaking in the wind.",
+   "say": "pigeons in the rafters, dripping, metal creaking",
+   "level": 0.9,
+   "sounds": [
+    [
+     "pigeons",
+     120,
+     "mid"
+    ],
+    [
+     "drip",
+     60,
+     "near"
+    ],
+    [
+     "fire_escape",
+     200,
+     "mid"
+    ],
+    [
+     "rat",
+     150,
+     "near"
+    ],
+    [
+     "door",
+     200,
+     "mid"
+    ]
+   ]
+  },
+  "sewer": {
+   "prompt": "A sewer tunnel: water rushing, dripping, a deep echo.",
+   "say": "water rushing, the echo",
+   "level": 1.1,
+   "sounds": [
+    [
+     "rat",
+     80,
+     "near"
+    ],
+    [
+     "drip",
+     30,
+     "near"
+    ]
+   ]
+  },
+  "scuffle": {
+   "prompt": "A fight nearby, muffled: grunts, blows landing, a body hitting crates, glass breaking.",
+   "say": "the fight",
+   "level": 1.3,
+   "sounds": [
+    [
+     "punch",
+     7,
+     "near"
+    ],
+    [
+     "kick",
+     14,
+     "near"
+    ],
+    [
+     "glass",
+     45,
+     "near,mid"
+    ],
+    [
+     "gunshots",
+     300,
+     "mid,far"
+    ],
+    [
+     "scream",
+     400,
+     "far"
+    ],
+    [
+     "body_fall",
+     25,
+     "near"
+    ],
+    [
+     "pipe",
+     60,
+     "near"
+    ],
+    [
+     "batarang",
+     90,
+     "near"
+    ],
+    [
+     "smoke",
+     120,
+     "near"
+    ],
+    [
+     "taser",
+     200,
+     "near"
+    ],
+    [
+     "thugs",
+     60,
+     "mid"
+    ]
+   ],
+   "cuts": [
+    [
+     "punch",
+     0.35
+    ],
+    [
+     "kick",
+     0.2
+    ],
+    [
+     "effort",
+     0.2
+    ]
+   ]
+  },
+  "gunfight": {
+   "prompt": "A firefight in a warehouse: gunfire echoing, bullets pinging off metal, shouting.",
+   "say": "gunfire",
+   "level": 1.6,
+   "sounds": [
+    [
+     "gunfire_burst",
+     15,
+     "mid"
+    ],
+    [
+     "ricochet",
+     25,
+     "near"
+    ],
+    [
+     "gunshots",
+     20,
+     "mid,near"
+    ],
+    [
+     "glass",
+     60,
+     "near"
+    ],
+    [
+     "thugs",
+     40,
+     "mid"
+    ],
+    [
+     "body_fall",
+     60,
+     "near"
+    ],
+    [
+     "smoke",
+     120,
+     "near"
+    ]
+   ],
+   "cuts": [
+    [
+     "ricochet",
+     0.25
+    ],
+    [
+     "gunshots",
+     0.2
+    ]
+   ]
+  }
+ }
+}
