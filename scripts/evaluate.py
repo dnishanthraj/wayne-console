@@ -241,13 +241,13 @@ def _quiet_memory():
     # real group chats, on what was said in them today (cast-v6 picked up a live
     # thread about superhero films in six contacts' scenarios).
     grapevine.block = lambda contact_id: ""
-    groupchat.block = lambda contact_id, directory, now=None, prompt=None: ""
+    groupchat.block = lambda contact_id, directory, now=None, prompt=None, **kw: ""
     # ... nor on what the record remembers of the live world (see wayne.store.recall) — only on what a
     # scenario says they remember ("remembers"), and only in that scenario.
     real_recall = recall.block
     recall.block = lambda *a, **k: real_recall(*a, **k) if _MEMORY["on"] else ""
     # Nor whatever case is on the live board, or wherever they really are.
-    cases.brief = lambda contact_id, now=None: ""
+    cases.brief = lambda contact_id, now=None, **kw: ""
     cases.active = lambda contact_id: None
     # The live scanner and board beside a stubbed "nobody's anywhere" were incoherent, and moved with the
     # hour the run happened at: a scenario is judged on a quiet city unless it says otherwise.

@@ -79,17 +79,15 @@ LENGTH_GUIDANCE = (
 # before the answer; most of it is plain. How much of that is theirs is in their
 # own note (some barely do it at all).
 SPEECH_REALISM = (
-    "You're talking on the phone, not writing lines. Real talk is unpolished: "
-    "contractions, fragments, plain short answers; now and then the filler you'd "
-    "actually use, a false start, a correction halfway through a sentence; a "
-    "reaction before the answer when something actually throws you (never for "
-    "ordinary news); a word said twice "
-    "when you're rattled or sure; a sentence left hanging once the point's made. "
-    "Most of what anyone says on a call is ordinary — the clever line is the "
-    "exception. Answer plainly first. Never say anything only people in books "
-    "say, and none of the lines everyone's heard a thousand times (\"to what do "
-    "I owe the pleasure\", \"is this a this kind of thing or a that kind of "
-    "thing\")."
+    "You're talking, not writing. Keep it short and unpolished: contractions, "
+    "fragments, the one thing you'd say — then stop. Now and then the filler you'd "
+    "actually use, a false start, a correction mid-sentence; a reaction first only "
+    "when something truly throws you, never for ordinary news. The clever line is "
+    "the exception. Casual is never made up: something he brings up that you don't "
+    "know about — a trip, a talk, a promise — you don't remember, and you say so. "
+    "Nothing only people in books say, and none of the lines everyone's heard a "
+    "thousand times (\"to what do I owe the pleasure\", \"is this a this kind of "
+    "thing or a that kind of thing\")."
 )
 
 
@@ -552,6 +550,8 @@ def build_payload(contact, history, user_turn, texting=False):
         if story:
             parts.append(story)
         parts.append(standing_directives(contact, texting))
+        if not texting:
+            parts.extend(_spoken_self(contact))
         script = _primer_script(contact, texting)
         if script:
             parts.append(script)
@@ -559,6 +559,20 @@ def build_payload(contact, history, user_turn, texting=False):
     messages.extend(list(history))
     messages.append({"role": "user", "content": user_turn})
     return messages
+
+
+def _spoken_self(contact):
+    """
+    How they talk out loud and how their feelings sound — theirs, the same every turn, so it lives in the cached
+    prompt (re-read in every turn's reference it cost a third of a second before the first word).
+    """
+    out = []
+    if getattr(contact, "speaking", ""):
+        out.append(f"How you talk on the phone — habits, not something in every line, and never the same words "
+                   f"twice running: {contact.speaking}.")
+    if delivery.supported() and getattr(contact, "voice_range", ""):
+        out.append(f"When something lands — news, a scare, a joke, a hurt — it's heard: {contact.voice_range}.")
+    return out
 
 
 def story_so_far(contact):

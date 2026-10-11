@@ -5,6 +5,28 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.35.2] - 2026-10-11
+
+### Fixed
+
+- **Casual never means making things up.** The dialogue check caught Dick
+  answering "You remember that weekend in Cornwall?" with "Yeah, I
+  remember…" and an invented weekend. The speech rule now says so outright:
+  something he brings up that you don't know about (a trip, a talk, a
+  promise) you don't remember, and you say so. Dick has one more honest
+  sample to show it.
+- **Short again.** Next to the old baseline the new voice ran wordy,
+  explaining its own jokes. The rule now leads with "say the one thing, then
+  stop", and Dick's note no longer carries a "wait— what? no—" example for
+  him to parrot ("B... what? No— wait, who?" to a rough night).
+- **A third of a second back on every call turn.** How each of them talks and
+  how their feelings sound never change, so they now live in the part of the
+  prompt the model keeps between turns, not re-read every turn.
+- **Long sound descriptions stay off the screen.** A 21-word "[The sound of
+  wind whistling…]" was too long to be recognised as a bracket at all. Up to
+  240 characters are recognised now, and a description that opens with "the
+  sound of" is a scene, never words.
+
 ## [0.35.1] - 2026-10-11
 
 ### Fixed

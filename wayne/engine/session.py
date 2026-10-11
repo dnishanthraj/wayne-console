@@ -2949,13 +2949,8 @@ class ContactSession:
     def _voice_notes(self):
         """How their voice is on this line — their range, and the moment's — and whether he's muted: notes for a call turn."""
         notes = []
-        if getattr(self.contact, "speaking", ""):
-            # How they talk out loud — theirs, the same every turn, so the read-ahead keeps it.
-            notes.append(f"How you talk on the phone — habits, not something in every line, and never the same "
-                         f"words twice running: {self.contact.speaking}.")
-        if delivery.supported() and getattr(self.contact, "voice_range", ""):
-            # The same every turn (it's theirs), so the read-ahead keeps it: what something landing sounds like.
-            notes.append(f"When something lands — news, a scare, a joke, a hurt — it's heard: {self.contact.voice_range}.")
+        # How they talk and how their feelings sound are theirs and never change: they're in the cached prompt
+        # (prompting._spoken_self), not here. This is the moment's.
         voice = self._voice_note()
         if voice:
             notes.append(voice)

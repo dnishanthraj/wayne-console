@@ -57,7 +57,7 @@ _ANY_CUE = re.compile(r"\[\s*([A-Za-z]+(?:[ -][A-Za-z]+){0,2})\s*\]")
 # A longer direction — "[sounds of a grocery bag rustling]" — is the model
 # narrating the scene, not words anyone said: plain lower case after its first
 # letter, no commas, and nobody speaking in it. Never on screen.
-_BRACKETED = re.compile(r"\[\s*([^\[\]:]{1,90}?)\s*\]")
+_BRACKETED = re.compile(r"\[\s*([^\[\]:]{1,240}?)\s*\]")
 _ASTERISKED = re.compile(r"\*([A-Za-z][A-Za-z' -]{0,60}?)\*")
 _PARENTHESISED = re.compile(r"\(\s*([A-Za-z][a-z' -]{0,60}?)\s*\)")
 _NARRATION = re.compile(r"[A-Za-z][a-z' ,-]*")
@@ -106,6 +106,8 @@ def _direction(inside):
         return bare.lower()
     if _STAGE_VERB.match(bare) and len(bare.split()) <= 20:
         return bare.lower()
+    if _SOUND_OF.match(bare) and not _SPEECH.search(bare) and len(bare.split()) <= 40:
+        return bare.lower()                     # "[The sound of wind against the mic, footsteps…]": the scene
     if _NARRATION.fullmatch(words) and not _SPEECH.search(words) and len(words.split()) <= 12:
         return words.lower()
     return None

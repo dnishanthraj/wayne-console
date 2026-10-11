@@ -179,14 +179,14 @@ def test_their_slip_is_edited_a_moment_later_and_the_page_hears(monkeypatch):
 
 def test_each_of_them_has_their_own_range_on_a_call(monkeypatch):
     from wayne import delivery
-    from wayne.engine.session import ContactSession
+    from wayne.engine import prompting
     monkeypatch.setattr(delivery, "supported", lambda model=None: True)
-    alfred = " ".join(ContactSession(directory().get("alfred"))._voice_notes())
-    jason = " ".join(ContactSession(directory().get("redhood"))._voice_notes())
-    assert "[quietly]" in alfred and "never shout" in alfred
+    system = prompting.build_payload(directory().get("alfred"), [], "x")[0]["content"]
+    jason = prompting.build_payload(directory().get("redhood"), [], "x")[0]["content"]
+    assert "[quietly]" in system and "never shout" in system                      # in the cached prompt, theirs
     assert "[angry]" in jason and "[shouting]" in jason
     monkeypatch.setattr(delivery, "supported", lambda model=None: False)
-    assert not any("lands" in n for n in ContactSession(directory().get("alfred"))._voice_notes())
+    assert "When something lands" not in prompting.build_payload(directory().get("alfred"), [], "x")[0]["content"]
     for cue in ("angry", "softly", "quietly", "worried", "excited", "frustrated", "tired", "chuckles"):
         assert delivery._performable(cue, "eleven_v4_turbo") == cue                   # every one is performed
 
@@ -197,9 +197,11 @@ def test_on_a_call_they_talk_rather_than_write(monkeypatch):
     from wayne.engine.session import ContactSession
     monkeypatch.setattr(delivery, "supported", lambda model=None: False)
     alfred, dick = directory().get("alfred"), directory().get("nightwing")
-    said = " ".join(ContactSession(alfred)._voice_notes())
+    said = prompting.build_payload(alfred, [], "x")[0]["content"]
     assert "How you talk on the phone" in said and "never 'um'" in said                # his, not everyone's
-    assert "'dude'" in " ".join(ContactSession(dick)._voice_notes())
+    assert "'dude'" in prompting.build_payload(dick, [], "x")[0]["content"]
+    assert "How you talk on the phone" not in prompting.build_payload(dick, [], "x", texting=True)[0]["content"]
+    assert not any("How you talk" in n for n in ContactSession(dick)._voice_notes())     # not re-read every turn
     assert prompting.SPEECH_REALISM in prompting.standing_directives(dick)                # on a call
     assert prompting.SPEECH_REALISM not in prompting.standing_directives(dick, texting=True)
     for contact in directory():
