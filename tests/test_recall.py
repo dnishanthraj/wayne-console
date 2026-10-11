@@ -206,3 +206,15 @@ def test_a_group_chat_reaching_back_gets_it_and_not_with_selina_in_the_room(book
     dinner = group_store.create("Dinner", ["robin", "catwoman"])
     session.group_post(dinner, [{"id": "b", "from": "catwoman", "text": asked, "at": time.time()}], must=True)
     assert "Iceberg Lounge" not in seen["prompt"]
+
+
+def test_what_they_did_with_someone_comes_through_the_links(book, clock):
+    now = clock()                                  # a Wednesday
+    monday = _ts(2, 21, now)
+    events.add("diary.with", "with Dick", at=monday, actor="robin", audience=["robin"],
+               links=[("contact", "robin"), ("contact", "nightwing")])
+    events.add("diary.arrived", "got to the roof of the Gotham Gazette — on patrol", at=monday + 600, actor="robin",
+               audience=["robin"], links=[("contact", "robin")])
+    events.add("diary.doing", "at home — homework", at=_ts(4, 20, now), actor="robin", audience=["robin"])
+    block = recall.block(book.get("robin"), "What did you and Dick get up to on Monday night?")
+    assert "with Dick" in block and "Gotham Gazette" in block and "homework" not in block

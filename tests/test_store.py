@@ -384,3 +384,22 @@ def test_readers_that_only_look_leave_the_board_as_it_is(clock):
             presence.of(contact).whereabouts(t)
     for name in ("cases", "plans", "dispatch"):
         assert store.space(name).view() == store.space(name).list()
+
+
+def test_upkeep_clears_what_is_past_keeping_and_keeps_a_weeks_copies(clock):
+    from wayne.store import upkeep
+    now = clock()
+    transcript.keep("robin", "user", now - 200 * 86400, "long ago")
+    transcript.keep("robin", "user", now - 1 * 86400, "yesterday")
+    events.add("diary.doing", "two years back", at=now - 800 * 86400, actor="robin")
+    events.add("diary.doing", "last week", at=now - 7 * 86400, actor="robin")
+    for day in range(10):
+        upkeep.run(now - (9 - day) * 86400)
+    assert [line["text"] for line in transcript.lines("robin")] == ["yesterday"]
+    assert [e["text"] for e in events.of("robin", "diary.")] == ["last week"]
+    copies = sorted((paths.DATA_DIR / "_backup-daily").glob("wayne-*.db"))
+    assert len(copies) == upkeep.BACKUPS
+    kept = sqlite3.connect(str(copies[-1]))
+    assert kept.execute("SELECT COUNT(*) FROM transcript").fetchone()[0] == 1
+    kept.close()
+    assert not upkeep.due(now)

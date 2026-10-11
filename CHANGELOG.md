@@ -55,7 +55,9 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   plans made and rogues caught, escaped or moved are events, linked to who and
   what they're about and to who knows them, from when. They're kept for a
   year (`WAYNE_EVENT_DAYS`), the transcript for 90 days
-  (`WAYNE_TRANSCRIPT_DAYS`), and cleared out once a day.
+  (`WAYNE_TRANSCRIPT_DAYS`), and cleared out once a day, when a copy of the
+  whole database also goes to `data/_backup-daily/` (a week's worth,
+  `WAYNE_BACKUPS`).
 
 ### Fixed
 

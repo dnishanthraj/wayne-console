@@ -244,8 +244,9 @@ def _pick(candidates, linked, viewer, watcher, outsider, guarded, window, now, s
     lines = transcript.by_ids(ids[index.SAID])
     groups = _group_view(viewer) if ids[index.MESSAGE] else {}
     chats = _messages(ids[index.MESSAGE], groups, viewer)
-    out, paired = [], set()
-    for (kind, ref), lex in candidates.items():
+    out, paired, exchanges = [], set(), 0
+    # Best first, so the costlier ones (an exchange is two more lookups) are only made for the likeliest.
+    for (kind, ref), lex in sorted(candidates.items(), key=lambda kv: -kv[1]):
         if kind == index.EVENT:
             event = happened.get(ref)
             if event is None:
@@ -263,8 +264,9 @@ def _pick(candidates, linked, viewer, watcher, outsider, guarded, window, now, s
             item = {"kind": family, "at": at, "text": event["text"], "event": event}
         elif kind == index.SAID:
             line = lines.get(ref)
-            if line is None or line["contact_id"] != viewer:
+            if line is None or line["contact_id"] != viewer or exchanges >= 3 * MOST:
                 continue
+            exchanges += 1
             # The exchange it was part of — a question found by its words comes with the answer, and an answer
             # with what it answered — once, however many of its lines were found.
             ask, answer = transcript.exchange(line)

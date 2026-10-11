@@ -247,6 +247,7 @@ python run.py                         # → http://127.0.0.1:8420   (passcode: z
 | `WAYNE_TRANSCRIPT_DAYS` | `90` | How long everything said is kept past the model's window, for recall. `0` keeps none. |
 | `WAYNE_EVENT_DAYS` | `365` | How long diaries, cases closed, news that travelled and the city's events are kept. |
 | `WAYNE_RECALL_WORDS` | `90` | Most words of memory recall adds to a turn (only turns that ask about the past). |
+| `WAYNE_BACKUPS` | `7` | Daily copies of the database kept in `data/_backup-daily/`. `0` keeps none. |
 | `WAYNE_INITIATIVE_PER_DAY` | `12` | Most unprompted texts a day, across everyone. `0` turns them off (promises are still kept). |
 | `WAYNE_QUIET_HOURS` | `1-8` | Hours when nobody texts out of the blue. |
 | `WAYNE_HISTORY_WORDS` | `260` | Conversation words sent to the model: the main latency dial. |
@@ -322,7 +323,7 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 | [`groupchat.py`](wayne/engine/groupchat.py) · [`party.py`](wayne/engine/party.py) | Who answers in a group and when it goes quiet; who speaks next on a group call. |
 | [`culture.py`](wayne/engine/culture.py) · [`grapevine.py`](wayne/engine/grapevine.py) | What they've been watching and following; what one heard from another. |
 | [`guards.py`](wayne/engine/guards.py) | The failures that break the illusion, caught in code: echoing you, repeating themselves, a forbidden form of address, a monologue. |
-| [`store/`](wayne/store/) | One SQLite file for everything: small documents a row per entry (the board, the plans, each one's presence), every text and group message a row, the transcript past the model's window, and events (diaries, news that travelled, cases, rogues) with what they're about and who knows them. [`recall.py`](wayne/store/recall.py) finds what someone would remember of it when you ask. |
+| [`store/`](wayne/store/) | One SQLite file for everything: small documents a row per entry (the board, the plans, each one's presence), every text and group message a row, the transcript past the model's window, and events (diaries, news that travelled, cases, rogues) with what they're about and who knows them. [`recall.py`](wayne/store/recall.py) finds what someone would remember of it when you ask. The map: [docs/storage.md](docs/storage.md). |
 
 <details>
 <summary><b>A few of the details that make it feel real</b></summary>
@@ -421,7 +422,7 @@ Test with a scratch `WAYNE_DATA_DIR` so your real memory stays out of it. Front-
 - **The lock screen is not access control.** It's checked in the page, and the passcode sits in plain text in `.env`. It exists because a console should feel like one.
 - **Local-first, not local-only.** The model and speech recognition run on your Mac; the reply text goes to ElevenLabs to be voiced.
 - **Memory encryption is opt-in and key-adjacent.** The key lives in `.env` beside the data: good against casual reading and backups, not against someone who has that file. Every value is sealed on its own, so turning the key on doesn't lose anything (`scripts/migrate_to_db.py --reseal` seals what's already there); a value that won't open is kept in quarantine, never thrown away. The search index recall uses lives only in memory, so no plaintext reaches the disk.
-- **One database.** Everything lives in `data/wayne.db` (SQLite, write-ahead logged). A console from before it kept JSON files: they're brought in the first time it starts, checked against what's read back, and moved untouched to `data/_imported-<when>/`. To go back to an older version, stop the console and run `scripts/export_db_to_json.py --in-place`.
+- **One database.** Everything lives in `data/wayne.db` (SQLite, write-ahead logged). A console from before it kept JSON files: they're brought in the first time it starts, checked against what's read back, and moved untouched to `data/_imported-<when>/`. A copy of the whole database is taken once a day into `data/_backup-daily/` (the last week's kept). To go back to an older version, stop the console and run `scripts/export_db_to_json.py --in-place`.
 - **macOS only** as written (`afplay`, and `pynput` for the terminal's hotkey).
 - **Starting over:** stop the console and run `venv/bin/python scripts/reset_world.py --all` (or `--chats`, `--world`, with `--dry-run` to see first); it backs `data/` up, database included, before anything goes. Saying "protocol zero" to a contact wipes theirs.
 
