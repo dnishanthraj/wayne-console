@@ -90,7 +90,9 @@ def test_the_pulse_starts_nothing_that_writes_while_he_is_on_a_call():
         await console._tick()
         return set(ran)
     calling = asyncio.run(tick("alfred"))
-    assert calling == {"_calls_in", "_announce", "_case_tick"}      # the night goes on; nobody writes
+    # The night goes on; nobody writes — but comms runs: a case's comms, live, is the call itself (its channels
+    # wait for the call to end, see Console._comms_tick).
+    assert calling == {"_calls_in", "_announce", "_case_tick", "_comms_tick"}
     free = asyncio.run(tick(None))
     assert {"_write_day_plans", "_write_gazette", "_group_tick", "_maybe_reach_out"} <= free
 

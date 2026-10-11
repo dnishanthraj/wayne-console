@@ -1883,8 +1883,9 @@ class Console(GroupChats):
         if not calling:
             await self._step("groups", self._group_tick(now))
         await self._step("cases", self._case_tick(now))
-        if not calling:
-            await self._step("comms", self._comms_tick(now))
+        # Comms runs on a call too: on a case's comms live, that's where its updates come from (_comms_live);
+        # every other channel waits for the call to end (see _comms_tick).
+        await self._step("comms", self._comms_tick(now))
 
     async def _step(self, name, awaitable):
         try:
@@ -2622,13 +2623,17 @@ class Console(GroupChats):
         kept_out = set((found.meta() or {}).get("kept_out") or ())
         joining = crew + [s for s in self._SCREENS if s not in kept_out and self._at_their_screens(s)]
         live = getattr(self.call, "comms", None) if self.call else None
+        changed = False
         for member in joining:
             if member not in found.members:
                 found.add_member(member, backlog=8)
-                found.system(f"{self.directory.get(member).name} joined comms")
+                line = found.system(f"{self.directory.get(member).name} joined comms")
+                await self.broadcast({"type": "group_message", "group": found.id, "message": line})
+                changed = True
             if live and live.get("group") == found.id and member not in self._members():
                 self._spawn(self._onto_live_comms(member))
-        await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
+        if changed:
+            await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
         return found
 
     async def open_comms(self, report_id):
@@ -2688,6 +2693,9 @@ class Console(GroupChats):
                     await self.group_delete(group.id)
                 continue
             case = cases.for_report(meta["case"])
+            if case is not None and case["status"] != "closed":
+                await self._case_comms(case)          # whoever's since on it, or at their screens: on comms too
+                meta = group.meta() or {}
             live = getattr(self.call, "comms", None) if self.call else None
             if case is not None and live and live.get("group") == group.id:
                 await self._comms_live(group, case, now, meta)

@@ -153,3 +153,22 @@ def test_comms_pauses_are_for_the_op_and_everyone_knows_the_op(monkeypatch):
     call.join(alfred)
     assert "live comms call" in call.note_for(alfred) and "in the cave" in call.note_for(alfred)
     assert "If nothing's changed, reply with exactly SKIP" in call._lull_instruction(dick, 1)
+
+
+def test_the_pulse_drives_the_live_channel_while_hes_on_it(monkeypatch):
+    console, sent, said = _console(monkeypatch)
+    case = _case(["nightwing"])
+    group = group_store.create("Comms · v", ["nightwing"])
+    group.update_meta(lambda m: m.update({"case": case["id"], "comms": True}))
+    _live(console, case, group, ["nightwing"])
+    driven = []
+
+    async def comms_live(g, c, now, meta):
+        driven.append(g.id)
+
+    async def case_comms(c):
+        return None
+    console._comms_live, console._case_comms = comms_live, case_comms
+    console._group_readers, console._group_writing = {}, set()
+    asyncio.run(console._comms_tick(time.time()))
+    assert driven == [group.id]                                         # on a call, and still the case comes through

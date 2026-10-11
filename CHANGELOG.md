@@ -5,6 +5,18 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-10-11
+
+### Fixed
+
+- **Live comms updates actually come.** The console's pulse skipped comms
+  while any call was up, so on a comms call the case never came down the
+  line. Comms now runs on a call too. Other channels still wait for the
+  call to end.
+- **Alfred and Barbara join comms when they get to their screens**, not only
+  when someone new is put on the case, and they join a live comms call
+  if you're on one.
+
 ## [0.21.0] - 2026-10-11
 
 ### Added
