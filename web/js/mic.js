@@ -46,7 +46,7 @@
   var SPEECH_FACTOR = 2.6;         // energy above floor that counts as speech
   var SPEECH_FACTOR_DUCKED = 7.0;  // far stricter while the contact is talking
   var ABSOLUTE_FLOOR = 0.0025;
-  var ONSET_MS = 80;               // sustained energy before a take opens
+  var ONSET_MS = 120;              // sustained energy before a take opens: a knock or a click is shorter
   // Interrupting has to be deliberate. Echo cancellation is imperfect, and a
   // reply leaking back through the speakers at the same bar as real speech
   // would let a contact interrupt itself — then answer what it just said, over
@@ -295,7 +295,8 @@
     if (global.ConsoleAudio.isPlaying) state.lastPlayingAt = Date.now();
     // Treat the moments just after playback as still "ducked": the tail of the
     // reply is physically still in the room.
-    var ducked = global.ConsoleAudio.isPlaying ||
+    // And a sound of their room close by — a horn, a siren — is as loud in here as a voice.
+    var ducked = global.ConsoleAudio.isPlaying || global.ConsoleAudio.sounding ||
                  (Date.now() - state.lastPlayingAt) < ECHO_TAIL_MS;
     var factor = ducked ? SPEECH_FACTOR_DUCKED : SPEECH_FACTOR;
     var enter = Math.max(state.noiseFloor * factor, ABSOLUTE_FLOOR);
@@ -322,7 +323,7 @@
           state.chunks = state.preroll.slice();
           state.preroll = [];
           state.prerollFrames = 0;
-          if (ducked && handlers.onBargeIn) handlers.onBargeIn();
+          if (global.ConsoleAudio.isPlaying && handlers.onBargeIn) handlers.onBargeIn();
           if (handlers.onSpeechStart) handlers.onSpeechStart();
         }
       } else {

@@ -15,6 +15,7 @@ model finishes writing it, several in flight at once, but the resulting clips
 are released to the page strictly in order.
 """
 import asyncio
+import concurrent.futures
 import contextlib
 import logging
 import logging.handlers
@@ -5321,13 +5322,37 @@ def _speech_hint():
     return ", ".join(unique)[:200]
 
 
+# Hearing him has a thread of its own. On the shared pool it queued behind every model call waiting its turn
+# (two of them on a group call, the afterthoughts, a text) — 30 and 97 seconds to hear four seconds of speech.
+_STT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
+_HEARING = {"waiting": 0}            # his turns waiting to be heard: a live caption gives way to them
+_CAPTION_SECONDS = 6                 # a caption only needs what he's saying now, not the whole take again
+
+
 @app.post("/api/transcribe")
 async def transcribe(request: Request):
     """Raw little-endian float32 PCM at stt.SAMPLE_RATE, captured in the page."""
     body = await request.body()
     began = time.monotonic()
-    text, confidence = await asyncio.to_thread(stt.transcribe_pcm, body, _speech_hint())
-    if request.query_params.get("partial"):
+    partial = bool(request.query_params.get("partial"))
+    hint = _speech_hint()
+    if partial:
+        if _HEARING["waiting"] or stt.busy():
+            return JSONResponse({"text": "", "confidence": 1.0, "skipped": True})
+        body = body[-_CAPTION_SECONDS * stt.SAMPLE_RATE * 4:]
+    else:
+        _HEARING["waiting"] += 1
+
+    def hear():
+        if partial and _HEARING["waiting"]:
+            return "", 1.0                       # his turn came in while this waited: it goes first
+        return stt.transcribe_pcm(body, hint)
+    try:
+        text, confidence = await asyncio.get_running_loop().run_in_executor(_STT_POOL, hear)
+    finally:
+        if not partial:
+            _HEARING["waiting"] -= 1
+    if partial:
         return JSONResponse({"text": text, "confidence": round(confidence, 2)})     # a live caption, not a turn
     # How long hearing him took, against how long he spoke: slow here is the GPU shared with a reply being written.
     log.info("heard %.1fs of speech in %.2fs%s", len(body) / 4 / stt.SAMPLE_RATE, time.monotonic() - began,

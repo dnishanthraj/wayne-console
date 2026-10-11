@@ -6,9 +6,7 @@ instantiate a Whisper model and print to stdout as a side effect, which made
 the package impossible to import from a server (or a test) without paying for
 a model load and polluting the output.
 """
-import contextlib
 import io
-import os
 import queue
 import re
 import threading
@@ -130,16 +128,15 @@ def transcribe_audio(audio, hint=None):
     if kind == "mlx":
         import mlx_whisper
         audio_1d = audio.squeeze().astype(np.float32)
-        # mlx-whisper writes progress noise to stderr regardless of verbose=False.
-        # One transcription at a time: the model isn't documented thread-safe,
-        # and two takes swapping sys.stderr at once left it pointing at a
-        # closed file for the rest of the run.
-        with _TRANSCRIBING, open(os.devnull, 'w') as devnull, contextlib.redirect_stderr(devnull):
+        # One transcription at a time: the model isn't documented thread-safe. Quiet by verbose=None — it's
+        # verbose=False that draws the progress bar (tqdm's disable is "verbose is not False"), which is why
+        # stderr used to be swallowed process-wide for the length of every take.
+        with _TRANSCRIBING:
             result = mlx_whisper.transcribe(
                 audio_1d,
                 path_or_hf_repo=model,
                 language="en",
-                verbose=False,
+                verbose=None,
                 initial_prompt=hint or WHISPER_HINT_PROMPT,
                 # One pass: the default falls back through rising temperatures, up to six decodes of a hard take.
                 temperature=0.0,
@@ -189,12 +186,23 @@ _SILENT_RMS = 0.004
 
 
 def _hallucinated(text, result, seconds):
-    """A short take that came back as one of Whisper's stock phrases, with the decoder itself unsure anyone spoke."""
+    """
+    A short take that came back as one of Whisper's stock phrases, with the decoder itself unsure anyone spoke —
+    or a take of any length the decoder is sure wasn't speech at all: a horn, a door, the room, read as words.
+    """
+    segments = result.get("segments") or []
+    if text and segments and all(seg.get("no_speech_prob", 0) > 0.7 and seg.get("avg_logprob", 0) < -0.9
+                                 for seg in segments):
+        return True
     if not text or seconds > 1.6 or not _PHANTOMS.match(text):
         return False
-    segments = result.get("segments") or []
     unsure = [seg for seg in segments if seg.get("no_speech_prob", 0) > 0.45 or seg.get("avg_logprob", 0) < -1.0]
     return not segments or len(unsure) == len(segments)
+
+
+def busy():
+    """Whether a take is being transcribed right now."""
+    return _TRANSCRIBING.locked()
 
 
 def transcribe_pcm(raw_bytes, hint=None):

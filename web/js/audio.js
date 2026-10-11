@@ -201,6 +201,8 @@
     return entry;
   }
 
+  var soundingUntil = 0;           // a near sound of someone's room is playing until then
+
   function bedKey(spec) { return (spec.beds || []).map(function (b) { return b.name + ':' + b.gain; }).join('|'); }
 
   /* One sound in someone's room: from its distance, panned, a far one dulled, one going past swept across. */
@@ -238,6 +240,8 @@
       }
       node.connect(g).connect(entry.mix);
       source.start();
+      // A horn, a siren, a door close by is in the room as loud as a voice: the mic treats it as it treats theirs.
+      if (!cue.lp) soundingUntil = Math.max(soundingUntil, Date.now() + dur * 1000 + 300);
     }).catch(function () {});
   }
 
@@ -362,6 +366,7 @@
     beds: function () { return Object.keys(beds); },
     on: function (name, fn) { handlers[name] = fn; },
     get analyser() { return analyser; },
-    get isPlaying() { return playing; }
+    get isPlaying() { return playing; },
+    get sounding() { return Date.now() < soundingUntil; }
   };
 })(window);

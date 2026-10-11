@@ -5,6 +5,29 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.34.2] - 2026-10-11
+
+### Fixed
+
+- **Calls hear you straight away.** Your speech was transcribed on the same
+  shared worker pool as every model call. On a group call, with two replies,
+  afterthoughts and texts all waiting their turn on the model, hearing four
+  seconds of you could take 30 seconds, once 97. Transcription now has a
+  thread of its own. Your real turn goes before any live caption, which
+  steps aside while a turn is waiting. Captions only re-read the last few
+  seconds of what you're saying, not the whole take every time.
+- **The visualiser shows your voice** whatever else it's doing. While they
+  were thinking, your speech didn't move it, which looked like the mic
+  wasn't hearing you.
+- **Fewer stray sounds taken for you.** A horn, siren or door in the
+  ambience close by now raises the bar the way their voice does, and no
+  longer cuts them off as if you'd interrupted. A knock or click is too short
+  to open a take. Anything the decoder is sure wasn't speech is dropped
+  instead of answered.
+- Whisper no longer silences the whole process's error output while it
+  works. It's quiet the right way now (`verbose=None`; `verbose=False` is
+  what drew its progress bar).
+
 ## [0.34.1] - 2026-10-11
 
 ### Changed

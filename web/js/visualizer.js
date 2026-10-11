@@ -252,6 +252,15 @@
       this._readIdle();
     }
     if (this.mode !== 'listening') this._readRoom();
+    // His voice shows whatever else the ring is doing — them thinking, the room, standby: speaking into a ring
+    // that didn't move read as the mic not hearing him.
+    if (this.mode !== 'listening' && this.mode !== 'speaking' && this.level > 0.08) {
+      for (var k = 0; k < BARS; k++) {
+        var wave = Math.sin((k / BARS) * Math.PI * 6 + this.phase * 2.2) * 0.5 + 0.5;
+        var heard = 0.05 + this.level * (0.35 + wave * 0.65);
+        if (heard > this.targets[k]) this.targets[k] = heard;
+      }
+    }
 
     var rise = 1 - Math.pow(1 - SMOOTHING, frames);
     var fall = 1 - Math.pow(1 - DECAY, frames);
