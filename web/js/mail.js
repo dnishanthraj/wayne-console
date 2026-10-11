@@ -226,9 +226,23 @@
     });
     var answer = card.querySelector('.mx-event__answer');
     if (m.rsvp) {
-      answer.textContent = m.rsvp === 'accepted' ? 'In your diary \u2014 Alfred accepted for you.'
-                                                 : 'Declined \u2014 Alfred sent your regrets.';
+      var agreed = m.engagement && m.engagement.id && !/^invitation$/.test(m.kind || '');
+      answer.textContent = m.rsvp !== 'accepted' ? 'Declined \u2014 Alfred sent your regrets.'
+        : agreed ? 'In your diary.' : 'In your diary \u2014 Alfred accepted for you.';
       answer.dataset.state = m.rsvp;
+      // Upcoming: set off for it from here — being there is the only way it counts.
+      var ends = (function () { try { return new Date(e.date + 'T' + (e.time || '20:00')).getTime() + 3 * 3600 * 1000; } catch (err) { return 0; } })();
+      if (m.rsvp === 'accepted' && e.id && ends > Date.now() && window.goToEngagement) {
+        var go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'cx-btn mx-event__yes';
+        go.textContent = 'Go';
+        go.addEventListener('click', function () {
+          go.disabled = true;
+          window.goToEngagement(e.id).then(function () { go.textContent = 'On the way'; });
+        });
+        answer.appendChild(go);
+      }
     } else {
       [['Accept', true], ['Decline', false]].forEach(function (b) {
         var btn = document.createElement('button');

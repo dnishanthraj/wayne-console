@@ -2502,3 +2502,10 @@ body { background:
 .bubble--said .bubble__text { font-style: italic; }
 .bubble--said .bubble__who, .bubble--said .bubble__time { font-style: normal; }
 .messages__dial[data-comms="1"] { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+
+/* A diary reminder: when and where, and Go — set off now, or miss it. */
+.toast--diary { grid-template-columns: 34px 1fr auto auto; }
+.toast__go { flex: none; margin-left: 10px; padding: 7px 12px; background: transparent; border: 1px solid var(--good);
+  color: var(--good); font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  cursor: var(--cursor-pointer); }
+.toast__go:hover { background: color-mix(in srgb, var(--good) 14%, transparent); }

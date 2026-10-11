@@ -5,6 +5,33 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-11
+
+### Added
+
+- **What you write has consequences.** When a thread settles a meeting (a
+  place, a day, a time, both of you saying yes), it goes in your diary and
+  the letter says so: dinner with Vicki on Thursday, or, from the secure
+  line, Batman on the GCPD roof at midnight with Jim. Alfred knows it's
+  coming and what became of the last few.
+- **Being there means going there.** Before each one you get a reminder
+  ("In 40 min") with **Go**, which sets you off as the right man: Bruce Wayne
+  in the car to an evening, Batman to a meeting. Often Alfred adds a word. Go
+  is on the letter too. While it's on, where you are on the map is what
+  counts.
+- **Outcomes move the story.** Go, and something happens there that leads
+  somewhere (a rival corners you, someone asks a favour, a spark). It's
+  remembered, the host's thank-you touches on it, and later letters know
+  you were there. Don't go, and the host's note says so, and Vicki may want
+  to know where you were. Batman standing Jim up costs trust with him and the
+  department, and Jim's secure note says what he thinks. Keeping the meeting
+  earns some back.
+
+### Fixed
+
+- Toasts without a portrait (the fresh-start note, the new diary reminder)
+  no longer squeeze their words into the icon's slot.
+
 ## [0.26.0] - 2026-10-11
 
 ### Added

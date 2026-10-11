@@ -71,3 +71,78 @@ def test_alfred_knows_whats_in_the_diary(clock, monkeypatch):
     alfred.contact = directory().get("alfred")
     alfred._said = ""
     assert "You keep his diary" in alfred._background() and "Gotham Opera House" in alfred._background()
+
+
+def _at(clock, minutes):
+    return clock() + minutes * 60
+
+
+def test_being_there_is_being_there_on_the_map(clock, monkeypatch):
+    from wayne.engine import batman
+    row = engagements.agree("dinner with Vicki Vale", "Gotham Opera House", _at(clock, 30), "Vicki Vale", "t1")
+    assert engagements.agree("dinner with Vicki Vale", "Gotham Opera House", _at(clock, 40), "Vicki Vale", "t1")["id"] == row["id"]
+    venue = row["venue"]
+    monkeypatch.setattr(batman, "position", lambda t=None: (1.0, 10.0))             # at the Manor
+    clock.at(row["at"] + 600)
+    engagements.watch(clock())
+    assert not engagements._rows().get(row["id"]).get("present")
+    monkeypatch.setattr(batman, "position", lambda t=None: (venue[0] + 0.5, venue[1]))  # there
+    engagements.watch(clock())
+    assert engagements._rows().get(row["id"])["present"]
+    clock.at(row["until"] + 60)
+    assert engagements.settle(clock())[0]["status"] == "attended"
+
+
+def test_a_reminder_before_once_and_go_sets_him_off_as_the_right_man(clock, monkeypatch):
+    from wayne.engine import batman
+    gala = engagements.agree("the Mayor's gala", "Gotham Opera House", _at(clock, 30), "Mayor Nakano", "t2")
+    roof = engagements.agree("meeting Jim on the GCPD roof", "GCPD Central", _at(clock, 35), "Jim Gordon", "t3",
+                             as_="batman")
+    assert {e["id"] for e in engagements.reminders(clock())} == {gala["id"], roof["id"]}
+    assert engagements.reminders(clock()) == []                                    # once
+    went = []
+    monkeypatch.setattr(batman, "go", lambda where, x=None, y=None, case="", t=None, suit=None: went.append((where, suit)) or {})
+    engagements.go(gala["id"])
+    engagements.go(roof["id"])
+    assert went == [("Gotham Opera House", False), ("GCPD Central", True)]          # Bruce Wayne; Batman
+
+
+def test_standing_jim_up_costs_batman_and_keeping_it_earns(clock, monkeypatch):
+    from wayne.engine import batman, bonds
+    monkeypatch.setattr(batman, "position", lambda t=None: (1.0, 10.0))
+    roof = engagements.agree("meeting Jim on the GCPD roof", "GCPD Central", _at(clock, 10), "Jim Gordon", "t4",
+                             as_="batman")
+    before = bonds.state("gordon", bonds.ME)["trust"]
+    clock.at(roof["until"] + 60)
+    settled = engagements.settle(clock())
+    assert settled[0]["status"] == "missed"
+    assert bonds.state("gordon", bonds.ME)["trust"] < before
+    assert any("never showed" in m["text"] for m in bonds.memories("gordon", bonds.ME))
+
+
+def test_a_meeting_agreed_in_a_thread_goes_in_the_diary_and_the_letter_says_so(clock, monkeypatch):
+    day = (datetime.date.fromtimestamp(clock()) + datetime.timedelta(days=2)).isoformat()
+    monkeypatch.setattr(inbox, "_ask", lambda model, options, instruction, purpose: {
+        "meeting": {"what": "dinner with Vicki Vale", "where": "Gotham Opera House", "date": day, "time": "20:00"}})
+    vicki = inbox.deliver("vicki", "Dinner?", "Thursday?", kind="letter", name="Vicki Vale")
+    row = inbox._agreed("m", {}, vicki, "Bruce Wayne", False, clock())
+    assert row["as"] == "bruce" and row["with"] == "Vicki Vale"
+    marked = inbox._mail().get(vicki["id"])
+    assert marked["rsvp"] == "accepted" and marked["engagement"]["id"] == row["id"]
+    jim = inbox.deliver("gordon", "Roof", "Midnight. I'll be there.", kind="gordon")
+    assert inbox._agreed("m", {}, jim, "Batman", True, clock())["as"] == "batman"
+
+
+def test_after_an_evening_something_happened_and_the_mail_remembers_it(clock, monkeypatch):
+    replies = iter([{"story": "Simon Saint cornered him about the drone contracts"},
+                    {"subject": "Thank you", "body": "So glad you came."}])
+    asked = []
+    monkeypatch.setattr(inbox, "_ask", lambda model, options, instruction, purpose: asked.append(instruction) or next(replies))
+    row = engagements.agree("the Mayor's gala", "Gotham Opera House", _at(clock, -200), "Mayor Nakano", "t5")
+    engagements._rows().put(row["id"], {**row, "status": "attended", "until": _at(clock, -10)})
+    inbox._engagement_letter("m", {}, {"kind": "engagement", "id": row["id"], "status": "attended",
+                                       "what": row["what"], "where": row["where"], "host": "Mayor Nakano",
+                                       "thread": "t5", "as": "bruce"}, clock())
+    assert "drone contracts" in asked[1]                                           # the thank-you touches on it
+    assert "drone contracts" in engagements.lately(clock()) and "drone contracts" in inbox._context(clock())
+    assert "drone contracts" not in inbox._context(clock(), secure=True)          # nothing of Bruce on Jim's line

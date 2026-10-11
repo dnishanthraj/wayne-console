@@ -3159,6 +3159,10 @@
         }
         break;
 
+      case 'engagement_soon':
+        diaryToast(event.engagement);
+        break;
+
       case 'they_muted':
         // They've muted themselves for a minute: shown on their seat (or the call), their room gone quiet.
         state.theyMuted = state.theyMuted || {};
@@ -4062,11 +4066,60 @@
     })();
   }
 
+  /* Something in his diary about to start: when, where — and Go, which sets him off for it (as Bruce Wayne to an
+     evening, as Batman to a meeting). Being there is the only way it counts. */
+  function goToEngagement(id) {
+    return fetch('/api/engagements/' + encodeURIComponent(id) + '/go', { method: 'POST' })
+      .then(function (r) { return r.json(); }).then(function (where) { if (where && !where.error) setBruce(where); return where; });
+  }
+  function diaryToast(e) {
+    if (!e) return;
+    var card = document.createElement('div');
+    card.className = 'toast toast--mail toast--diary';
+    card.style.setProperty('--contact-accent', e.as === 'batman' ? 'var(--alert)' : 'var(--primary)');
+    var icon = document.createElement('span');
+    icon.className = 'bubble__avatar toast__mail';
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+                     'stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 3v3M16 3v3"/>' +
+                     '<path d="M12 13v3l2 1"/></svg>';
+    card.appendChild(icon);
+    var words = document.createElement('div');
+    var who = document.createElement('span');
+    who.className = 'toast__name';
+    var mins = Math.max(1, Math.round((e.at * 1000 - Date.now()) / 60000));
+    who.textContent = (e.as === 'batman' ? 'Batman \u00b7 ' : '') + 'In ' + mins + ' min';
+    var line = document.createElement('span');
+    line.className = 'toast__text';
+    line.textContent = e.what + (e.where ? ' \u2014 ' + e.where : '');
+    words.appendChild(who);
+    words.appendChild(line);
+    card.appendChild(words);
+    var go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'toast__go';
+    go.textContent = 'Go';
+    go.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      goToEngagement(e.id).then(function () { dismissToast(card); });
+    });
+    card.appendChild(go);
+    card.addEventListener('click', function () { dismissToast(card); });
+    showToast(card, 'diary:' + e.id, 30000);
+    if (ConsoleTones.message) ConsoleTones.message();
+  }
+  window.goToEngagement = goToEngagement;
+
   /* After a fresh start from Settings: said once, with where the old data went. */
   function startedOver(done) {
     var card = document.createElement('div');
     card.className = 'toast toast--mail';
     card.style.setProperty('--contact-accent', 'var(--primary)');
+    var icon = document.createElement('span');
+    icon.className = 'bubble__avatar toast__mail';
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+                     'stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/>' +
+                     '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>';
+    card.appendChild(icon);
     var words = document.createElement('div');
     var who = document.createElement('span');
     who.className = 'toast__name';

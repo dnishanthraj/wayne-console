@@ -77,13 +77,15 @@ def position(t=None):
     return (s["spot"]["x"], s["spot"]["y"]) if s.get("spot") else None
 
 
-def go(where, x=None, y=None, case="", t=None):
+def go(where, x=None, y=None, case="", t=None, suit=None):
     """
     He sets off for somewhere — a place by name, or a point (a pin, a report's).
     To a case it's Batman, whatever the hour: over the roofs, the Batmobile, or
     the Batwing if it's near and saves real time. Anywhere else it's Batman by
-    night and Bruce Wayne by day — the car, or a walk round the corner. Returns
-    the trip, or None if there's nowhere to go. Mid-journey, he turns from where he is.
+    night and Bruce Wayne by day — the car, or a walk round the corner — unless
+    `suit` says which: a gala at nine is Bruce Wayne in the car, a meeting on a
+    roof at noon is Batman. Returns the trip, or None if there's nowhere to go.
+    Mid-journey, he turns from where he is.
     """
     t = t or time.time()
     here = position(t)
@@ -93,7 +95,7 @@ def go(where, x=None, y=None, case="", t=None):
     from . import jet
     if jet.busy(t):
         jet.let_go(t)           # changing course mid-flight: down where it is, then the new way (and never booked twice)
-    suited = bool(case) or night(t)
+    suited = suit if suit is not None else (bool(case) or night(t))
     goal = (there["x"], there["y"])
     if suited:
         trip = travel.fastest("bruce", here, goal, there.get("name"), t, book=True)

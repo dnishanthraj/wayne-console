@@ -139,6 +139,11 @@ def rsvp(message_id, accept, now=None):
     if row is None:
         return None
     update(message_id, rsvp=row["status"])
+    with _lock:
+        m = _mail().get(message_id)
+        if m is not None and m.get("engagement"):
+            m["engagement"]["id"] = row["id"]           # the letter knows its evening: Go, from the letter
+            _mail().put(message_id, m)
     when_ = time.strftime("%A %-d %B at %-I:%M %p", time.localtime(row["at"]))
     body = ((f"Mr. Wayne thanks you for your kind invitation and accepts with pleasure — {when_}" +
              (f", {row['where']}" if row["where"] else "") + ".") if accept else
@@ -407,8 +412,10 @@ def _context(now, secure=False):
     papers = "; ".join(f"“{i['headline']}”" for i in (gazette.today(day) or [])[:4])
     who = ("" if secure else "Bruce Wayne is CEO-in-name of Wayne Enterprises and its public face (the city thinks "
            "him a charming, unserious billionaire). ")
+    from . import engagements
+    lately = "" if secure else engagements.lately(now)
     return (f"It's {day.strftime('%A %-d %B %Y')}, {time.strftime('%H:%M', time.localtime(now))}, in Gotham City. "
-            + who + (f"This morning's papers: {papers}. " if papers else ""))
+            + who + lately + (f"This morning's papers: {papers}. " if papers else ""))
 
 
 def write_one(model, options, now=None):
@@ -490,13 +497,39 @@ def _engagement_letter(model, options, event, now):
     """
     if event.get("kind") != "engagement":
         return None
+    from . import engagements
     went = event.get("status") == "attended"
     convo = thread(event.get("thread", ""))
     theirs = next((m for m in convo if m.get("folder") != "sent"), None)
     host = event.get("host") or (theirs or {}).get("from") or "the host"
+    if event.get("as") == "batman":
+        # Batman's meeting, on the secure line: Jim, after it — or after waiting on a roof for nobody.
+        found = _ask(model, options, _context(now, secure=True) + f"Write one short email from {host} to Batman on their "
+                     f"secure line, after {event.get('what')}" + (f" at {event['where']}" if event.get("where") else "")
+                     + ": " + ("Batman came; one line on what they settled, what Jim will do now." if went else
+                               "Batman never showed; Jim waited. He writes as he would — tired, angry, or worried.")
+                     + _FACTS_ONLY + " " + _MAIL_SHAPE, "Jim, after")
+        if found and found.get("subject"):
+            return deliver(theirs.get("sender") if theirs else "gordon", found["subject"], found.get("body", ""),
+                           folder="secure", kind="gordon", name=host, address=(theirs or {}).get("address"),
+                           thread=event.get("thread"), key=f"after:{event.get('id')}")
+        return None
+    story = ""
+    if went:
+        # The evening itself, once: who he met, what was said — something that leads somewhere.
+        evening = _ask(model, options, _context(now) + f"Bruce Wayne went to {event.get('what')}"
+                       + (f" at {event['where']}" if event.get("where") else "") + f", hosted by {host}. In a line or two: "
+                       "what happened there that would lead somewhere — who cornered him, what was asked of him, a "
+                       "rumour, a favour, a rival's move, a spark with someone. Names only of real Gotham figures (the "
+                       "mayor, the council, Saint, Daggett, Vicki Vale) or invented guests. JSON only: "
+                       '{"story": "..."}', "the evening")
+        story = str((evening or {}).get("story") or "").strip()
+        if story:
+            engagements.remember(event.get("id"), story)
     found = _ask(model, options, _context(now) + f"Write one short email to Bruce Wayne from {host}, the morning after "
                  f"{event.get('what')}" + (f" at {event['where']}" if event.get("where") else "") + ": "
-                 + ("he came — a thank-you, warm or formal as they are, with one specific thing about the evening."
+                 + (("he came — a thank-you, warm or formal as they are" + (f", touching on what happened: {story}"
+                     if story else ", with one specific thing about the evening") + ".")
                     if went else "he accepted and never came — his chair empty all evening; they write as they would: "
                     "gracious, wounded, pointed or amused.") + _FACTS_ONLY + " " + _MAIL_SHAPE, "an after-note")
     made = None
@@ -660,10 +693,47 @@ def _reply_letter(model, options, event, now):
     if not found or not str(found.get("body") or "").strip():
         return None
     subject = theirs["subject"] if theirs["subject"].lower().startswith("re:") else "Re: " + theirs["subject"]
-    return deliver(theirs.get("sender") or theirs["from"], subject, found["body"],
+    made = deliver(theirs.get("sender") or theirs["from"], subject, found["body"],
                    folder=theirs["folder"] if theirs["folder"] in ("inbox", "secure") else "inbox",
                    kind=theirs.get("kind") or "letter", name=theirs["from"], address=theirs.get("address"),
                    thread=event["thread"], reply_to=convo[-1]["id"], key=f"reply:{event.get('id')}")
+    if made:
+        _agreed(model, options, made, him, secure, now)
+    return made
+
+
+def _agreed(model, options, latest, him, secure, now):
+    """
+    Whether the thread has just settled a meeting — a place and a day and time, both of them saying yes — and if so,
+    it's in the diary (engine.engagements): Bruce Wayne's dinner, or Batman's roof. Marked on their letter, so the
+    letter says so.
+    """
+    from . import engagements
+    convo = thread(latest.get("thread") or latest["id"])[-4:]
+    lines = "\n\n".join(f"— {m['from']}:\n{m['body'][:1000]}" for m in convo)
+    found = _ask(model, options, _context(now, secure=secure)
+                 + f"Here is the end of an email conversation between {him} and {latest['from']}:\n\n{lines}\n\n"
+                 f"Have they just agreed to meet — a particular place and a day and time, {him} and {latest['from']} both "
+                 "saying yes (or one proposing and the other accepting)? A maybe, a 'some time', or no time is no. JSON "
+                 'only: {"meeting": {"what": "what it is, in a few words — dinner with Vicki Vale", "where": "the place", '
+                 '"date": "YYYY-MM-DD", "time": "HH:MM, 24-hour"} or null}', "a meeting agreed")
+    meeting = (found or {}).get("meeting") if isinstance((found or {}).get("meeting"), dict) else None
+    at = engagements.when_from(meeting, now) if meeting else None
+    if at is None or at < now:
+        return None
+    row = engagements.agree(meeting.get("what") or f"meeting {latest['from']}", meeting.get("where") or "", at,
+                            latest["from"], latest.get("thread") or latest["id"],
+                            as_="batman" if latest.get("sender") == "gordon" else "bruce", message=latest["id"], now=now)
+    with _lock:
+        m = _mail().get(latest["id"])
+        if m is not None:
+            day = datetime.date.fromtimestamp(at)
+            m["engagement"] = {"id": row["id"], "what": row["what"], "where": row["where"], "date": day.isoformat(),
+                               "time": time.strftime("%H:%M", time.localtime(at)), "dress": "", "host": latest["from"],
+                               "as": row["as"]}
+            m["rsvp"] = "accepted"
+            _mail().put(m["id"], m)
+    return row
 
 
 def _from_event(model, options, event, now):

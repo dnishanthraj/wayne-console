@@ -1,10 +1,17 @@
 """
-Bruce Wayne's engagements: the galas, dinners and boxes he's invited to by mail, and what became of them.
+His engagements — Bruce Wayne's evenings and Batman's meetings — made by mail, and what became of them.
 
-An invitation (engine.inbox) carries the event — what, where, when, the dress, the host. He accepts or declines
-from the letter; Alfred, who keeps his diary, answers for him, and knows what's coming. When the evening's
-over it's settled the only way it can be: he went — or he was out as Batman when he should have been there,
-and the host's note says so, kindly or not, and the Gazette's Vicki Vale may have noticed.
+An invitation (engine.inbox) carries the event — what, where, when, the dress, the host — and he accepts or
+declines it from the letter, Alfred answering for him; a meeting agreed in a thread ("Thursday at eight, Le
+Bistro" — "See you there") goes in the diary too, Batman's from the secure line ("Roof. Midnight." — Jim:
+"I'll be there.").
+
+Being there means being there: before it, a reminder and the way to go (see go); during it, wherever he is
+on the map is checked against the place (watch). Afterwards it's settled the only way it can be — he came, or
+he didn't (and if he was out on a case, that's why) — and it goes on from there: the host's note, Vicki Vale
+wanting to know where he was, Jim and the department a little colder for a meeting Batman never came to, or
+warmer for one he did; and what happened at the evening itself, written once, which the mail and Alfred
+remember.
 
 Kept in the database (the space "engagements", a row an engagement).
 """
@@ -15,6 +22,9 @@ import uuid
 from .. import store
 
 LENGTH = 3 * 3600          # an evening, give or take, when the invitation doesn't say
+MEETING = 3600             # a meeting: an hour's grace either side of being on time
+PRESENT_RADIUS = 2.5       # this close to the place, he's there (map units; one is ~150 m)
+REMIND_BEFORE = 40 * 60    # the reminder, and time enough to get across town
 _KEEP_DAYS = 30
 
 
@@ -46,6 +56,13 @@ def when_from(details, now=None):
     return at if now - 86400 < at < now + 120 * 86400 else None
 
 
+def _venue(where):
+    """Where a place is, if it's somewhere on the map: (x, y), or None."""
+    from . import places
+    found = places.resolve(where or "")
+    return (found["x"], found["y"]) if found else None
+
+
 def answer(message, accept, now=None):
     """He accepts or declines an invitation: in the diary (or not), and the row for it. None if there's no event."""
     details = (message or {}).get("engagement") or {}
@@ -54,13 +71,72 @@ def answer(message, accept, now=None):
         return None
     rows = _rows()
     found = next((e for e in rows.list() if e.get("message") == message["id"]), None)
+    where = str(details.get("where") or "")[:80]
     row = {**(found or {}), "id": (found or {}).get("id") or uuid.uuid4().hex[:10], "message": message["id"],
            "thread": message.get("thread") or message["id"], "what": str(details.get("what") or message["subject"])[:120],
-           "where": str(details.get("where") or "")[:80], "host": str(details.get("host") or message["from"])[:80],
-           "dress": str(details.get("dress") or "")[:60], "at": at, "until": at + LENGTH,
-           "status": "accepted" if accept else "declined", "answered_at": now or time.time()}
+           "where": where, "venue": _venue(where), "host": str(details.get("host") or message["from"])[:80],
+           "dress": str(details.get("dress") or "")[:60], "at": at, "until": at + LENGTH, "as": "bruce",
+           "source": "invitation", "status": "accepted" if accept else "declined", "answered_at": now or time.time()}
     rows.put(row["id"], row)
     return row
+
+
+def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None):
+    """
+    A meeting agreed in a letter's thread — dinner with Vicki, Batman and Jim on a roof — in the diary. One per
+    thread and time: agreeing again is the same meeting. Returns the row.
+    """
+    rows = _rows()
+    found = next((e for e in rows.list() if e.get("thread") == thread and abs(e["at"] - at) < 1800), None)
+    if found:
+        return found
+    row = {"id": uuid.uuid4().hex[:10], "message": message, "thread": thread, "what": str(what)[:120],
+           "where": str(where)[:80], "venue": _venue(where), "host": str(with_)[:80], "with": str(with_)[:80],
+           "dress": "", "at": at, "until": at + (MEETING if as_ == "batman" else LENGTH), "as": as_, "source": "mail",
+           "status": "accepted", "answered_at": now or time.time()}
+    rows.put(row["id"], row)
+    return row
+
+
+def watch(now=None):
+    """
+    While it's on — from a little before the start to the end — whether he's where it is: on the map, near enough
+    to count. Once there is enough. Without a place on the map, being out on a case is all that keeps him away.
+    """
+    from . import batman
+    now = now or time.time()
+    here = None
+    for e in _rows().list():
+        if e["status"] != "accepted" or e.get("present") or not (e["at"] - 900 <= now <= e["until"]):
+            continue
+        if not e.get("venue"):
+            continue
+        here = here or batman.position(now)
+        if here and ((here[0] - e["venue"][0]) ** 2 + (here[1] - e["venue"][1]) ** 2) ** 0.5 <= PRESENT_RADIUS:
+            _rows().put(e["id"], {**e, "present": True, "present_at": now})
+
+
+def reminders(now=None):
+    """What's about to start that he hasn't been reminded of — marked reminded. [rows]."""
+    now = now or time.time()
+    due = []
+    for e in _rows().list():
+        if e["status"] == "accepted" and not e.get("reminded") and e["at"] - REMIND_BEFORE <= now < e["at"]:
+            e = {**e, "reminded": True}
+            _rows().put(e["id"], e)
+            due.append(e)
+    return due
+
+
+def go(engagement_id, now=None):
+    """He sets off for it: as Bruce Wayne in the car to an evening, as Batman to a meeting (batman.go)."""
+    from . import batman
+    e = _rows().get(engagement_id)
+    if not e or e["status"] != "accepted":
+        return None
+    if e.get("venue"):
+        return batman.go(e["where"] or "there", e["venue"][0], e["venue"][1], t=now, suit=e.get("as") == "batman")
+    return batman.go(e["where"], t=now, suit=e.get("as") == "batman")
 
 
 def upcoming(now=None, days=8):
@@ -70,21 +146,28 @@ def upcoming(now=None, days=8):
 
 
 def diary_note(now=None):
-    """For Alfred, who keeps the diary: what's coming — '' when nothing is."""
+    """For Alfred, who keeps the diary: what's coming, and what became of the last few — '' when there's nothing."""
     now = now or time.time()
     items = upcoming(now)
-    if not items:
+    past = recent(now, days=2)
+    if not items and not past:
         return ""
+    gone = "; ".join(
+        f"{'went to' if e['status'] == 'attended' else 'never made it to'} {e['what']}"
+        + (f" — out on the {e['kept_away_by'].lower()} instead" if e.get("kept_away_by") else "")
+        for e in past[-3:])
+    if not items:
+        return f"His diary, lately: he {gone}."
 
     def day(at):
         d = datetime.date.fromtimestamp(at)
         today = datetime.date.fromtimestamp(now)
         name = "today" if d == today else "tomorrow" if d == today + datetime.timedelta(days=1) else d.strftime("%A %-d %B")
         return f"{name} at {time.strftime('%-I:%M %p', time.localtime(at)).lower()}"
-    lines = [f"{e['what']}" + (f", {e['where']}" if e["where"] else "") + f" — {day(e['at'])}"
-             + (f" ({e['dress']})" if e["dress"] else "") for e in items[:4]]
-    return ("You keep his diary — what he's accepted, and you answered for him: " + "; ".join(lines)
-            + ". Remind him, or not, the way you would.")
+    lines = [("Batman: " if e.get("as") == "batman" else "") + f"{e['what']}" + (f", {e['where']}" if e["where"] else "")
+             + f" — {day(e['at'])}" + (f" ({e['dress']})" if e["dress"] else "") for e in items[:4]]
+    return ("You keep his diary — what he's agreed to; the invitations, you answered for him: " + "; ".join(lines)
+            + ". Remind him, or not, the way you would." + (f" Lately he {gone}." if gone else ""))
 
 
 def _was_out(at, until):
@@ -100,10 +183,34 @@ def _was_out(at, until):
     return None
 
 
+def _gordon(e):
+    return e.get("as") == "batman" and "gordon" in (e.get("with") or e.get("host") or "").lower() or \
+        e.get("as") == "batman" and (e.get("with") or "").lower() in ("jim", "james gordon", "jim gordon", "g")
+
+
+def _consequences(e):
+    """
+    What it does between them: Batman's meeting with Jim kept, or not — Jim, and the department he answers to,
+    remember either way (engine.bonds). Bruce Wayne's evenings answer in letters (see inbox).
+    """
+    from . import bonds
+    if not _gordon(e):
+        return
+    if e["status"] == "attended":
+        bonds.nudge("gordon", bonds.ME, warmth=2, trust=4, why=f"Batman came to {e['what']}, as he said he would",
+                    weight=1)
+        bonds.nudge(bonds.GCPD, bonds.ME, warmth=1, trust=1)
+    else:
+        bonds.nudge("gordon", bonds.ME, warmth=-4, trust=-5, tension=1.5,
+                    why=f"Batman never showed for {e['what']}" + (f" at {e['where']}" if e.get("where") else ""),
+                    weight=2)
+        bonds.nudge(bonds.GCPD, bonds.ME, warmth=-2, trust=-2, why="Batman stood the commissioner up", weight=1)
+
+
 def settle(now=None):
     """
-    Evenings that are over: he went, or he didn't — and the host's note to come (inbox queues it). Returns the
-    engagements settled now.
+    What's over: he was there, or he wasn't (out on a case, if that's why) — what it does between them, and the
+    letters to come (inbox queues them). Returns the engagements settled now.
     """
     from . import inbox
     now = now or time.time()
@@ -113,11 +220,17 @@ def settle(now=None):
         if e["status"] != "accepted" or e["until"] > now:
             continue
         case = _was_out(e["at"], e["until"])
-        e = {**e, "status": "missed" if case else "attended", "settled_at": now,
-             **({"kept_away_by": f"{case['kind']} at {case['place']}"} if case else {})}
+        came = e.get("present") if e.get("venue") else not case
+        e = {**e, "status": "attended" if came else "missed", "settled_at": now,
+             **({"kept_away_by": f"{case['kind']} at {case['place']}"} if case and not came else {})}
         rows.put(e["id"], e)
+        try:
+            _consequences(e)
+        except Exception:
+            pass
         inbox.queue({"kind": "engagement", "id": e["id"], "status": e["status"], "what": e["what"], "where": e["where"],
-                     "host": e["host"], "thread": e["thread"]})
+                     "host": e["host"], "thread": e["thread"], "as": e.get("as", "bruce"), "with": e.get("with", ""),
+                     "kept_away_by": e.get("kept_away_by", "")})
         settled.append(e)
     for e in rows.list():
         if e.get("until", 0) < now - _KEEP_DAYS * 86400:
@@ -129,3 +242,22 @@ def recent(now=None, days=3):
     """What became of his last few evenings — for Alfred, and anyone who'd have heard."""
     now = now or time.time()
     return [e for e in all_engagements() if e["status"] in ("attended", "missed") and now - e["until"] < days * 86400]
+
+
+def remember(engagement_id, story):
+    """What happened at an evening he went to, in a line or two — the mail and Alfred carry it on."""
+    e = _rows().get(engagement_id)
+    if e and story:
+        _rows().put(engagement_id, {**e, "story": str(story).strip()[:400]})
+
+
+def lately(now=None):
+    """His last few evenings, as anyone writing to him would know them — '' when there were none."""
+    items = [e for e in recent(now, days=4) if e.get("as") != "batman"]
+    if not items:
+        return ""
+    lines = []
+    for e in items[-3:]:
+        lines.append(f"he {'was at' if e['status'] == 'attended' else 'accepted and never came to'} {e['what']}"
+                     + (f" ({e['story']})" if e.get("story") and e["status"] == "attended" else ""))
+    return "Lately: " + "; ".join(lines) + ". "

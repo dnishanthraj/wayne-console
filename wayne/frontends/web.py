@@ -1880,6 +1880,7 @@ class Console(GroupChats):
         await self._step("rooms", self._rooms_arrive(now))
         await self._step("calls in", self._calls_in(now))
         await self._step("announcements", self._announce(now))
+        await self._step("diary", self._diary_tick(now))
         if not calling:
             await self._step("groups", self._group_tick(now))
         await self._step("cases", self._case_tick(now))
@@ -3406,6 +3407,23 @@ class Console(GroupChats):
         """A moment for the Batcomputer to say out loud — the page plays it, never over a call (see system_voice)."""
         await self.broadcast({"type": "system", "event": event, "contact": contact_id or ""})
 
+    async def _diary_tick(self, now):
+        """
+        His engagements: while one's on, whether he's there (engine.engagements.watch); before one starts, the
+        reminder — on the console, with the way to go — and, as often as not, Alfred's word about it.
+        """
+        from ..engine import batman, engagements
+        engagements.watch(now)
+        for e in engagements.reminders(now):
+            await self.broadcast({"type": "engagement_soon", "engagement": e})
+            alfred = self.directory.get("alfred")
+            if alfred is not None and random.random() < 0.6 and alfred.id not in self._members():
+                at = time.strftime("%-I:%M %p", time.localtime(e["at"])).lower()
+                where_now = batman.state(now).get("where") or "the Manor"
+                self._spawn(self._send_unprompted(alfred, (
+                    f"{'Batman’s ' if e.get('as') == 'batman' else 'his '}{e['what']}" + (f" at {e['where']}" if e["where"] else "")
+                    + f" is at {at}, and he's at {where_now} — remind him, your way"), "impulse"))
+
     async def _announce(self, now):
         """
         The Batcomputer's moments nobody asked for: he's arrived, the Batwing's
@@ -4326,6 +4344,24 @@ async def reply_mail(message_id: str, request: Request):
     if mine is None:
         return JSONResponse({"error": "that one can't be answered"}, status_code=400)
     return JSONResponse({"message": mine, "unread": inbox.unread()})
+
+
+@app.get("/api/engagements")
+async def list_engagements():
+    """His diary: what's coming, and what became of the last few."""
+    from ..engine import engagements
+    now = time.time()
+    return JSONResponse({"upcoming": engagements.upcoming(now, days=14), "recent": engagements.recent(now, days=7)})
+
+
+@app.post("/api/engagements/{engagement_id}/go")
+async def go_to_engagement(engagement_id: str):
+    """He sets off for it — as Bruce Wayne to an evening, as Batman to a meeting — and the map follows."""
+    from ..engine import batman, engagements
+    trip = await asyncio.to_thread(engagements.go, engagement_id)
+    if trip is None:
+        return JSONResponse({"error": "nowhere to go"}, status_code=400)
+    return JSONResponse(batman.state())
 
 
 @app.post("/api/mail/{message_id}/rsvp")
