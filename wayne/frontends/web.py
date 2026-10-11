@@ -3413,6 +3413,36 @@ class Console(GroupChats):
         """A moment for the Batcomputer to say out loud — the page plays it, never over a call (see system_voice)."""
         await self.broadcast({"type": "system", "event": event, "contact": contact_id or ""})
 
+    async def cancel_engagement(self, engagement_id):
+        """
+        He calls something off from the diary. An invitation: Alfred sends his regrets. A meeting made by letter:
+        Alfred writes to say so, and they answer as they would. A plan with the family: he says so where it was
+        made, and whoever was going takes it their way. His own entry just goes. Returns the row, or None.
+        """
+        from ..engine import bonds, engagements, inbox, plans
+        row = engagements.cancel(engagement_id)
+        if row is None:
+            return None
+        if row.get("source") in ("invitation", "mail") and row.get("thread"):
+            note = inbox.call_off(row)
+            if note:
+                await self.broadcast({"type": "mail", "message": note, "unread": inbox.unread()})
+        elif row.get("plan"):
+            plan = next((p for p in plans.all_plans() if p["id"] == row["plan"]), None)
+            made = str((plan or {}).get("made_in") or "")
+            line = f"Something's come up — I can't make {row['what']}. Sorry."
+            if made.startswith("g:"):
+                await self.group_text(made[2:], line)
+            for cid in (plan or {}).get("who") or []:
+                contact = self.directory.get(cid)
+                if contact is None or not plans.going(plan, cid):
+                    continue
+                if not made.startswith("g:"):
+                    await self.text(cid, line)
+                bonds.nudge(cid, bonds.ME, warmth=-1.5, tension=0.6, weight=1,
+                            why=f"he called off {row['what']}")
+        return row
+
     def _warn_of_the_hunt(self, report):
         """
         The department's turned on the masks — the Mayor's task force out, orders to bring them in on sight (see
@@ -4370,6 +4400,84 @@ async def reply_mail(message_id: str, request: Request):
     if mine is None:
         return JSONResponse({"error": "that one can't be answered"}, status_code=400)
     return JSONResponse({"message": mine, "unread": inbox.unread()})
+
+
+def _diary_when(date, clock):
+    """'2026-10-16' and '19:30' as a moment, in local time — or None."""
+    import datetime as _dt
+    try:
+        day = _dt.date.fromisoformat(str(date))
+        hh, mm = (int(x) for x in str(clock or "20:00").split(":")[:2])
+    except (ValueError, TypeError):
+        return None
+    return time.mktime((day.year, day.month, day.day, max(0, min(23, hh)), max(0, min(59, mm)), 0, 0, 0, -1))
+
+
+@app.get("/api/diary")
+async def diary(start: str = "", days: int = 14):
+    """His diary, a day at a time — and the places he could write in, for the form."""
+    import datetime as _dt
+
+    from ..engine import engagements
+    try:
+        first = _dt.date.fromisoformat(start) if start else _dt.date.today() - _dt.timedelta(days=3)
+    except ValueError:
+        first = _dt.date.today() - _dt.timedelta(days=3)
+    names = sorted({p["name"] for p in places.gazetteer().get("places", []) if p.get("kind") != "district"}
+                   | {v["name"] for v in places.venues()})
+    return JSONResponse({"days": engagements.days(first, max(1, min(days, 31))), "places": names,
+                         "today": _dt.date.today().isoformat()})
+
+
+@app.post("/api/diary")
+async def diary_add(request: Request):
+    """He writes something in his diary himself."""
+    from ..engine import engagements
+    body = await request.json()
+    at = _diary_when(body.get("date"), body.get("from"))
+    if at is None or not str(body.get("what") or "").strip():
+        return JSONResponse({"error": "what and when, at least"}, status_code=400)
+    until = _diary_when(body.get("date"), body.get("to")) if body.get("to") else None
+    if until is not None and until <= at:
+        until += 86400                    # past midnight
+    row = engagements.add(body.get("what"), body.get("where", ""), at, until, body.get("as", "bruce"),
+                          ", ".join(body.get("with") or []) if isinstance(body.get("with"), list) else body.get("with", ""),
+                          body.get("notes", ""))
+    return JSONResponse({"entry": engagements.entry(row)})
+
+
+@app.post("/api/diary/{engagement_id}")
+async def diary_edit(engagement_id: str, request: Request):
+    """He changes something still to come: what, where, when."""
+    from ..engine import engagements
+    body = await request.json()
+    at = _diary_when(body.get("date"), body.get("from")) if body.get("date") else None
+    until = _diary_when(body.get("date"), body.get("to")) if body.get("date") and body.get("to") else None
+    if at is not None and until is not None and until <= at:
+        until += 86400
+    row = engagements.edit(engagement_id, what=body.get("what"), where=body.get("where"), at=at, until=until,
+                           notes=body.get("notes"), as_=body.get("as"))
+    if row is None:
+        return JSONResponse({"error": "that one can't be changed"}, status_code=400)
+    return JSONResponse({"entry": engagements.entry(row)})
+
+
+@app.post("/api/diary/{engagement_id}/cancel")
+async def diary_cancel(engagement_id: str):
+    """He calls it off — and whoever it was with is told."""
+    row = await console.cancel_engagement(engagement_id)
+    if row is None:
+        return JSONResponse({"error": "nothing to cancel"}, status_code=400)
+    from ..engine import engagements
+    return JSONResponse({"entry": engagements.entry(row)})
+
+
+@app.delete("/api/diary/{engagement_id}")
+async def diary_delete(engagement_id: str):
+    """Gone from the diary altogether."""
+    from ..engine import engagements
+    engagements.delete(engagement_id)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/engagements")

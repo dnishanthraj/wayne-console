@@ -276,3 +276,116 @@ def lately(now=None):
         lines.append(f"he {'was at' if e['status'] == 'attended' else 'accepted and never came to'} {e['what']}"
                      + (f" ({e['story']})" if e.get("story") and e["status"] == "attended" else ""))
     return "Lately: " + "; ".join(lines) + ". "
+
+
+# --- the diary, as he manages it ---------------------------------------------------------------------------
+
+_STATUS_WORDS = {"accepted": "upcoming", "attended": "went", "missed": "missed", "left": "left early",
+                 "cancelled": "cancelled", "declined": "declined"}
+
+
+def _who(e):
+    """Who's coming, as far as anyone knows: the family's answers to a plan, the person a meeting's with, the host."""
+    from ..contacts import directory
+    from . import plans
+    book = directory()
+    if e.get("plan"):
+        plan = next((p for p in plans.all_plans() if p["id"] == e["plan"]), None)
+        if plan:
+            out = []
+            for cid in plan.get("who") or []:
+                said = (plan.get("answers") or {}).get(cid, {}).get("said") or "asked"
+                found = book.get(cid)
+                out.append({"id": cid, "name": found.name if found else cid, "said": said})
+            return out
+    names = [n.strip() for n in str(e.get("with") or "").split(",") if n.strip()]
+    out = []
+    for name in names:
+        found = book.find(name)
+        out.append({"id": found.id if found else "", "name": found.name if found else name, "said": "yes"})
+    return out
+
+
+def entry(e, now=None):
+    """One row of the diary as the page shows it: when, what, where, who's coming, how it went, where it came from."""
+    from . import plans
+    now = now or time.time()
+    on_now = e["status"] == "accepted" and e["at"] <= now <= e["until"]
+    origin = {"invitation": "an invitation", "mail": f"a letter with {e.get('with') or e.get('host') or 'someone'}",
+              "plan": "a plan with the family", "manual": "you", "routine": "your day", "dm": "a text",
+              "call": "a call"}.get(e.get("source") or "", "")
+    plan = next((p for p in plans.all_plans() if p["id"] == e.get("plan")), None) if e.get("plan") else None
+    return {"id": e["id"], "what": e["what"], "where": e.get("where", ""), "venue": e.get("venue"),
+            "at": e["at"], "until": e["until"], "as": e.get("as", "bruce"), "source": e.get("source", ""),
+            "origin": origin, "status": e["status"], "state": "on now" if on_now else _STATUS_WORDS.get(e["status"], ""),
+            "who": _who(e), "host": e.get("host", ""), "dress": e.get("dress", ""), "notes": e.get("notes", ""),
+            "story": e.get("story", ""), "kept_away_by": e.get("kept_away_by", ""), "left_for": e.get("left_for", ""),
+            "present": bool(e.get("present")), "thread": e.get("thread") if e.get("source") in ("invitation", "mail") else "",
+            "group": (plan or {}).get("made_in", "")[2:] if str((plan or {}).get("made_in", "")).startswith("g:") else ""}
+
+
+def days(start, count=8, now=None):
+    """The diary from `start` (a date) for `count` days: [{"date", "entries": [entry, ...]}], soonest first."""
+    import datetime as _dt
+    now = now or time.time()
+    out = []
+    rows = all_engagements()
+    for i in range(count):
+        day = start + _dt.timedelta(days=i)
+        lo = time.mktime((day.year, day.month, day.day, 0, 0, 0, 0, 0, -1))
+        hi = lo + 86400
+        out.append({"date": day.isoformat(),
+                    "entries": [entry(e, now) for e in rows if lo <= e["at"] < hi]})
+    return out
+
+
+def add(what, where, at, until=None, as_="bruce", with_="", notes="", now=None, source="manual"):
+    """He writes something in himself — or his day does (`source` "routine"). Returns the row."""
+    row = {"id": uuid.uuid4().hex[:10], "what": str(what).strip()[:120] or "something", "where": str(where).strip()[:80],
+           "venue": _venue(where), "host": "", "with": str(with_)[:200], "notes": str(notes)[:300], "dress": "",
+           "at": at, "until": until if until and until > at else at + (MEETING if as_ == "batman" else LENGTH),
+           "as": "batman" if as_ == "batman" else "bruce", "source": source, "status": "accepted",
+           "thread": "", "answered_at": now or time.time()}
+    _rows().put(row["id"], row)
+    return row
+
+
+def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, as_=None):
+    """He changes it: the time, the place, what it is. Only what's still to come. Returns the row, or None."""
+    e = _rows().get(engagement_id)
+    if not e or e["status"] != "accepted":
+        return None
+    length = e["until"] - e["at"]
+    if what is not None and str(what).strip():
+        e["what"] = str(what).strip()[:120]
+    if where is not None:
+        e["where"], e["venue"] = str(where).strip()[:80], _venue(where)
+    if at is not None:
+        e["at"] = at
+        e["until"] = until if until and until > at else at + length
+        e.pop("reminded", None)
+    elif until is not None and until > e["at"]:
+        e["until"] = until
+    if notes is not None:
+        e["notes"] = str(notes)[:300]
+    if as_ in ("bruce", "batman"):
+        e["as"] = as_
+    _rows().put(e["id"], e)
+    return e
+
+
+def cancel(engagement_id, now=None):
+    """
+    He calls it off. Someone else's evening, a meeting, a plan with the family: they're told (inbox and the
+    console see to that — see Console.cancel_engagement); his own entry just goes. Returns the row, or None.
+    """
+    e = _rows().get(engagement_id)
+    if not e or e["status"] != "accepted":
+        return None
+    e = {**e, "status": "cancelled", "cancelled_at": now or time.time()}
+    _rows().put(e["id"], e)
+    return e
+
+
+def delete(engagement_id):
+    _rows().drop(engagement_id)

@@ -407,7 +407,20 @@
     root.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
   }
 
+  /* Straight to a conversation — from the diary's "Open the letter": its latest letter, in its folder. */
+  function openThread(threadId) {
+    fetch('/api/mail/thread/' + encodeURIComponent(threadId)).then(function (r) { return r.json(); }).then(function (d) {
+      var all = d.thread || [];
+      var last = all[all.length - 1];
+      if (!last) return open();
+      folder = NAMES[last.folder] ? last.folder : 'inbox';
+      openId = last.id;
+      open();
+    }).catch(function () { open(); });
+  }
+
   window.Mail = {
+    openThread: openThread,
     init: init, open: open, close: close, refresh: function () { if (root && !root.hidden) load(); },
     isOpen: function () { return !!root && !root.hidden; }
   };

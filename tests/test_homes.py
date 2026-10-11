@@ -67,7 +67,6 @@ def test_out_walking_the_dog_they_go_round_not_stand_still(clock):
     later = t + 3600                                                      # long since there, not on the way
     assert not dick.trip("Port's Park", places.resolve("Port's Park"), later)
     a, b = dick.position(later), dick.position(later + 300)
-    port = places.resolve("Port's Park")
     assert a != b                                                         # moving
     park = places.resolve("Bayside Park")                                # the park in Port's Park: round it
     assert max(math.dist(a, (park["x"], park["y"])), math.dist(b, (park["x"], park["y"]))) < 3.5

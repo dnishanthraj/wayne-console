@@ -237,6 +237,34 @@ def suggest(message_id, model, options, now=None):
             for p in picks[:3] if isinstance(p, dict) and str(p.get("body") or "").strip()]
 
 
+def call_off(row, now=None):
+    """
+    He's called off an evening or a meeting from his diary: a note in its thread — Alfred's regrets for Bruce
+    Wayne; for Batman, "B" — and an answer from them in their own time. Returns the note, or None.
+    """
+    now = now or time.time()
+    convo = thread(row.get("thread", ""))
+    theirs = next((m for m in reversed(convo) if m.get("folder") != "sent"), None)
+    if theirs is None:
+        return None
+    batman = row.get("as") == "batman"
+    body = ("Can't make it. Another time.\n\nB" if batman else
+            f"Mr. Wayne asks me to send his sincere apologies: something has come up, and he will not be able to "
+            f"make {row['what']}" + (f" at {row['where']}" if row.get("where") else "") + ". He hopes you'll forgive "
+            "him.\n\nA. Pennyworth\nfor Bruce Wayne")
+    note = {"id": uuid.uuid4().hex[:12], "at": now, "sender": "me",
+            "from": "B" if batman else "Alfred Pennyworth, for Bruce Wayne",
+            "address": "b@cave.local" if batman else "household@waynemanor.com", "to": theirs["from"],
+            "to_address": theirs.get("address", ""), "subject": theirs["subject"] if theirs["subject"].lower()
+            .startswith("re:") else "Re: " + theirs["subject"], "body": body, "folder": "sent", "read": True,
+            "kind": "sent", "thread": row["thread"], "reply_to": theirs["id"]}
+    with _lock:
+        _mail().put(note["id"], note)
+    lo, hi = _ANSWERS_IN.get(theirs.get("sender"), _ANSWERS_DEFAULT)
+    queue({"kind": "reply", "id": note["id"], "thread": row["thread"], "due": now + random.uniform(lo, hi) * 60})
+    return note
+
+
 def _take_event(now=None):
     """
     The oldest event waiting that's due — looked at, not taken: it's only gone once its mail is (see

@@ -5,6 +5,24 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-11
+
+### Added
+
+- **The Diary** (calendar icon in the top bar, or **D**).
+  - **Your days:** a few behind and a fortnight ahead, each as a timeline of
+    cards. When it is and what it is, Batman's in red. Where, with "On the
+    map". Who's coming and what each said (Dick yes, Tim maybe, Barbara
+    crossed out). How it went: went, missed (and the case that kept you),
+    left early, or what happened there. Where it came from, with "Open the
+    letter" or "Open the chat".
+  - **Manage it:** Go, Change (time, place, what), Call it off, and Remove.
+    Calling something off tells whoever it was with: Alfred's apologies in
+    the letter's thread, or "something's come up" in the family chat it was
+    planned in (and it stings a little).
+  - **Write something in:** what, where (any place on the map, suggested as
+    you type), when, as Bruce Wayne or Batman, with whom, and notes.
+
 ## [0.29.0] - 2026-10-11
 
 ### Added

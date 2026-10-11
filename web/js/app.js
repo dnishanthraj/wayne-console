@@ -3504,6 +3504,7 @@
     var bar = callbarEl();
     if (!bar) return;
     var covered = (window.GothamMap && GothamMap.isOpen()) || (window.Codex && Codex.isOpen()) ||
+                  (window.Diary && Diary.isOpen()) ||
                   (window.Mail && Mail.isOpen());
     var live = covered && state.connectedId;
     bar.root.hidden = !live;
@@ -3612,6 +3613,11 @@
       if (!typing && (e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !e.altKey && window.Codex) {
         e.preventDefault();
         if (Codex.isOpen()) Codex.close(); else Codex.open();
+        return;
+      }
+      if (!typing && (e.key === 'd' || e.key === 'D') && !e.metaKey && !e.ctrlKey && !e.altKey && window.Diary) {
+        e.preventDefault();
+        if (Diary.isOpen()) Diary.close(); else Diary.open();
         return;
       }
       if (!typing && (e.key === 'e' || e.key === 'E') && !e.metaKey && !e.ctrlKey && !e.altKey && window.Mail) {
@@ -3926,10 +3932,37 @@
         $('mail-open').classList.toggle('is-on', open);
         if (open && window.GothamMap && GothamMap.isOpen()) GothamMap.close();
         if (open && window.Codex && Codex.isOpen()) Codex.close();
+        if (open && window.Diary && Diary.isOpen()) Diary.close();
         renderCallbar();
       }
     });
     $('mail-open').addEventListener('click', function () { if (Mail.isOpen()) Mail.close(); else Mail.open(); });
+  }
+
+  function initDiary() {
+    if (!window.Diary) return;
+    Diary.init({
+      root: $('diary'),
+      toggled: function (open) {
+        $('diary-open').classList.toggle('is-on', open);
+        if (open && window.GothamMap && GothamMap.isOpen()) GothamMap.close();
+        if (open && window.Codex && Codex.isOpen()) Codex.close();
+        if (open && window.Mail && Mail.isOpen()) Mail.close();
+        renderCallbar();
+      },
+      portrait: function (node, id) { if (state.contacts[id]) portraitStyle(node, state.contacts[id], 'center 22%'); },
+      people: function () { return state.order.filter(function (id) { return state.contacts[id]; })
+        .map(function (id) { return { id: id, name: state.contacts[id].name }; }); },
+      openThread: function (thread) { Diary.close(); if (window.Mail) Mail.openThread(thread); },
+      openGroup: function (id) { Diary.close(); openGroup(id); },
+      showOnMap: function (x, y) {
+        Diary.close();
+        if (!(window.GothamMap && GothamMap.isOpen())) document.getElementById('map-open').click();
+        setTimeout(function () { if (window.GothamMap) GothamMap.flyTo(x, y); }, 600);
+      },
+      go: function (id) { return goToEngagement(id); }
+    });
+    $('diary-open').addEventListener('click', function () { if (Diary.isOpen()) Diary.close(); else Diary.open(); });
   }
 
   function initMap() {
@@ -4263,6 +4296,7 @@
   wireEmoji();
   initCodex();
   initMail();
+  initDiary();
   // Back at the window with a thread open: what's on screen has been seen.
   document.addEventListener('visibilitychange', markSeen);
   try { state.unread = JSON.parse(recall('unread') || '{}') || {}; } catch (e) { state.unread = {}; }

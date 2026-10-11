@@ -68,6 +68,9 @@
       <button class="bar__btn" id="codex-open" type="button" data-tip="Codex — people, rogues, places (C)" aria-label="Codex">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h7M9 11.5h5"/></svg>
       </button>
+      <button class="bar__btn" id="diary-open" type="button" data-tip="Diary (D)" aria-label="Diary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 3v3M16 3v3"/><path d="M7.5 13.5h3M13.5 13.5h3M7.5 17h3"/></svg>
+      </button>
       <span class="bar__sep" aria-hidden="true"></span>
       <button class="bar__btn bar__inbox" id="mail-open" type="button" data-tip="Mail (E)" aria-label="Mail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>
@@ -212,6 +215,20 @@
           <article class="mx-read"></article>
           <div class="mx-grip" data-col="folders" data-tip="Drag to resize" aria-hidden="true"></div>
           <div class="mx-grip" data-col="list" data-tip="Drag to resize" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- The diary: his days — evenings, meetings, plans with the family, what he writes in himself. -->
+      <div class="cx dx" id="diary" hidden role="dialog" aria-label="Diary">
+        <header class="cx__head">
+          <div class="cx__title">Diary</div>
+          <span class="mx-head__space"></span>
+          <button type="button" class="cx-btn dx-add" data-tip="Write something in">+ Add</button>
+          <button type="button" class="gm-tool dx-close" data-tip="Close (Esc)" aria-label="Close the diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </header>
+        <div class="dx-body">
+          <nav class="dx-days" aria-label="Days"></nav>
+          <section class="dx-day"></section>
         </div>
       </div>
 
@@ -529,6 +546,7 @@
   <script src="/static/js/gothamtraffic.js"></script>
   <script src="/static/js/codex.js"></script>
   <script src="/static/js/mail.js"></script>
+  <script src="/static/js/diary.js"></script>
   <script src="/static/js/gothammap.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
