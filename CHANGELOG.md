@@ -5,6 +5,8 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-11
+
 ### Changed
 
 - **Everything in one database.** The JSON files are replaced by one SQLite
