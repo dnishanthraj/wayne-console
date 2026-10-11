@@ -585,6 +585,47 @@
     });
   }
 
+  /* Onto a case's comms, live — from its channel's header. Whoever's on it is already on the channel, earpiece
+     in: no ring; the server says who (comms_joined), and they're on the line. */
+  function joinComms(groupId) {
+    var g = state.groups[groupId];
+    if (!g) return;
+    if (state.connectedId) hangUp({ switching: true });
+    state.joiningComms = groupId;
+    state.groupRinging = [];
+    state.party = [];
+    state.lastSpeaker = null;
+    el['bar-title'].textContent = g.name;
+    clearUtterance();
+    showHeard('');
+    state.fresh = true;
+    state.nudges = 0;
+    el['ringing-label'].textContent = 'Joining comms\u2026';
+    setLink('ringing');
+    setState('idle');
+    send({ type: 'comms_call', group: groupId });
+    if (state.mode === 'ptt') ConsoleMic.warm();
+  }
+
+  function commsJoined(event) {
+    if (state.joiningComms !== event.group) return;
+    state.joiningComms = null;
+    var ids = (event.members || []).filter(function (id) { return state.contacts[id]; });
+    if (!ids.length) {
+      // Nobody on it, or it's over: back where he was (the server says why).
+      setLink('off');
+      el['ringing-label'].textContent = '';
+      el['bar-title'].textContent = '';
+      return;
+    }
+    state.comms = event.group;
+    state.currentId = state.connectedId = ids[0];
+    state.party = ids.slice();
+    renderSeats();
+    renderDirectory();
+    renderCallbar();
+  }
+
   /* Ring several at once — from a group chat's header. */
   function callGroup(ids) {
     ids = ids.filter(function (id) { return state.contacts[id]; }).slice(0, MAX_PARTY);
@@ -842,7 +883,9 @@
       return li;
     }
     var from = message.from === 'me' ? 'me' : 'them';
-    li.className = 'bubble bubble--' + from + (message.typing ? ' bubble--typing' : '');
+    li.className = 'bubble bubble--' + from + (message.typing ? ' bubble--typing' : '') +
+                   (message.origin === 'call' ? ' bubble--said' : '');
+    if (message.origin === 'call') li.dataset.tip = 'Said on the comms call';
     if (message.id) li.dataset.id = message.id;
     if (!message.typing && from === 'them' && pingsMe(message.text, opts.group)) li.classList.add('bubble--ping');
     if (!message.typing && onlyEmoji(message.text)) li.classList.add('bubble--jumbo');
@@ -871,7 +914,7 @@
       if (message.at) {
         var time = document.createElement('span');
         time.className = 'bubble__time';
-        time.textContent = clock(message.at);
+        time.textContent = clock(message.at) + (message.origin === 'call' ? ' \u00b7 on the call' : '');
         t.appendChild(time);
       }
     }
@@ -1997,6 +2040,10 @@
     el['messages-role'].dataset.presence = '';
     el['messages-delete'].hidden = false;
     el['messages-call'].hidden = false;
+    var dial = g.comms ? 'Join comms — live, on the call with whoever\u2019s on it' : 'Call everyone';
+    el['messages-call'].dataset.tip = dial;
+    el['messages-call'].setAttribute('aria-label', dial);
+    el['messages-call'].dataset.comms = g.comms ? '1' : '0';
     state.thread = { kind: 'group', id: id, messages: [], more: false, loading: true, seen: {},
                      members: g.members, reads: g.reads || {} };
     renderThread();
@@ -2668,6 +2715,7 @@
     el['messages-call'].addEventListener('click', function () {
       var g = state.groups[state.groupOpen];
       if (!g) return;
+      if (g.comms) return joinComms(g.id);          // a case's comms: on it, live — nobody to ring
       if (g.members.length > MAX_PARTY) openCallPick(g.members);
       else callGroup(g.members);
     });
@@ -2834,9 +2882,9 @@
     var names = state.party.map(function (id) {
       return (state.contacts[id] || {}).name || id;
     });
-    if (state.party.length) el['bar-title'].textContent = state.party.length > 1
+    if (state.party.length) el['bar-title'].textContent = (state.comms ? 'Comms · ' : '') + (state.party.length > 1
       ? names.join(' · ')
-      : (state.contacts[state.party[0]] || {}).full_name || '';
+      : (state.contacts[state.party[0]] || {}).full_name || '');
     if (event.added && !event.room) {
       state.ringingId = event.added;
       ConsoleSystem.say('add', event.added).then(function () {
@@ -2908,6 +2956,8 @@
     // A switch tells the server by connecting to someone else, so the call it
     // ends can be remembered as cut short rather than simply over.
     if (!opts.switching && !opts.refused && !opts.quiet) send({ type: 'disconnect' });
+    state.comms = null;
+    state.joiningComms = null;
     state.connectedId = null;
     state.ringingId = null;
     state.party = [];
@@ -3073,6 +3123,10 @@
 
       case 'party':
         onParty(event);
+        break;
+
+      case 'comms_joined':
+        commsJoined(event);
         break;
 
       case 'cases':

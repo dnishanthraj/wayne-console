@@ -71,6 +71,9 @@ class Call:
         self.asked_him_at = 0.0
         # Who's on someone else's phone, on speaker: {their id: the host's id}.
         self.speakerphone = {}
+        # A case's comms, live — {"group", "case"} — when that's what this call is: everyone on it is on the
+        # case's channel, and what they say is about the op (see comms_brief).
+        self.comms = None
         # Who has muted themselves, and why: they hear the call, they don't take a turn till they're back.
         self.muted = {}
         # Who's in the room but won't talk to him: {id: (whose room, why)} — covered for, or not.
@@ -166,6 +169,11 @@ class Call:
         secret = identity.guard_note(session.contact.id, self._ids(session))
         if secret:
             note += " " + secret
+        if self.comms:
+            from . import cases
+            case = cases.for_report(self.comms.get("case", ""))
+            if case is not None:
+                note += " " + session.comms_brief(case, live=True)
         host = self.speakerphone.get(session.contact.id)
         if host:
             holder = next((self.label(m.contact.id, session, full=False) for m in self.members
@@ -446,8 +454,26 @@ class Call:
             yield from self.answered(member, line)
         return line
 
+    def update(self, member, instruction):
+        """Someone on comms says what's happening — an update, a call for help, how it ended — or nothing."""
+        line = yield from self._speak_aside(
+            member, "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n" + instruction
+            + " If you'd say nothing, reply with exactly SKIP.")
+        if line:
+            self.last_speaker = member
+            self._heard_by_all(member, line)
+            yield from self.answered(member, line)
+        return line
+
     def _lull_instruction(self, member, quiet_for):
         others = ", ".join(self.label(m.contact.id, member) for m in self.others(member))
+        if self.comms:
+            # Comms is quiet between things, not filled: something new on the op, or nothing.
+            return (
+                "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
+                "Comms has gone quiet for a moment. If there's something new on the op — what you see, what's "
+                "changed, where you are, what you need, a warning — say it the way you would on comms, a few words, "
+                "to whoever it's for. If nothing's changed, reply with exactly SKIP.")
         host = self.speakerphone.get(member.contact.id)
         if host:
             # In the background on someone's speaker: mostly talking to the room — the game, the film, each other.

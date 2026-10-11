@@ -5,6 +5,26 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-11
+
+### Added
+
+- **Comms, live.** On a case's comms channel, the call button (green) joins
+  comms as a live call. Whoever's on the case is on the line at once, with
+  earpieces in and no ring, along with Alfred and Barbara if they're on comms
+  at their screens. Whoever's there gives you where it's at. From then on the
+  case comes down the line as it moves: someone getting there, it going bad
+  ("call it, what you need"), it settling, a word from the screens now and
+  then. It ends on the call too: how it went, a sign-off, and the line
+  closes. Stay on it in Live mode and talk to them. Anyone put on the case
+  while you're on joins the call, and Alfred or Barbara come on when they get
+  to their screens.
+- **One story, call or text.** Everything said on a comms call is kept in
+  the channel, marked "on the call", so when you leave, the channel reads
+  the same. Off the call it carries on as messages. Leave one case's comms,
+  join another to hear Tim and Cass at their scene, and come back. The case
+  is wherever the clock has it, either way.
+
 ## [0.20.0] - 2026-10-11
 
 ### Added

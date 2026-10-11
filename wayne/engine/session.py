@@ -1468,6 +1468,21 @@ class ContactSession:
             self.history.record_aside(text)
         yield events.reply_end(text)
 
+    def speak_up(self, instruction):
+        """
+        On a one-to-one comms call, a line nobody asked for — an update on the op, a call for help, how it ended —
+        or nothing. With the op as it is right now in front of them (the standing head isn't in an aside).
+        """
+        from . import cases
+        yield events.state(events.THINKING)
+        comms = getattr(self, "_comms", None) or {}
+        case = cases.for_report(comms.get("case", ""))
+        here = presence.of(self.contact).note()
+        context = "\n".join(p for p in ((self.comms_brief(case, live=True) if case else ""), here) if p)
+        yield from self.say(("[REFERENCE — context only]\n" + context + "\n[END REFERENCE]\n\n" if context else "")
+                            + instruction + " If you'd say nothing, reply with exactly SKIP.")
+        yield events.state(events.IDLE)
+
     def say(self, instruction, prompted_by=None, greeting=False, farewell=False):
         """
         One line the contact says because of something on the call — joining
@@ -2937,7 +2952,11 @@ class ContactSession:
         notes.extend(self._voice_notes())
         if self.contact.can_search and not self._can_look():
             notes.append(self._screenless_note())
-        if self.contact.id in cases.FIELD:
+        comms = getattr(self, "_comms", None)
+        case = cases.for_report(comms.get("case", "")) if comms else None
+        if case is not None:
+            notes.append(self.comms_brief(case, live=True))      # on the case's comms, live: the op, as it is
+        elif self.contact.id in cases.FIELD:
             brief = cases.brief(self.contact.id)
             if brief:
                 notes.append(brief)

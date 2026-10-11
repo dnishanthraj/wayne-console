@@ -399,6 +399,9 @@ class Console(GroupChats):
                         asyncio.to_thread(self._timed_synthesis, spoken, speaker, superseded)
                     )
                     speech.put_nowait((event["key"], event["text"], task, speaker.id))
+                if (event.get("type") == "reply_end" and not event.get("interim") and event.get("text")
+                        and getattr(self.call, "comms", None)):
+                    self._comms_record(speaker.id, event["text"])      # a live comms call is the channel's too
                 outbox.put_nowait(event)
         finally:
             outbox.put_nowait(done)
@@ -803,6 +806,10 @@ class Console(GroupChats):
     def _end_call(self):
         members = self.call.members if self.call else (
             [self.sessions[self.current_id]] if self.current_id in self.sessions else [])
+        comms = getattr(self.call, "comms", None) if self.call else None
+        if comms and group_store.of(comms["group"]) is not None:
+            line = group_store.of(comms["group"]).system("You came off comms")
+            self._spawn(self.broadcast({"type": "group_message", "group": comms["group"], "message": line}))
         present = {m.contact.id for m in members}
         if len(present) > 1:
             self._spawn(self._after_group_call(present))
@@ -821,6 +828,7 @@ class Console(GroupChats):
         ended or they were let off it early.
         """
         grapevine.note_call(member, list(self.directory), member.call_index(), present)
+        member._comms = None                       # off the live channel with the call
         presence.of(member.contact).touch()
         said = member.call_messages()
         began = getattr(member, "call_started_at", 0) or 0
@@ -2403,20 +2411,180 @@ class Console(GroupChats):
                 return group
         return None
 
+    @staticmethod
+    def _comms_say(about, why):
+        """What would have been a text to him about a case, as something to say on its comms instead."""
+        return {"case_assigned": f"he's just put you on this one — {about}. Say on comms that you're on it, your way, "
+                                 "a few words",
+                "case_taken": f"you've just taken this one yourself — {about}. Say so on comms, briefly",
+                "case_arrived": f"you've just got to the scene — {about}. Tell comms you're there and what you see as "
+                                "you get there, a few words",
+                "case_trouble": f"it's gone bad — {about}. Call it on comms, now: a few words, what you need",
+                "case_closed": f"it's over — {about}. Call it on comms, your way, a line",
+                "case_hurt": f"you got hurt — {about}. Say it on comms if you would; if it's only his to know, end "
+                             "with [dm: what you'd text him]; if you'd keep it to yourself, reply with exactly SKIP",
+                "case_watch": f"{about}. A word on comms if you'd give one — what the feeds show, GCPD's position, a "
+                              "warning — or nothing"}.get(why, about)
+
     async def _comms_word(self, group, contact, about, why):
         """What would have been a text to him about a case, said on its comms instead — where the others hear it."""
-        say = {"case_assigned": f"he's just put you on this one — {about}. Say on comms that you're on it, your way, "
-                                "a few words",
-               "case_taken": f"you've just taken this one yourself — {about}. Say so on comms, briefly",
-               "case_arrived": f"you've just got to the scene — {about}. Tell comms you're there and what you see as "
-                               "you get there, a few words",
-               "case_trouble": f"it's gone bad — {about}. Call it on comms, now: a few words, what you need",
-               "case_closed": f"it's over — {about}. Call it on comms, your way, a line",
-               "case_hurt": f"you got hurt — {about}. Say it on comms if you would; if it's only his to know, end "
-                            "with [dm: what you'd text him]; if you'd keep it to yourself, reply with exactly SKIP",
-               "case_watch": f"{about}. A word on comms if you'd give one — what the feeds show, GCPD's position, a "
-                             "warning — or nothing"}.get(why, about)
-        await self._post_as(group, contact, opening=say, must=why == "case_trouble")
+        await self._post_as(group, contact, opening=self._comms_say(about, why), must=why == "case_trouble")
+
+    # --- comms, live: the case's channel as a call -----------------------------------------------------
+
+    def _live_on_comms(self, cid, case):
+        """Who's actually on comms right now, earpiece in: whoever's on the case — Alfred, Barbara, at their screens."""
+        from ..engine import cases
+        contact = self.directory.get(cid)
+        if contact is None:
+            return False
+        if cid in cases.team(case):
+            return True
+        if cid in self._SCREENS:
+            activity = presence.of(contact).get("activity") or {}
+            return self._at_their_screens(cid) or (activity.get("owner") == "comms" and activity.get("until", 0) > time.time())
+        return False
+
+    async def join_comms(self, group_id):
+        """
+        He comes onto a case's comms, live. Whoever's on it is on the line at once — earpieces in, no ring — with
+        Alfred in the cave and Barbara at her screens if they're on it; someone gives him where it's at, and from
+        then the case comes down the line as it moves (see _comms_live). Off it, the channel carries it as
+        messages; what's said on the call is kept there too, so it's one story either way.
+        """
+        from ..engine import cases
+        group = group_store.of(group_id)
+        meta = (group.meta() or {}) if group else {}
+        case = cases.for_report(meta.get("case", "")) if meta.get("comms") else None
+        if self.call and getattr(self.call, "comms", None) and self.call.comms.get("group") == group_id:
+            return
+        live = [m for m in (group.members if group else []) if case and self._live_on_comms(m, case)][:MAX_CONTACTS]
+        if case is None or case["status"] == "closed" or not live:
+            await self.broadcast({"type": "comms_joined", "group": group_id, "members": []})
+            return await self.broadcast(events.notice(
+                "That case is over — comms is closed." if case is not None and case["status"] == "closed"
+                else "Nobody's on comms for this one right now.", "info"))
+        if self.current_id or self.call:
+            await self.disconnect()        # off whatever he was on: one line at a time
+        await self.broadcast({"type": "comms_joined", "group": group_id, "members": live})
+        async with self.turn_lock:
+            self.current_id = live[0]
+            self.call = Call()
+            self.call.comms = {"group": group_id, "case": case["id"]}
+            for cid in live:
+                session = self.session_for(cid)
+                session._comms = dict(self.call.comms)
+                self.call.join(session)
+            await self.broadcast(events.contact_changed(live[0]))
+            await self.broadcast(events.party(live))
+            for cid in live:
+                await self.broadcast({"type": "picked_up", "speaker": cid})
+        line = group.system("You came onto comms, live")
+        await self.broadcast({"type": "group_message", "group": group.id, "message": line})
+        log.info("on comms for %s with %s", case["id"], live)
+        # Whoever's there gives him where it's at; with nobody there yet, whoever's on the way, or the screens.
+        landed = [m for m in live if ((case.get("members") or {}).get(m) or {}).get("status") == "on scene"]
+        first = (landed or [m for m in live if m in cases.team(case)] or live)[0]
+        group.update_meta(lambda m: m.update({"heard": None, "next_live": time.time() + random.uniform(60, 100)}))
+        await self._say_on_call(first, "He's just come onto comms, live. Give him where it's at — a line or two, the "
+                                       "way you would on comms; a word of hello at most.")
+
+    async def _say_on_call(self, contact_id, instruction):
+        """One of them says something on the call that nobody asked for — an update, a call, how it ended — or nothing."""
+        member = self.sessions.get(contact_id)
+        if member is None or contact_id not in self._members():
+            return None
+        epoch = self.turn_epoch
+        async with self.turn_lock:
+            if epoch != self.turn_epoch or contact_id not in self._members() or not self.call:
+                return None
+            turn = self.call.update(member, instruction) if self.call.is_group else member.speak_up(instruction)
+            line = await self._drive_for(turn, member.contact, epoch)
+        if self.call and not self.call.is_group and getattr(member, "_hanging_up", False):
+            member._hanging_up = False
+            await self.broadcast(events.call_ending())       # the last one on comms signed off: the line closes
+        await self._hang_ups()
+        return line
+
+    def _comms_record(self, sender, text):
+        """What's said on a live comms call, kept in the case's channel too — read later, it's the same story."""
+        comms = getattr(self.call, "comms", None) if self.call else None
+        group = group_store.of(comms["group"]) if comms else None
+        text = (text or "").strip()
+        if group is None or not text:
+            return
+        message = group.add(sender, text, origin="call")
+        if message is None:
+            return
+        for member in self._members() + ["me"]:
+            group.mark_read(member, message["at"])          # they heard it said
+        self._spawn(self.broadcast({"type": "group_message", "group": group.id, "message": message}))
+
+    async def _onto_live_comms(self, cid):
+        """Someone just on the case — or at their screens — while he's on its comms live: on the line too, no ring."""
+        if not self.call or not getattr(self.call, "comms", None) or cid in self._members():
+            return
+        session = self.session_for(cid)
+        async with self.turn_lock:
+            if not self.call or cid in self._members() or not self.call.join(session):
+                return
+            session._comms = dict(self.call.comms)
+        await self.broadcast(events.party(self._members(), added=cid, room=True))
+        await self.broadcast({"type": "picked_up", "speaker": cid})
+        self.call.event(f"{self.directory.get(cid).name} is on comms now")
+
+    async def _comms_live(self, group, case, now, meta):
+        """
+        The case coming down the line while he's on its comms: the end of it said there, and signed off; someone
+        getting there, it going bad, it settling — said as it happens; and between, now and then, a word from the
+        scene or the screens. Never over him: a turn in hand, or him just having spoken, and it waits.
+        """
+        from ..engine import cases
+        on = [m for m in self._members() if self.directory.get(m)]
+        crew_on = [m for m in on if m in cases.team(case)]
+        if case["status"] == "closed":
+            if not meta.get("signed_off"):
+                group.update_meta(lambda m: m.update({"signed_off": True, "close_at": now + COMMS_LINGER}))
+                result = (case.get("result") or {}).get("how", "")
+                line = group.system(f"Case closed{': ' + result if result else ''}")
+                await self.broadcast({"type": "group_message", "group": group.id, "message": line})
+                lead = (crew_on or on or [None])[0]
+                if lead:
+                    self._spawn(self._say_on_call(lead, (
+                        f"It's over: {case.get('outcome') or 'done'}. Say it on comms — how it ended, in a line or two, "
+                        "true to what happened — then sign off your way and end with [hang up].")))
+            return
+        if self.turn_lock.locked() or now - getattr(self, "_him_at", 0) < 8:
+            return
+        phase, how = cases.phase(case, now)
+        landed = sorted(m for m, v in (case.get("members") or {}).items() if v.get("status") == "on scene")
+        heard = f"{phase}|{','.join(landed)}"
+        changed = heard != meta.get("heard")
+        if not changed and now < meta.get("next_live", 0):
+            return
+        group.update_meta(lambda m, heard=heard: m.update({"heard": heard, "next_live": now + random.uniform(75, 160)}))
+        before = (meta.get("heard") or "|").split("|")[-1].split(",")
+        fresh = [m for m in landed if m not in before and m in on]
+        screens = [m for m in on if m not in cases.team(case)]
+        if fresh:
+            speaker, say = fresh[0], ("You've just got to the scene. Tell comms you're there and what you see as you "
+                                      "get there — a few words.")
+        elif phase == "gone wrong" and crew_on:
+            speaker, say = crew_on[0], "It's gone bad — call it on comms now: a few words, what you need."
+        elif screens and (not crew_on or random.random() < 0.3):
+            speaker, say = random.choice(screens), ("You're on the screens: what do the feeds or the scanner show now — "
+                                                    "GCPD's position, a warning, something they can't see? A line.")
+        elif crew_on:
+            mine = (case.get("members") or {}).get(crew_on[0]) or {}
+            where = ("on your way to join them" if mine.get("status") == "assigned" and case["status"] == "on scene"
+                     else how)
+            speaker, say = random.choice(crew_on), (f"Comms update — right now you're {where}. What's new: what you "
+                                                    "see, what's changed, what you need — a line or two, to whoever "
+                                                    "it's for.")
+        else:
+            return
+        self._spawn(self._say_on_call(speaker, say))
+
 
     async def _case_comms(self, case):
         """
@@ -2453,10 +2621,13 @@ class Console(GroupChats):
             return found
         kept_out = set((found.meta() or {}).get("kept_out") or ())
         joining = crew + [s for s in self._SCREENS if s not in kept_out and self._at_their_screens(s)]
+        live = getattr(self.call, "comms", None) if self.call else None
         for member in joining:
             if member not in found.members:
                 found.add_member(member, backlog=8)
                 found.system(f"{self.directory.get(member).name} joined comms")
+            if live and live.get("group") == found.id and member not in self._members():
+                self._spawn(self._onto_live_comms(member))
         await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
         return found
 
@@ -2517,6 +2688,10 @@ class Console(GroupChats):
                     await self.group_delete(group.id)
                 continue
             case = cases.for_report(meta["case"])
+            live = getattr(self.call, "comms", None) if self.call else None
+            if case is not None and live and live.get("group") == group.id:
+                await self._comms_live(group, case, now, meta)
+                continue
             last = (group.summary().get("last") or {}).get("at", 0)
             if case is None or (case["status"] == "closed" and now > meta.get("close_at", now + 1)
                                 and now - last > COMMS_QUIET):
@@ -2565,11 +2740,14 @@ class Console(GroupChats):
             if speaker.id not in cases.team(case):
                 # In his ear, not on the scene: the feeds, the scanner, GCPD's cars — and a word, dry or worried.
                 watching = "the cave's screens" if speaker.id == "alfred" else "your screens at the clock tower"
+                crew = [self.directory.get(m).name if self.directory.get(m) else "Bruce" for m in cases.team(case)]
+                theirs = how
+                for mine_, them in (("you're", "they're"), ("your", "their"), ("you", "them")):
+                    theirs = re.sub(rf"\b{mine_}\b", them, theirs)
                 self._spawn(self._post_as(group, speaker, opening=(
-                    f"you're on comms with him from {watching} — he's on the {case['kind'].lower()} at {case['place']}, "
-                    f"{cases.phase_of_him(case, now)}. A quick line in his ear, "
-                    "the way you'd say it: what the feeds or the scanner show, where GCPD are, a warning, a dry word — "
-                    "short, no greetings")))
+                    f"you're on comms from {watching} — {' and '.join(crew)} on the {case['kind'].lower()} at "
+                    f"{case['place']}, {theirs}. A quick line, the way you'd say it: what the feeds or the scanner show, "
+                    "where GCPD are, a warning, a dry word — short, no greetings")))
                 continue
             if mine.get("status") == "assigned" and case["status"] == "on scene":
                 how = "on your way to join them"
@@ -3193,6 +3371,8 @@ class Console(GroupChats):
     async def _send_unprompted(self, contact, about, why):
         """They text first: written, then typed, then sent — or, about a case with comms open, said there."""
         if why in self._COMMS_TALK:
+            if getattr(self.call, "comms", None) and contact.id in self._members():
+                return await self._say_on_call(contact.id, self._comms_say(about, why))   # live: said on the call
             group = self._comms_for(contact.id)
             if group is not None:
                 return await self._comms_word(group, contact, about, why)
@@ -3548,6 +3728,8 @@ class Console(GroupChats):
         # Live mic: he paused mid-thought and they came in on it — theirs to know, so it sounds like a cut-in.
         for member in (self.call.members if self.call else []):
             member._came_in = cut_in
+        if getattr(self.call, "comms", None):
+            self._comms_record("me", text)
         epoch = self.interrupt()
         async with self.turn_lock:
             if epoch != self.turn_epoch:
@@ -4658,6 +4840,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not console.voice_busy and getattr(console, "_last_said", None):
                     console._remember_heard(*console._last_said)     # the reply was written; he heard part of it
                     console._last_said = None
+            elif kind == "comms_call":
+                console._spawn(console.join_comms(payload.get("group", "")))
             elif kind == "caught":
                 console.caught(payload.get("speaker", ""), payload.get("lines"))
             elif kind == "nudge":
