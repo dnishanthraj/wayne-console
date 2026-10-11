@@ -5,6 +5,15 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-10-11
+
+### Added
+
+- **Where they looked it up.** When someone searches mid-call, the sources
+  they used now show in the stage tray ("Alfred looked it up"), each a link,
+  so an answer from a search is something you can check. They arrive
+  quietly, with no tone and no toast.
+
 ## [0.37.0] - 2026-10-11
 
 ### Added

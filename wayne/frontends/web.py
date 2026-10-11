@@ -390,7 +390,7 @@ class Console(GroupChats):
                 if event.get("type") == "sentence" and first_at is None:
                     first_at = time.monotonic()
                     log.info("%s first sentence after %.2fs", contact.id, first_at - began)
-                if event.get("type") in ("sentence", "reply_end") and not event.get("speaker"):
+                if event.get("type") in ("sentence", "reply_end", "sources") and not event.get("speaker"):
                     # Whoever's line it is, said: on a group call the first to
                     # pick up greeted it unlabelled, and their seat stayed blank.
                     event = {**event, "speaker": contact.id}

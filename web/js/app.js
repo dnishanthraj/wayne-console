@@ -1008,6 +1008,7 @@
     market: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
   };
   CARD_ICON.entry = CARD_ICON.diary;
+  CARD_ICON.sources = CARD_ICON.link;
 
   function hhmm(at) { var d = new Date(at * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function dayAndTime(at) {
@@ -1044,7 +1045,7 @@
     var words = document.createElement('div');
     words.className = 'card__words';
     var kindLabel = { place: 'Place', person: 'File', rogue: 'Rogue', case: 'Case', diary: 'Your diary', reminder: 'Reminder set',
-                      entry: 'In your diary', link: 'Page', market: 'Market' }[card.kind] || 'Shown';
+                      entry: 'In your diary', link: 'Page', market: 'Market', sources: 'Sources' }[card.kind] || 'Shown';
     var label = document.createElement('span');
     label.className = 'card__kind';
     label.textContent = kindLabel;
@@ -1073,6 +1074,27 @@
       spark.className = 'card__chart' + (card.pct >= 0 ? ' is-up' : ' is-down');
       spark.innerHTML = sparkline(card.series);
       node.appendChild(spark);
+    }
+    if (card.kind === 'sources') {
+      var refs = document.createElement('ul');
+      refs.className = 'card__refs';
+      (card.items || []).forEach(function (it) {
+        if (!/^https?:\/\//.test(it.url || '')) return;
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.href = it.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        var host = '';
+        try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
+        a.textContent = it.title || host;
+        var small = document.createElement('span');
+        small.textContent = host;
+        li.appendChild(a);
+        li.appendChild(small);
+        refs.appendChild(li);
+      });
+      node.appendChild(refs);
     }
     if (card.kind === 'diary') {
       var list = document.createElement('ol');
@@ -1141,7 +1163,7 @@
     holder.style.setProperty('--contact-accent', contact.accent || 'var(--primary)');
     var who = document.createElement('p');
     who.className = 'shown__who';
-    who.textContent = (contact.name || 'They') + ' showed you';
+    who.textContent = (contact.name || 'They') + (event.quiet ? ' looked it up' : ' showed you');
     var close = document.createElement('button');
     close.type = 'button';
     close.className = 'shown__close';
@@ -1154,7 +1176,7 @@
     el.shown.insertBefore(holder, el.shown.firstChild);
     while (el.shown.children.length > 2) el.shown.removeChild(el.shown.lastChild);
     el.shown.hidden = false;
-    if (screens().some(function (p) { return p[1] && p[1].isOpen && p[1].isOpen(); })) {
+    if (!event.quiet && screens().some(function (p) { return p[1] && p[1].isOpen && p[1].isOpen(); })) {
       var card = document.createElement('div');
       card.className = 'toast toast--card';
       card.style.setProperty('--contact-accent', contact.accent || 'var(--primary)');
@@ -1171,7 +1193,7 @@
       card.appendChild(body);
       showToast(card, 'shown:' + event.speaker, 15000);
     }
-    if (ConsoleTones.message) ConsoleTones.message();
+    if (!event.quiet && ConsoleTones.message) ConsoleTones.message();
   }
   function clearShown() { if (el.shown) { el.shown.innerHTML = ''; el.shown.hidden = true; } }
 
@@ -3422,6 +3444,14 @@
 
       case 'shown':
         onShown(event);
+        break;
+
+      case 'sources':
+        // They looked it up: where from, in the tray, each a link — so a search is something he can check.
+        if ((event.items || []).length) {
+          onShown({ speaker: event.speaker || state.connectedId, quiet: true,
+                    card: { kind: 'sources', name: 'Looked it up', items: event.items.slice(0, 4) } });
+        }
         break;
 
       case 'diary':
