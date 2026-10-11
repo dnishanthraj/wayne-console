@@ -61,6 +61,8 @@
   ],
   "full_name": "Randy Wayne",
   "role": "Batwing",
+  "mask": "Batwing",
+  "nicknames": ["Ran"],
   "tagline": "Raised for the mask. Flies alone.",
   "accent": "#4FD0D8",
   "model": "gemma4:26b-a4b-it-qat",

@@ -24,7 +24,7 @@ import random
 import re
 import time
 
-from .. import events
+from .. import events, identity
 from .. import operator as wayne_operator
 
 MAX_CONTACTS = 7          # him and seven of them: the whole family on one line
@@ -50,8 +50,8 @@ class Call:
         self.operator = operator or wayne_operator.full_name()
         self.members = []          # ContactSession, in the order they joined
         self.last_speaker = None
-        # Everything said on the call, labelled — so whoever joins late is
-        # handed what they missed instead of arriving blind.
+        # Everything said on the call — (who said it, what) — so whoever joins late is handed what they missed
+        # instead of arriving blind, labelled the way they know each speaker: to Jim, Batman and Batgirl.
         self.transcript = []
         # Everyone rung for this call, picked up or not: a missed ring can
         # still dial back in while it's going.
@@ -80,16 +80,14 @@ class Call:
             # the first contact's history, which held their private texts.
             first = self.members[0]
             for message in first.call_messages()[-6:]:
-                who = self.operator if message["role"] == "user" else first.contact.full_name
-                self.transcript.append(f"{who}: {message['content']}")
+                self.transcript.append(("me" if message["role"] == "user" else first.contact.id, message["content"]))
         self.members.append(session)
         session.mark_call_start()
         # The last few lines before they joined, marked as such: enough to
         # pick up the thread, not a recording of the evening — and none at all
         # for someone outside the secret, who'd have heard nothing of it anyway.
-        from .groupchat import outside
-        before = [] if outside(session.contact.id) else self.transcript[-6:]
-        session.heard = [f"(before you joined) {line}" for line in before]
+        before = [] if identity.outside(session.contact.id) else self.transcript[-6:]
+        session.heard = [f"(before you joined) {self.heard_as(who, line, session)}" for who, line in before]
         self._attach()
         return True
 
@@ -122,8 +120,25 @@ class Call:
     def others(self, session):
         return [m for m in self.members if m is not session]
 
+    # --- who hears whom as who ----------------------------------------------
+
+    def label(self, speaker_id, viewer, full=True):
+        """How this listener knows someone on the call: Dick to Tim, Nightwing to Jim; Batman, to Jim, for him."""
+        if speaker_id in identity.ME and identity.knows_him(viewer.contact.id) and full:
+            return self.operator
+        return identity.label(speaker_id, viewer.contact.id, full=full)
+
+    def heard_as(self, speaker_id, text, viewer):
+        """A line as this listener hears it: who said it as they know them, and any names in it as they know them."""
+        text = identity.render(text, viewer.contact.id)
+        return text if speaker_id is None else f"{self.label(speaker_id, viewer)}: {text}"
+
+    def _ids(self, session):
+        return [m.contact.id for m in self.others(session)]
+
     def note_for(self, session, follow_up=False):
-        names = ", ".join([self.operator] + [m.contact.full_name for m in self.others(session)])
+        names = ", ".join([self.label("me", session)]
+                          + [self.label(m.contact.id, session) for m in self.others(session)])
         note = (f"This is a call with more than one person on the line: you, {names}. "
                 "Lines from others are labelled with their names. Speak only for "
                 "yourself — never write a line for anyone else — and keep it to what "
@@ -133,18 +148,20 @@ class Call:
                 "goodbye and end with [hang up] — you'll drop off and the call goes on. If he "
                 "asks you to get someone on the line, or someone truly needs to be here, end "
                 "with [add: their first name] and you'll ring them in.")
-        secret = self._secrets(session)
+        secret = identity.guard_note(session.contact.id, self._ids(session))
         if secret:
             note += " " + secret
         host = self.speakerphone.get(session.contact.id)
         if host:
-            holder = next((m.contact.name for m in self.members if m.contact.id == host), "them")
+            holder = next((self.label(m.contact.id, session, full=False) for m in self.members
+                           if m.contact.id == host), "them")
             note += (f" You're not on a line of your own: he rang {holder}, who has him on speaker. You hear him through "
                      f"{holder}'s phone and he hears you when you speak up — chip in when you've something to say, "
                      "answer when he says your name.")
         for guest, on in self.speakerphone.items():
             if on == session.contact.id:
-                name = next((m.contact.name for m in self.members if m.contact.id == guest), guest)
+                name = next((self.label(m.contact.id, session, full=False) for m in self.members
+                             if m.contact.id == guest), guest)
                 note += f" You've got him on speaker — {name} is right here with you and can hear him."
         room = self.in_the_room(session)
         if room:
@@ -169,33 +186,15 @@ class Call:
         from . import presence
         _, group = presence.together(presence.of(session.contact))
         with_them = {p.contact.id for p in group}
-        return [m.contact.name for m in self.others(session) if m.contact.id in with_them]
-
-    def _secrets(self, session):
-        """
-        Who on the line doesn't know what's under the masks, for those who do —
-        Selina on a call with Dick and Tim hears Dick and Tim, never Nightwing.
-        """
-        secrets = wayne_operator.profile().get("secrets") or {}
-        known = set(secrets.get("known_by") or [])
-        if session.contact.id not in known:
-            return ""
-        outsiders = [m.contact.name for m in self.others(session) if m.contact.id not in known]
-        if not outsiders:
-            return ""
-        who = " and ".join(outsiders)
-        return (f"{who} is on this call and doesn't know about the masks. In front of {who}: no "
-                "patrols, cases, villains, suits, gear, the cave, or who anyone really is — nothing "
-                "a family and its friends wouldn't say on an ordinary call. Real names only. If "
-                "someone else slips, cover it lightly, as you would.")
+        return [self.label(m.contact.id, session, full=False) for m in self.others(session) if m.contact.id in with_them]
 
     def own_words(self, session, sentence):
         """A sentence with any speaker label for someone else removed, or ''."""
         for other in self.others(session):
-            for name in {other.contact.name, other.contact.full_name}:
+            for name in identity.names_of(other.contact) | {self.label(other.contact.id, session)}:
                 if re.match(rf"^\W*{re.escape(name)}\s*:", sentence, re.I):
                     return ""
-        for name in {session.contact.name, session.contact.full_name}:
+        for name in identity.names_of(session.contact):
             sentence = re.sub(rf"^\W*{re.escape(name)}\s*:\s*", "", sentence, flags=re.I)
         # Their own line, labelled the way the transcript labels everyone else's:
         # "You: It's not cereal, Tim" was read out, label and all.
@@ -215,7 +214,7 @@ class Call:
             return list(self.members)
         first = None
         for member in self.members:
-            for name in {member.contact.name, member.contact.full_name}:
+            for name in identity.names_of(member.contact):          # "Nightwing, go" is for Dick too
                 found = re.search(rf"\b{re.escape(name)}\b", text or "", re.I)
                 if found and (first is None or found.start() < first[0]):
                     first = (found.start(), member)
@@ -236,13 +235,12 @@ class Call:
         speakers = self.addressed(prompt) or [over or self.last_speaker or self.members[0]]
         self._last_operator_line = prompt
         self._operator_line_open = True
-        operator_line = f"{self.operator}: {prompt}"
-        self.transcript.append(operator_line)
+        self.transcript.append(("me", prompt))
         # Everyone not answering first hears the line now; the first speaker
         # gets it as their own prompt.
         for member in self.members:
             if member is not speakers[0]:
-                member.heard.append(operator_line)
+                member.heard.append(self.heard_as("me", prompt, member))
 
         spoken = set()
         queue = [(member, i > 0) for i, member in enumerate(speakers)]
@@ -259,10 +257,9 @@ class Call:
             if not reply:
                 continue
             self.last_speaker = member
-            line = f"{member.contact.full_name}: {reply}"
-            self.transcript.append(line)
+            self.transcript.append((member.contact.id, reply))
             for other in self.others(member):
-                other.heard.append(line)
+                other.heard.append(self.heard_as(member.contact.id, reply, other))
             self._notice_asks(reply)
             # Someone named or asked in that reply may come in — once.
             if not queue and turns < most:
@@ -296,10 +293,9 @@ class Call:
         reply = yield from self._speak(member, body, False, 1.0, False, via="text_on_call")
         if reply:
             self.last_speaker = member
-            line = f"{member.contact.full_name}: {reply}"
-            self.transcript.append(line)
+            self.transcript.append((member.contact.id, reply))
             for other in self.others(member):
-                other.heard.append(line)
+                other.heard.append(self.heard_as(member.contact.id, reply, other))
 
     def _speak(self, member, prompt, interrupted, confidence, follow_up, via=None):
         """Run one contact's turn, tagging every event with who said it."""
@@ -320,13 +316,13 @@ class Call:
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(newcomer) + "\n[END REFERENCE]\n\n"
             f"You've just been patched into a call that's already going, with "
-            f"{', '.join([self.operator] + [m.contact.full_name for m in self.others(newcomer)])}. "
+            f"{', '.join([identity.full_name_for(newcomer.contact.id)] + [self.label(m.contact.id, newcomer) for m in self.others(newcomer)])}. "
             "Greet them your own way, the way you'd join a call in progress — one "
             "line, and not an apology for being late."
             + ("" if willing else " If you'd genuinely rather not be on this call at all — and "
                "only then — say so in your own words and end with [hang up].")
             + (f" ({note})" if note else ""))
-        others = " and ".join(m.contact.full_name for m in self.others(newcomer))
+        others = " and ".join(self.label(m.contact.id, newcomer) for m in self.others(newcomer))
         line = yield from self._speak_aside(newcomer, instruction,
                                             f"You're on with {others} now.", greeting=True)
         if line:
@@ -352,7 +348,7 @@ class Call:
         """
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
-            f"{what_happened} React the way you would, in a line — or if you wouldn't say "
+            f"{identity.render(what_happened, member.contact.id)} React the way you would, in a line — or if you wouldn't say "
             "anything, reply with exactly SKIP."
             + (" If you'd chase them yourself — text them, ring them — say so and end with "
                "[nudge]." if chase else ""))
@@ -377,7 +373,8 @@ class Call:
         return line
 
     def ringing(self, member, name):
-        """He's ringing someone into the call; while it rings, someone may say so."""
+        """He's ringing someone into the call; while it rings, someone may say so. `name`: who, or a mention."""
+        name = identity.render(name, member.contact.id)
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
             f"He's ringing {name} into this call right now — it's still ringing. If you'd say "
@@ -401,10 +398,10 @@ class Call:
         return line
 
     def _lull_instruction(self, member, quiet_for):
-        others = ", ".join(m.contact.full_name for m in self.others(member))
+        others = ", ".join(self.label(m.contact.id, member) for m in self.others(member))
         return (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
-            f"The call's going — you're on with {self.operator} and {others}, and the last line has "
+            f"The call's going — you're on with {identity.full_name_for(member.contact.id)} and {others}, and the last line has "
             "just landed. If you'd come in now, do it the way you would with these people: answer or "
             "rib whoever spoke, disagree, pick up a thread, ask one of them something by name, or turn "
             "to him. Keep it to what one person says before someone else talks — often a few words. "
@@ -437,7 +434,7 @@ class Call:
         self._heard_by_all(second, start_b)
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(second) + "\n[END REFERENCE]\n\n"
-            f"You and {first.contact.name} both started talking at the same moment — they got as "
+            f"You and {self.label(first.contact.id, second, full=False)} both started talking at the same moment — they got as "
             f"far as \"{start_a}\", you as far as \"{start_b}\", and you both stopped. Sort it out "
             "the way you would, in a few words: let them go first and end with [yield], or go "
             f"ahead and say what you were going to say (it was: \"{b}\").")
@@ -481,16 +478,16 @@ class Call:
         """Whoever else on the call is named first in it, or None."""
         first = None
         for member in self.others(speaker):
-            for n in {member.contact.name, member.contact.full_name}:
+            for n in identity.names_of(member.contact):
                 found = re.search(rf"\b{re.escape(n)}\b", text or "", re.I)
                 if found and (first is None or found.start() < first[0]):
                     first = (found.start(), member)
         return first[1] if first else None
 
     def _heard_by_all(self, member, line):
-        self.transcript.append(f"{member.contact.full_name}: {line}")
+        self.transcript.append((member.contact.id, line))
         for other in self.others(member):
-            other.heard.append(f"{member.contact.full_name}: {line}")
+            other.heard.append(self.heard_as(member.contact.id, line, other))
         self._notice_asks(line)
 
     def event(self, what):
@@ -501,14 +498,14 @@ class Call:
         declined it, instead of asking after them.
         """
         line = f"({what})"
-        self.transcript.append(line)
+        self.transcript.append((None, line))
         for member in self.members:
-            member.heard.append(line)
+            member.heard.append(self.heard_as(None, line, member))
 
     def _notice_asks(self, line):
-        """A line that puts something to him by name — the call holds a moment for his answer."""
-        first = self.operator.split()[0]
-        if "?" in (line or "") and re.search(rf"\b({re.escape(first)}|{re.escape(self.operator)})\b", line, re.I):
+        """A line that puts something to him by name — any he goes by — and the call holds a moment for his answer."""
+        names = {self.operator, self.operator.split()[0], wayne_operator.mask_name()}
+        if "?" in (line or "") and re.search(rf"\b({'|'.join(re.escape(n) for n in names if n)})\b", line, re.I):
             self.asked_him_at = time.time()
 
     def waiting_on_him(self, within=7.0):

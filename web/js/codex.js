@@ -370,6 +370,13 @@
   function biography(card, entry, kind) {
     if (entry.contact) {
       var url = '/api/contacts/' + encodeURIComponent(entry.contact) + '/bio';
+      var them = opts.contacts()[entry.contact] || {};
+      if (them.knows === 'masks' || them.knows === 'none') {
+        // Their biography is in their own head, as the truth of what he is to them.
+        card.appendChild(el('p', 'cx-foot cx-warn', (them.name || entry.name.split(' ')[0]) + ' reads this as the truth of what you are to '
+          + (them.pronoun === 'she' ? 'her' : them.pronoun === 'he' ? 'him' : 'them') + ' — and knows you '
+          + (them.knows === 'masks' ? 'only as Batman' : 'only as Bruce Wayne') + '. Write it that way.'));
+      }
       var file = editable(card, 'Biography', entry.dossier, 'Who they are, in your words.', function (text) {
         entry.dossier = text;
         return post(url, { bio: text });
@@ -462,6 +469,7 @@
     stat(grid, 'Home', entry.home); stat(grid, 'Work', entry.occupation);
     card.appendChild(grid);
     card.appendChild(reach(entry));
+    if (entry.contact && opts.contacts()[entry.contact]) knows(card, opts.contacts()[entry.contact]);
     biography(card, entry, 'people');
     if (entry.first || entry.canon) {
       card.appendChild(el('p', 'cx-foot', [entry.first ? 'First seen: ' + entry.first : '', entry.canon || ''].filter(Boolean).join(' · ')));
@@ -511,6 +519,43 @@
       });
     });
     if (entry.canon) card.appendChild(el('p', 'cx-foot', 'From: ' + entry.canon));
+  }
+
+  /* What they know of him — everything, who he is, only the masks, nothing — as the story has it now, his to
+     change when it moves on: Jim finds out, Selina learns who Nightwing is. Every conversation follows it. */
+  var KNOWS = [['all', 'Everything', 'Who you are, and who’s under every mask.'],
+               ['his', 'Who you are', 'That you’re Batman — nobody else’s mask.'],
+               ['masks', 'Only the masks', 'Batman and the masks, never a face — yours included. You’re Batman to them, and everyone they hear is their mask.'],
+               ['none', 'Nothing', 'You’re Bruce Wayne. Batman is someone in the papers.']];
+
+  function knows(card, contact) {
+    var row = el('div', 'cx-chips cx-chips--file cx-knows');
+    row.appendChild(el('span', 'cx-chips__label', 'What they know'));
+    var hint = el('p', 'cx-foot cx-knows__hint', '');
+    function paint() {
+      row.querySelectorAll('.cx-chip').forEach(function (c) {
+        var on = c.dataset.level === (contact.knows || 'all');
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      var found = KNOWS.filter(function (k) { return k[0] === (contact.knows || 'all'); })[0];
+      hint.textContent = found ? found[2] : '';
+    }
+    KNOWS.forEach(function (k) {
+      var chip = el('button', 'cx-chip', k[1]);
+      chip.type = 'button';
+      chip.dataset.level = k[0];
+      chip.addEventListener('click', function () {
+        if (contact.knows === k[0]) return;
+        post('/api/contacts/' + encodeURIComponent(contact.id) + '/knows', { level: k[0] })
+          .then(function (d) { contact.knows = d.knows; paint(); })
+          .catch(function () { hint.textContent = 'Couldn’t change it.'; });
+      });
+      row.appendChild(chip);
+    });
+    card.appendChild(row);
+    card.appendChild(hint);
+    paint();
   }
 
   function reach(entry) {

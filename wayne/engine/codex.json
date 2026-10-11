@@ -183,6 +183,7 @@
     },
     {
       "id": "gordon",
+      "contact": "gordon",
       "name": "James Gordon",
       "group": "GCPD",
       "reach": [

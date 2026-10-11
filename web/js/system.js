@@ -46,6 +46,28 @@
       .catch(function () { return ''; });
   }
 
+  // Lines fetched ahead of when they're needed — "connection lost" has to play when the server can't be asked.
+  var kept = {};
+
+  function keep(event) {
+    fetch('/api/system/' + event).then(function (r) {
+      if (r.status !== 200) return null;
+      var line = r.headers.get('X-Line') || '';
+      return r.blob().then(function (blob) { kept[event] = { blob: blob, line: line }; });
+    }).catch(function () {});
+  }
+
+  function sayKept(event) {
+    var clip = kept[event];
+    if (!clip) return;
+    if (current) { var old = current; current = null; old.pause(); }
+    var audio = new Audio(URL.createObjectURL(clip.blob));
+    current = audio;
+    audio.onended = audio.onerror = function () { if (current === audio) current = null; };
+    if (handlers.onLine) handlers.onLine(clip.line);
+    audio.play().catch(function () {});
+  }
+
   /** Cut the line short — someone on the call is about to speak. */
   function stop() {
     generation++;
@@ -54,6 +76,8 @@
 
   global.ConsoleSystem = {
     say: say,
+    keep: keep,
+    sayKept: sayKept,
     stop: stop,
     on: function (name, fn) { handlers[name] = fn; }
   };

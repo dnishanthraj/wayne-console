@@ -33,7 +33,7 @@ from collections import deque
 
 import ollama
 
-from .. import config, delivery, events, operator
+from .. import config, delivery, events, identity, operator
 from ..memory import History, Story, Vault
 from ..memory.history import PLACEHOLDERS
 from ..memory.texts import TextLog
@@ -120,8 +120,31 @@ def capped(heard, keep=10):
     return [f"(earlier on the call: {len(heard) - keep} more lines)"] + heard[-keep:]
 
 
-def operator_name():
-    return operator.name()
+def _scanner_line(r):
+    """A call off the scanner in a line: what, where, how it's turned, who's behind it, the toll, the status."""
+    from . import incidents
+    toll = incidents.toll_text(r.get("toll") or {})
+    bits = [f"{r['kind'].lower()} — {r['place']}, {r['area']}"]
+    if r.get("was"):
+        bits.append(f"was {' then '.join(w.lower() for w in r['was'])}")
+    if r.get("moving"):
+        bits.append("on the move" + (" on foot" if (r.get("route") or {}).get("mode") == "foot" else " by car"))
+    if r.get("fled"):
+        bits.append("suspects fled")
+    if r.get("suspect"):
+        bits.append(f"{r['suspect']} behind it")
+    elif r.get("gang"):
+        bits.append(r["gang"])
+    if r.get("crew", 1) >= 4:
+        bits.append(f"{r['crew']} of them")
+    if toll:
+        bits.append(toll)
+    return ", ".join(bits) + f" ({r['status']})"
+
+
+def operator_name(contact=None):
+    """His name — as this contact knows him, if given: Batman to Jim (see wayne.identity)."""
+    return operator.name(getattr(contact, "id", None))
 
 
 # Stored in place of the operator's turn when a call connects, so history stays
@@ -518,7 +541,11 @@ class ContactSession:
         self._cue_spent = getattr(self, "_cued_now", False)
         self._cued_now = False
         named_lately = sum(1 for r in self.history.recent_assistant(turns=2)
-                           if re.match(rf"\W*{re.escape(operator_name())}\b", r or ""))
+                           if re.match(rf"\W*{re.escape(operator_name(self.contact))}\b", r or ""))
+        # Who else is listening, and what that rules out saying to anyone's face — 'Bruce' with Jim on the line,
+        # 'Tim' too (he's Robin to Jim), 'Nightwing' with Selina there (see wayne.identity).
+        listening = [m.contact.id for m in self.call.members if m is not self] if self.call else []
+        listening_guard = identity.guard_vocatives(self.contact.id, listening) if listening else ()
         self._hanging_up = False
         self._call_add = []
         away = not self._at_home()
@@ -530,11 +557,12 @@ class ContactSession:
             # never be read aloud.
             sentence = _SEARCH_MARKER.sub("", sentence).strip()
             text = guards.strip_forbidden_address(
-                sentence.strip(), self.contact.forbidden_address)
+                sentence.strip(), self.contact.forbidden_address + listening_guard)
+            text = identity.scrub(text, self.contact.id, listening)
             text = guards.tidy_address(text)
             if index == 0 and named_lately:
                 # "Bruce, ..." again: people don't open with your name every time.
-                text = re.sub(rf"^\W*{re.escape(operator_name())}\s*[,.…—-]+\s*", "", text)
+                text = re.sub(rf"^\W*{re.escape(operator_name(self.contact))}\s*[,.…—-]+\s*", "", text)
                 text = text[:1].upper() + text[1:] if text else text
             # On a call, a line written for somebody else ("Lucius: Indeed.")
             # is dropped, and his own name as a speaker label is stripped.
@@ -1403,8 +1431,8 @@ class ContactSession:
         """
         from ..contacts import directory
         book = directory()
-        name = groupchat.names(book)
-        members = ", ".join([operator_name()] + [name(m) for m in group.members if m != self.contact.id])
+        name = groupchat.names(book, self.contact.id)
+        members = ", ".join([operator_name(self.contact)] + [name(m) for m in group.members if m != self.contact.id])
         context = [f"Time: {prompting.time_context()}.",
                    f"Group chat \"{group.name}\" — you, {members}."]
         known = groupchat.relations(self.contact, group, book)
@@ -1475,17 +1503,17 @@ class ContactSession:
                 context.append(line)
         style = f" ({self.contact.texting})" if self.contact.texting else ""
         if task:
-            ask = (f"{operator_name()} asked you privately to do this in the group: {task}. Do it now, in your own "
+            ask = (f"{operator_name(self.contact)} asked you privately to do this in the group: {task}. Do it now, in your own "
                    "words, as you would — don't mention that he asked unless you'd naturally say so.")
         elif chase:
-            ask = (f"{operator_name()} asked {chase['name']} something in here {chase['ago']} and they "
+            ask = (f"{operator_name(self.contact)} asked {chase['name']} something in here {chase['ago']} and they "
                    "haven't even read it yet."
                    + (f" As far as you know they're {chase['doing']}." if chase.get("doing") else "")
                    + f" Say something about it if you would — ping them with @{chase['name']}, cover "
                    "for them, or tell him where they probably are (only what you'd actually know). "
                    "If you wouldn't bother, reply with exactly SKIP.")
         elif tapback:
-            ask = (f"{operator_name()} just reacted {tapback} in here. Whether that gets anything from "
+            ask = (f"{operator_name(self.contact)} just reacted {tapback} in here. Whether that gets anything from "
                    "you is yours — a word back, a laugh, asking what he means by it. Mostly people let a "
                    "reaction be the end of it; if you would, reply with exactly SKIP.")
         elif opening:
@@ -1493,10 +1521,10 @@ class ContactSession:
             ask = (("Nobody's said anything for a while. " if quiet else "")
                    + f"Start something in the group — {opening}. One or two short texts.")
         else:
-            ask = (f"Read what's actually going on — what {operator_name()} means, and what you know of everyone "
+            ask = (f"Read what's actually going on — what {operator_name(self.contact)} means, and what you know of everyone "
                    "here — then write your next message to the group, the way you text in a group: "
                    "reply to whoever you're answering, react, or keep it to a word. You don't have "
-                   f"to address {operator_name()}.")
+                   f"to address {operator_name(self.contact)}.")
             ask += (" You were asked directly: answer." if must else
                     " If you wouldn't actually say anything here, reply with exactly SKIP.")
             ask += (" If you're answering one message in particular that's been talked over since — "
@@ -1516,7 +1544,7 @@ class ContactSession:
                     "line from here, so whatever you'd say to one of them, say it here, to them by name.")
         else:
             ask += (f" If he asks you to take it to a private message, or there's something you'd only say to "
-                    f"{operator_name()} privately, end with [dm: what you'd text him — to him, in the second person, "
+                    f"{operator_name(self.contact)} privately, end with [dm: what you'd text him — to him, in the second person, "
                     "never about him] — that goes to your thread with him alone, not here. It's never a way to say "
                     "something privately to anyone else in the chat.")
         ask += (" Most messages tag nobody; tag someone only to pull in someone who isn't already "
@@ -1557,6 +1585,12 @@ class ContactSession:
         text = _LEFTOVER_MARKER.sub("", text)
         text = re.sub(r"\s*\[[^\]]{0,14}\]", "", text)     # a marker half-written: "[]", "[react]"
         text = self._plain(text)
+        # Whoever else is in the chat, and what that rules out: 'Bruce' with Jim in it (see wayne.identity).
+        readers = [m for m in group.members if m != self.contact.id]
+        guard = identity.guard_vocatives(self.contact.id, readers)
+        if guard:
+            text = guards.strip_forbidden_address(text, guard)
+        text = identity.scrub(text, self.contact.id, readers)
         if re.match(r"\W*skip\b", text, re.I):
             return ""           # owed an answer or not, the word itself is never posted
         if not text.strip(" .") and (self._group_actions["react"] or self._group_actions["dm"]):
@@ -1573,7 +1607,7 @@ class ContactSession:
                 if speaker in {self.contact.name.lower(), self.contact.full_name.lower()}:
                     line = label.group(2)
                 elif any(speaker in (book.get(m).name.lower(), book.get(m).full_name.lower())
-                         for m in group.members if book.get(m)) or speaker == operator_name().lower():
+                         for m in group.members if book.get(m)) or speaker == operator_name(self.contact).lower():
                     continue
             lines.append(line)
         text = "\n".join(guards.cap_length(line, 3) for line in lines[:4])
@@ -1640,7 +1674,7 @@ class ContactSession:
             how = cases.phase_of_him(case, now)
             return (f"This is the comms channel for the {case['kind'].lower()} at {case['place']} ({case['area']}). "
                     f"You're not on the scene: you're on comms, watching from your screens — the feeds, the scanner, "
-                    f"GCPD's cars. {operator_name()} is on it" + (f" with {', '.join(others)}" if others else " alone")
+                    f"GCPD's cars. {operator_name(self.contact)} is on it" + (f" with {', '.join(others)}" if others else " alone")
                     + (f" — it's over: {case.get('outcome') or 'done'}." if case["status"] == "closed" else f", {how}."))
         if case["status"] == "closed":
             state = f"It's over — {case.get('outcome') or 'done'}."
@@ -1655,14 +1689,14 @@ class ContactSession:
         if "bruce" in crew:
             if bruce.get("route"):
                 left = max(1, round((bruce["route"]["end"] - now) / 60))
-                him = (f"{operator_name()} is on this one with you — on his way, {bruce['route'].get('by', 'travelling')}, "
+                him = (f"{operator_name(self.contact)} is on this one with you — on his way, {bruce['route'].get('by', 'travelling')}, "
                        f"about {left} min out.")
             else:
-                him = f"{operator_name()} is on this one with you — there, on the scene."
+                him = f"{operator_name(self.contact)} is on this one with you — there, on the scene."
         else:
             where = (f"on his way to {bruce['where']}" if bruce.get("route")
                      else f"at {bruce['where']}" if bruce.get("where") else "elsewhere")
-            him = (f"{operator_name()} isn't on this one: he's {where}, reading this channel on his phone — not on "
+            him = (f"{operator_name(self.contact)} isn't on this one: he's {where}, reading this channel on his phone — not on "
                    "the scene, not on his way, not in danger. Nothing you say treats him as there.")
         return (f"This is the comms channel for the {case['kind'].lower()} at {case['place']} ({case['area']}) — "
                 f"on it with you: {', '.join(others) or 'nobody else yet'}. {state} {him} Talk to each of them as "
@@ -2024,17 +2058,24 @@ class ContactSession:
         out = places.outing(prompt, spot["x"], spot["y"]) if spot else ""
         if out:
             awareness.append(out)
-        # With someone on the line who doesn't know about the masks, nothing of
-        # the cases, the tracker or the scanner is put in their mouths — the
-        # "don't mention patrols" warning sat beside "your case is yours to talk about".
-        guarded = bool(self.call and not groupchat.outside(self.contact.id)
-                       and any(groupchat.outside(m.contact.id) for m in self.call.members if m is not self))
+        # Who's listening decides what's put in their mouths (see wayne.identity). With Selina on the line,
+        # nothing of the work — the "don't mention patrols" warning sat beside "your case is yours to talk
+        # about". With Jim on it, the work by the masks only: their case, teammates as Robin and Nightwing,
+        # and nothing of where anyone is or who they are by day.
+        listening = [m.contact.id for m in self.call.members if m is not self] if self.call else []
+        keep = identity.guards(listening) if listening and identity.knows_him(self.contact.id) else set()
+        guarded = "work" in keep
+        masked = bool(keep & {"him", "faces"}) and not guarded
+        family = getattr(self.contact, "family_app", True)
         listed = False          # everyone's whereabouts already in front of them
-        if getattr(self.contact, "sees_whereabouts", False):
+        if getattr(self.contact, "sees_work", "") == "gcpd":
+            # Jim: the work as GCPD has it — the scanner, the masks seen at it, the rogues — never a face.
+            tracker = "" if from_contact else self._desk(prompt)
+        elif getattr(self.contact, "sees_whereabouts", False):
             # Alfred in the cave, Barbara at her screens: everything the console shows him, they can see —
             # all of it when the talk turns that way, a line the rest of the time (every turn carrying the
             # whole board was seconds of reading before anyone said a word).
-            if guarded or from_contact:
+            if guarded or masked or from_contact:
                 tracker = ""
             elif (self._WHEREABOUTS.search(prompt or "") or self._CRIMEY.search(prompt or "")
                   or self._BOARDISH.search(prompt or "")):
@@ -2043,16 +2084,18 @@ class ContactSession:
             else:
                 tracker = self._batcomputer_glance()
         else:
-            tracker = "" if guarded or from_contact else self._tracker(prompt)
+            tracker = "" if guarded or masked or from_contact or not family else self._tracker(prompt)
             listed = bool(tracker)
         if tracker:
             awareness.append(tracker)
         # One of the family named — "is Dick with you?", "go help Dick": where that one is, and how to go to them.
-        named = "" if guarded or from_contact else self._named_family(prompt, listed=listed)
+        named = ("" if guarded or masked or from_contact or not family
+                 else self._named_family(prompt, listed=listed))
         if named:
             awareness.append(named)
-        work = "" if guarded or from_contact else self._casework(prompt, brief=head is None)
-        if not guarded and not from_contact and (self._MISSION_TALK.search(prompt or "") or (self.call and self.call.is_group)):
+        work = "" if guarded or from_contact else self._casework(prompt, brief=head is None, masks=masked)
+        if not guarded and not masked and not from_contact and (self._MISSION_TALK.search(prompt or "")
+                                                                or (self.call and self.call.is_group)):
             from ..contacts import directory
             from . import cases as case_board
             told = case_board.missions_note(self.contact.id, {c.id: c.name for c in directory()} | {"bruce": "Bruce"})
@@ -2201,8 +2244,8 @@ class ContactSession:
             return ""
         lines, dark = [], []
         for other in book:
-            if other.id == self.contact.id:
-                continue
+            if other.id == self.contact.id or not getattr(other, "family_app", True):
+                continue            # not on the family's app at all — Jim isn't family, whatever he is
             if not other.shares_location:
                 dark.append(other.name)
                 continue
@@ -2317,7 +2360,7 @@ class ContactSession:
         what they've seen.
         """
         from ..contacts import directory
-        names = {operator_name().lower(), "bruce", "batman", "alfred", "family"}
+        names = {operator_name(self.contact).lower(), "bruce", "batman", "alfred", "family"}
         for c in directory():
             names.update({c.name.lower(), c.full_name.lower(), c.id})
         low = (prompt or "").lower()
@@ -2394,7 +2437,7 @@ class ContactSession:
         lines = [batman.note(now) + (f"; the Batwing: {jet.state(now)['status']}")]
         dark = []
         for other in book:
-            if other.id == self.contact.id:
+            if other.id == self.contact.id or not getattr(other, "family_app", True):
                 continue
             them = presence.of(other)
             if not other.shares_location:
@@ -2426,25 +2469,7 @@ class ContactSession:
                 board.append(f"{c['kind'].lower()} at {c['place']}: {who}, {cases.phase(c, now)[0]}"
                              + (f" — {c['crew']} of them" if c.get("crew", 1) >= 4 else ""))
         reports = sorted(incidents.at(now), key=lambda r: (-r["severity"], -r["at"]))
-
-        def call(r):
-            toll = incidents.toll_text(r.get("toll") or {})
-            bits = [f"{r['kind'].lower()} — {r['place']}, {r['area']}"]
-            if r.get("was"):
-                bits.append(f"was {' then '.join(w.lower() for w in r['was'])}")
-            if r.get("moving"):
-                bits.append("on the move" + (" on foot" if (r.get("route") or {}).get("mode") == "foot" else " by car"))
-            if r.get("fled"):
-                bits.append("suspects fled")
-            if r.get("suspect"):
-                bits.append(f"{r['suspect']} behind it")
-            elif r.get("gang"):
-                bits.append(r["gang"])
-            if r.get("crew", 1) >= 4:
-                bits.append(f"{r['crew']} of them")
-            if toll:
-                bits.append(toll)
-            return ", ".join(bits) + f" ({r['status']})"
+        call = _scanner_line
         from . import arcs
         loose = []
         for rogue in incidents.rogues():
@@ -2463,7 +2488,55 @@ class ContactSession:
                 + (f"- The rogues lately: {'; '.join(loose)}.\n" if loose else "")
                 + (f"- This morning's papers: {papers}." if papers else ""))
 
-    def _casework(self, prompt, brief=True):
+    def _desk(self, prompt):
+        """
+        The work as GCPD has it, for the commissioner: every call on the scanner,
+        the masks his officers have seen at them tonight, what's closed and how,
+        the rogues in a cell and out of one — and never a face. All of it when the
+        talk turns that way; a line the rest of the time.
+        """
+        from ..contacts import directory
+        from . import cases, codex, incidents
+        now = time.time()
+        reports = sorted(incidents.at(now), key=lambda r: (-r["severity"], -r["at"]))
+        wanted = (self._CRIMEY.search(prompt or "") or self._BOARDISH.search(prompt or "")
+                  or self._WHEREABOUTS.search(prompt or ""))
+        if not wanted:
+            worst = reports[0] if reports else None
+            return (f"Your desk, at a glance: {len(reports)} call{'s' if len(reports) != 1 else ''} open on GCPD's "
+                    "scanner" + (f" — the worst, {worst['kind'].lower()} at {worst['place']} ({worst['status']})"
+                                 if worst else "") + ". Yours to bring up if it matters to him; he can ask.")
+        book = directory()
+
+        def mask(cid):
+            return operator.mask_name() if cid == "bruce" else identity.mask_of(book.get(cid))
+        seen, closed = [], []
+        for c in cases.peek():
+            if c["status"] == "closed":
+                if now - c.get("closed_at", 0) < 6 * 3600:
+                    res = c.get("result") or {}
+                    how = " — ".join(x for x in (res.get("grade", ""), res.get("how", "")) if x) or "cleared"
+                    who = " and ".join(mask(m) for m in cases.team(c))
+                    closed.append(f"the {c['kind'].lower()} at {c['place']}: {how}" + (f" ({who} were there)" if who else ""))
+                continue
+            there = [m for m, info in (c.get("members") or {}).items() if info.get("status") == "on scene"]
+            if there:
+                seen.append(f"{' and '.join(mask(m) for m in there)} at the {c['kind'].lower()} at {c['place']}")
+        rogues = []
+        for rogue in incidents.rogues():
+            where = codex.where(rogue, now)
+            if where.get("how") and now - (where.get("since") or 0) < 48 * 3600:
+                rogues.append(f"{rogue['name']} {where['how']}")
+        return ("Your desk — what GCPD has tonight. You're the commissioner: it's yours to use, and you give it to "
+                "him straight when he asks; never recite it. Your officers know the vigilantes only by their masks, "
+                "and so do you:\n"
+                + (f"- The scanner ({len(reports)} open): {'; '.join(_scanner_line(r) for r in reports[:8])}.\n"
+                   if reports else "- The scanner's quiet.\n")
+                + (f"- Seen on scenes tonight: {'; '.join(seen)}.\n" if seen else "")
+                + (f"- Closed tonight: {'; '.join(closed)}.\n" if closed else "")
+                + (f"- The rogues lately: {'; '.join(rogues)}." if rogues else ""))
+
+    def _casework(self, prompt, brief=True, masks=False):
         """
         For the ones who work scenes: the case they're on (always — it's what
         they're doing), and when he's talking about trouble, what's open near
@@ -2473,7 +2546,7 @@ class ContactSession:
         if self.contact.id not in cases.FIELD:
             return ""
         parts = []
-        brief = cases.brief(self.contact.id) if brief else ""
+        brief = cases.brief(self.contact.id, masks=masks) if brief else ""
         if brief:
             parts.append(brief)
         if self._CRIMEY.search(prompt or ""):
@@ -2685,7 +2758,7 @@ class ContactSession:
         lines = capped(self.heard)
         if not follow_up:
             label = " (texted you, privately)" if via == "text_on_call" else ""
-            lines.append(f"{self.call.operator}{label}: {prompt}")
+            lines.append(f"{identity.full_name_for(self.contact.id)}{label}: {prompt}")
         self.heard = []
         return "\n".join(lines)
 

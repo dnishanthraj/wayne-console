@@ -1039,7 +1039,7 @@
     var contacts = everyone();
     Object.keys(contacts).forEach(function (id) {
       var c = contacts[id], p = c.presence;
-      if (!p) return;
+      if (!p || c.family_app === false) return;
       if (p.spot) {
         if (travelling(c)) moving.push(c);
         else {
@@ -1152,7 +1152,7 @@
     list.innerHTML = '';
     (contacts.bruce ? ['bruce'] : []).concat(opts.order()).forEach(function (id) {
       var c = contacts[id];
-      if (!c) return;
+      if (!c || c.family_app === false) return;     // not on the family's app at all — Jim isn't family
       var p = c.presence || {};
       var li = document.createElement('li');
       li.className = 'gm-roster__item' + (p.spot ? '' : p.last_seen ? ' is-ghost' : ' is-hidden') + (selected === id ? ' is-on' : '');

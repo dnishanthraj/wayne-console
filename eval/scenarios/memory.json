@@ -80,7 +80,8 @@
     "must": [
      "(?i)museum|dick|heard|donat|giv"
     ]
-   }
+   },
+   "knows": "him"
   }
  ]
 }

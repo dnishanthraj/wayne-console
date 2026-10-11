@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .. import config, events, paths, store
+from .. import identity as wayne_identity
 from .. import operator as wayne_operator
 from ..audio import stt, system_voice
 from ..audio.tts import get_voice_engine
@@ -1687,6 +1688,8 @@ class Console(GroupChats):
                 presence.of(contact).postpone(intent["id"], 120, count=False)  # claimed
                 self._spawn(self._carry_out(contact, intent))
         await self._step("reaching out", self._maybe_reach_out(now))
+        await self._step("calls in", self._calls_in(now))
+        await self._step("announcements", self._announce(now))
         await self._step("groups", self._group_tick(now))
         await self._step("cases", self._case_tick(now))
         await self._step("comms", self._comms_tick(now))
@@ -1914,6 +1917,8 @@ class Console(GroupChats):
                     + f" the {report['kind'].lower()} at {report['place']}" + (" — Bruce asked" if by == "him" else ""))
         await self._presence_changed(contact)
         await self.broadcast({"type": "cases"})
+        if cases.known(case):
+            await self._system("case_taken", contact_id)
         if tell and contact_id not in self._members():
             why = "case_assigned" if by == "him" else "case_taken"
             chatty = min(1.0, (contact.initiative or {}).get("per_day", 0.4))
@@ -2416,6 +2421,8 @@ class Console(GroupChats):
                 continue
             asks = random.random() < (contact.initiative or {}).get("asks_for_help", 0.4)
             cases.mark(case["id"], cried_for_help=asks)
+            if not (asks and case["severity"] >= 4 and not self.current_id and not self._incoming):
+                await self._system("case_trouble", contact.id)      # the screens see it — unless they ring and say so
             if not asks:
                 continue
             about = f"{case['kind'].lower()} at {case['place']}"
@@ -2457,6 +2464,9 @@ class Console(GroupChats):
                                               presence.BUSY, left, where=case["place"],
                                               xy=(case["x"], case["y"]) if case.get("chase") else None, owner="case")
             self._spawn(self._presence_changed(contact))
+            from ..engine import cases as board
+            if board.known(case):
+                self._spawn(self._system("case_scene", contact.id))
             odds = (contact.initiative or {}).get("case_updates", 0.4)
             if mine.get("by") == "him" and contact.id not in self._members() and random.random() < odds:
                 self._spawn(self._send_unprompted(contact, f"the {case['kind'].lower()} at {case['place']}",
@@ -2533,6 +2543,8 @@ class Console(GroupChats):
                 contact = self.directory.get(member)
                 if contact is None or member in self._members():
                     continue
+                if cases.known(closed):
+                    await self._system("case_hurt", member)
                 about = f"{injury}, on the {closed['kind'].lower()} at {closed['place']}"
                 bad = any(w in injury for w in ("concussion", "bullet", "knife", "dislocated"))
                 if bad and not self.current_id and not self._incoming and random.random() < 0.35:
@@ -2886,6 +2898,74 @@ class Console(GroupChats):
 
     # --- calls to him -------------------------------------------------------
 
+    async def _system(self, event, contact_id=""):
+        """A moment for the Batcomputer to say out loud — the page plays it, never over a call (see system_voice)."""
+        await self.broadcast({"type": "system", "event": event, "contact": contact_id or ""})
+
+    async def _announce(self, now):
+        """
+        The Batcomputer's moments nobody asked for: he's arrived, the Batwing's
+        overhead waiting for him, something big has landed on the scanner, a
+        breakout. Each once, as it happens — nothing from before the console came up.
+        """
+        from ..engine import batman, incidents, jet
+        seen = self.__dict__.setdefault("_announced", {"route": None, "jet": None, "calls": None})
+        route = bool(batman.state(now).get("route"))
+        if seen["route"] and not route:
+            await self._system("arrived")
+        seen["route"] = route
+        waiting = jet.state(now).get("status") == "waiting overhead for you"
+        if waiting and seen["jet"] is False:
+            await self._system("jet_overhead")
+        seen["jet"] = waiting
+        calls = incidents.at(now)
+        if seen["calls"] is None:
+            seen["calls"] = {r["id"] for r in calls}
+            return
+        for r in calls:
+            if r["id"] in seen["calls"]:
+                continue
+            seen["calls"].add(r["id"])
+            if "breakout" in (r.get("kind") or "").lower():
+                await self._system("breakout")
+            elif r["severity"] >= 4:
+                await self._system("scanner_major")
+
+    async def _calls_in(self, now):
+        """
+        The ones who'd ring him because of the night itself — Jim, when something
+        big lands on GCPD's scanner and nobody's on it yet: what the signal would
+        say, from his desk. Once per call off the scanner, at the odds his profile
+        gives, never twice inside his gap, and never over a call already going.
+        """
+        from ..engine import cases, incidents
+        if self.current_id or self._incoming or self._ringing_out or getattr(self, "_adding", False):
+            return
+        called = self.__dict__.setdefault("_called_in", {})
+        heard = self.__dict__.setdefault("_called_about", set())
+        for contact in self.directory:
+            rule = getattr(contact, "calls_in", None) or {}
+            if not rule or now - called.get(contact.id, 0) < rule.get("gap", 120) * 60:
+                continue
+            fresh = [r for r in incidents.at(now)
+                     if r["id"] not in heard and now - r["at"] < 20 * 60 and r.get("status") != "resolved"
+                     and cases.for_report(r["id"]) is None
+                     and (r["severity"] >= rule.get("severity", 4)
+                          or (rule.get("breakouts") and "breakout" in (r.get("kind") or "").lower()))]
+            if not fresh:
+                continue
+            worst = max(fresh, key=lambda r: (r["severity"], r["at"]))
+            heard.update(r["id"] for r in fresh)
+            if random.random() >= rule.get("chance", 0.5):
+                continue
+            called[contact.id] = now
+            toll = incidents.toll_text(worst.get("toll") or {})
+            about = (f"{worst['kind'].lower()} at {worst['place']} ({worst['area']})"
+                     + (f", {worst['suspect']} behind it" if worst.get("suspect") else "")
+                     + (f" — {toll}" if toll else "") + f"; GCPD's status: {worst['status']}. You want him on it")
+            log.info("%s calling in about %s", contact.id, worst["id"])
+            return await self._ring(contact, about)
+
     async def _ring(self, contact, about):
         """They call him. The page rings; he answers, declines, or misses it — or, muted, it never rings at all."""
         self._incoming = {"id": contact.id, "about": about}
@@ -3198,7 +3278,6 @@ def _warm_speech():
         pass
 
 
-@asynccontextmanager
 def _daily_upkeep():
     from ..store import upkeep
     upkeep.daily()
@@ -3214,6 +3293,7 @@ def _warm_store():
         logging.getLogger("wayne").exception("warming the store failed")
 
 
+@asynccontextmanager
 async def lifespan(_app):
     warm = [
         asyncio.create_task(asyncio.to_thread(_warm_model)),
@@ -3221,7 +3301,7 @@ async def lifespan(_app):
         asyncio.create_task(asyncio.to_thread(world.prime)),
         asyncio.create_task(asyncio.to_thread(_warm_store)),
         asyncio.create_task(asyncio.to_thread(
-            system_voice.prime, console.voice, [c.full_name for c in console.directory])),
+            system_voice.prime, console.voice, list(console.directory))),
         asyncio.create_task(console.pulse()),
     ]
     yield
@@ -3250,6 +3330,11 @@ def _contact_payload(contact):
         "portrait_v": codex.portrait_version(contact.id),
         "group": contact.group,
         "presence": presence.of(contact).public(),
+        # Who they are to someone who knows only masks, whether they're on the family's app, and what they know
+        # of him (see wayne.identity) — the Codex shows it, and lets him change it.
+        "mask": contact.mask,
+        "family_app": contact.family_app,
+        "knows": wayne_identity.level(contact.id),
     }
 
 
@@ -3657,8 +3742,10 @@ async def bruce_go(request: Request):
                                    y if y is None else float(y))
     if trip is None:
         return JSONResponse({"error": "can't get there"}, status_code=400)
-    await console.broadcast({"type": "bruce", "bruce": batman.state()})
-    return JSONResponse(batman.state())
+    now_state = batman.state()
+    await console.broadcast({"type": "bruce", "bruce": now_state})
+    await console._system("route_suit" if now_state.get("suit") else "route")
+    return JSONResponse(now_state)
 
 
 @app.post("/api/bruce/lift")
@@ -3666,6 +3753,8 @@ async def bruce_lift(request: Request):
     """He gives one of them a lift in the Batwing, to their case or wherever they're going."""
     body = await request.json()
     found = await console.give_lift(str(body.get("person") or ""), body.get("to"))
+    if found and not found.get("error"):
+        await console._system("lift", str(body.get("person") or ""))
     return JSONResponse(found)
 
 
@@ -3675,6 +3764,8 @@ async def jet_home():
     from ..engine import jet
     found = await asyncio.to_thread(jet.send_home)
     await console.broadcast({"type": "cases"})
+    if found:
+        await console._system("jet_home")
     return JSONResponse(found or {"error": "Mid-flight"})
 
 
@@ -3689,8 +3780,10 @@ async def jet_summon():
         return JSONResponse({"error": "Can't find you"}, status_code=200)
     found = await asyncio.to_thread(jet.summon, "bruce", here)
     if found is None:
+        await console._system("jet_busy")
         return JSONResponse({"error": "On someone else's job"}, status_code=200)
     await console.broadcast({"type": "cases"})
+    await console._system("jet_summoned")
     return JSONResponse(found)
 
 
@@ -3826,6 +3919,27 @@ async def unlock(request: Request):
     return JSONResponse({"ok": supplied == config.CONSOLE_PASSCODE.strip().lower()})
 
 
+@app.get("/api/identity")
+async def identity_levels():
+    """What each contact knows of him — and the ways there are to know him."""
+    return JSONResponse({"levels": [{"id": lv, "label": wayne_identity.LABELS[lv]} for lv in wayne_identity.LEVELS],
+                         "contacts": {c.id: wayne_identity.level(c.id) for c in console.directory}})
+
+
+@app.post("/api/contacts/{contact_id}/knows")
+async def set_knows(contact_id: str, request: Request):
+    """The story moved on — Jim found out, Selina learned who Nightwing is: what they know of him, from now."""
+    if console.directory.get(contact_id) is None:
+        return Response(status_code=404)
+    body = await request.json()
+    level = body.get("level")
+    if level not in (*wayne_identity.LEVELS, None):
+        return JSONResponse({"error": "no such level"}, status_code=400)
+    wayne_identity.set_level(contact_id, level)
+    log.info("%s now knows: %s", contact_id, wayne_identity.level(contact_id))
+    return JSONResponse({"id": contact_id, "knows": wayne_identity.level(contact_id)})
+
+
 @app.get("/api/contacts/{contact_id}/bio")
 async def read_bio(contact_id: str):
     """
@@ -3861,11 +3975,11 @@ async def system_line(event: str, contact: str = ""):
     if not system_voice.available():
         return Response(status_code=204)
     found = console.directory.get(contact) if contact else None
-    text = system_voice.line(event, found.full_name if found else "")
+    text = system_voice.line(event, system_voice.name_for(event, found))
     if not text:
         return Response(status_code=404)
     try:
-        clip = await asyncio.to_thread(system_voice.audio, text, console.voice)
+        clip = await asyncio.to_thread(system_voice.audio, text, console.voice, event)
     except Exception:
         return Response(status_code=204)
     return Response(content=clip, media_type="audio/mpeg",

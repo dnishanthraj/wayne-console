@@ -42,7 +42,7 @@ def afterthought(session, exchanges, by="text"):
             return f"({contact.name} texted first)"
         if m["role"] == "user" and re.match(r"^\(?[A-Z][\w .'’-]{1,30}\)?[:)]", m["content"]):
             return m["content"]         # heard on a group call: already says who said each line
-        return f"{operator.name() if m['role'] == 'user' else contact.name}: {m['content']}"
+        return f"{operator.name(contact.id) if m['role'] == 'user' else contact.name}: {m['content']}"
     # Context, then the exchange that's new. Asked about all of it, the pass
     # re-found a promise already kept and scheduled it again.
     earlier = [line(m) for m in exchanges[:-2]]
@@ -56,23 +56,23 @@ def afterthought(session, exchanges, by="text"):
     case = cases.active(contact.id)
     instruction = (
         f"It's {now}. Here is the latest of a conversation {'by text' if by == 'text' else 'on a call'} "
-        f"between {operator.full_name()} and {contact.full_name}:\n\n" + "\n".join(lines) + "\n\n"
+        f"between {operator.full_name(contact.id)} and {contact.full_name}:\n\n" + "\n".join(lines) + "\n\n"
         f"Answer these questions about {contact.name}, from the newest exchange only — never guess, "
         f"and never report something from the earlier lines that has already happened.\n"
         f"1. Is {contact.name} now going off to do something, or in the middle of something, that "
-        f"keeps them away from their phone — an errand {operator.name()} gave them, a meeting, "
+        f"keeps them away from their phone — an errand {operator.name(contact.id)} gave them, a meeting, "
         f"patrol, sleep? Or did they say they're now free, done, or back?\n"
-        f"2. Did {contact.name} agree or offer to get back in touch — call {operator.name()}, text "
-        f"him, report back? If {operator.name()} asked and {contact.name} refused, brushed it off or "
+        f"2. Did {contact.name} agree or offer to get back in touch — call {operator.name(contact.id)}, text "
+        f"him, report back? If {operator.name(contact.id)} asked and {contact.name} refused, brushed it off or "
         f"only said 'maybe' or 'if it matters', the answer is no.\n"
         f"3. Across the whole conversation: does {contact.name} come away genuinely worried about "
-        f"{operator.name()} — he's hurt, in danger, or plainly not himself in a way {contact.name} "
+        f"{operator.name(contact.id)} — he's hurt, in danger, or plainly not himself in a way {contact.name} "
         f"would really notice — and not reassured by the end? Terseness, teasing, typos, being busy "
         f"or a bad mood is no; so is ordinary concern that was settled.\n"
         + (f"4. {contact.name} is working a case ({case['kind'].lower()} at {case['place']}). From the newest "
            f"exchange: did they say it's dealt with — caught, stopped, over? If so, how, in a few words.\n"
            if case else "")
-        + f"5. In the newest exchange, did {operator.name()} say he's coming to pick {contact.name} up himself — "
+        + f"5. In the newest exchange, did {operator.name(contact.id)} say he's coming to pick {contact.name} up himself — "
           f"stay where you are, I'll come and get you, I'll give you a lift — and did they agree?\n\n"
         "Reply with JSON only, in this shape:\n"
         '{"doing": "a few words, e.g. checking the docks" or null, '

@@ -51,9 +51,12 @@ You're Bruce Wayne. The console is your phone: nine people who each have their o
 | 🔴 | **Jason Todd**, *Red Hood* | Came back angry. | "k". Doesn't share where he is. |
 | 🦅 | **Randy Wayne**, *Batwing* | Your son, estranged, flying alone. | Leaves you on read more often than not. |
 | 🏢 | **Lucius Fox** | Runs Wayne Enterprises; builds your toys. | "Mr. Wayne." A measured sentence, a firm ethical line. |
-| 🐈‍⬛ | **Selina Kyle**, *Catwoman* | Randy's mother. | Her own woman, on her own schedule. |
+| 🐈‍⬛ | **Selina Kyle**, *Catwoman* | Randy's mother. | Her own woman, on her own schedule. Knows who you are; nobody else's mask. |
+| 🚨 | **Jim Gordon**, *Commissioner* | Your partner for years, and Barbara's father. Has never asked who you are. | "Batman." Gruff, tired, by the book. Rings when the city's on fire. |
 
-Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profiles/), and adding a tenth is a file, not a code change (see [Making it yours](#-making-it-yours)).
+Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profiles/), and adding another is a file, not a code change (see [Making it yours](#-making-it-yours)).
+
+**Not everyone knows everything.** Jim knows Batman and the masks, never a face: to him you're Batman, Barbara is Batgirl, and Dick is Nightwing. Selina knows who you are and nobody else. Put Jim on a group call or in a group chat and everyone on it is careful: no names, no "Bruce", nothing about the cave. Each contact's knowledge is set in the Codex (*What they know*), and the story can change it.
 
 ## ✨ What it does
 
@@ -64,7 +67,7 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Hold <kbd>Space</kbd> to talk**, or type; the mic button mutes you, and they know you've gone quiet. Talk over them and they stop.
 - **Speech starts in about half a second.** The turn is read ahead while you're still talking, sentences are voiced as the model writes them, and the words appear in time with the voice.
 - **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. Under it, rain and thunder, sirens, a kitchen, Selina's cats, Tim's houseboat. Stage directions are performed, never shown.
-- **A ring that means something.** It covers the model warming up; busy people decline, sleeping ones ring out, and they call you back.
+- **A ring that means something.** It covers the model warming up; sleeping ones ring out, and they call you back. Whether they pick up depends on what they're doing, the way it would for anyone. Alfred in the garden answers. Dick on his way to a case answers, and at the scene maybe, about the case. Mid-fight or mid-training, nobody does.
 - **Group calls**, you plus four, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time. **One phone per room**: ring Dick while Tim's with him and Tim's on his speaker, on Dick's seat, and goes when Dick does.
 
 </td><td width="50%" valign="top">
@@ -97,7 +100,8 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Calls that turn and move.** A robbery becomes a getaway on real roads, a snatch a foot chase, a bar fight a stabbing. Crews have numbers (Bane brings thirty), and whoever's sent cuts a getaway off where they can get ahead of it.
 - **Cases with odds.** Put someone on a report from the map, or just tell them in conversation. Every call shows its odds as the Batcomputer reckons them, with GCPD's own under them (the family never makes it worse than nobody going), and each free member's button says what sending them would make it, or that they'd be too late. Endings are graded lives first: success, partial, failure. Rogues who get away come back worse; a capture ends the run.
 - **Hearsay.** What one of them hears may reach another, with who said it.
-- **Secrets that stay secret.** Every fact about you is tagged with who knows it, so Lucius never learns who's under the Batwing mask.
+- **Secrets that stay secret.** Every fact about you is tagged with who knows it, so Lucius never learns who's under the Batwing mask. Jim sees the city the way GCPD does (the scanner, which masks were on which scene, the cases closed) and never a face.
+- **Jim calls.** A major call on the scanner or a breakout with nobody on it, and he may ring you first.
 - **The Codex** (<kbd>C</kbd>): everyone in Bruce's world and every rogue as a file — vital details, a biography you can rewrite (a contact's is the directory's own), where each rogue is now (loose, in custody, Arkham, Blackgate), how they work, their weakness and your contingency — and every place on the map. Drop a picture on a face to give it one.
 
 </td></tr>
@@ -204,6 +208,8 @@ Tick them off as you go.
 - [ ] Call the Batwing, give Tim a lift, and drop yourself on a case.
 - [ ] Watch a robbery turn into a getaway, and send someone to cut it off.
 - [ ] Read the six o'clock night report after a long night.
+- [ ] Put Jim and Barbara on the same call, and ask him how his daughter's doing.
+- [ ] Ask Jim if he ever wonders who you are.
 
 ## 🚀 Setup
 
@@ -241,6 +247,7 @@ python run.py                         # → http://127.0.0.1:8420   (passcode: z
 | `WAYNE_OPERATOR` | `bruce` | Who you play: an operator profile id or path (see [Making it yours](#-making-it-yours)). |
 | `ALFRED_OLLAMA_MODEL` | `gemma4:26b-a4b-it-qat` | The model everyone shares. |
 | `WAYNE_PASSCODE` | `zorro` | The lock screen's passcode. Theatre, not security. |
+| `BATCOMPUTER_VOICE_ID` | — | The console's own voice: unlocking, calls, the Batwing, cases, the scanner's worst. Every line is rendered once and kept as an mp3 in `data/_system_voice/`; `scripts/voice_lines.py` shows what's on disk and renders the rest. |
 | `WAYNE_WEB_PORT` | `8420` | The console's port. It only listens on `127.0.0.1`. |
 | `WAYNE_DATA_DIR` | `data/` | Where memory lives: the database (`wayne.db`) and the audio caches. Point it at a scratch folder to experiment. |
 | `WAYNE_MEMORY_KEY` | — | Encrypts memory at rest. `python run.py --new-key` prints one. Lose it and the memory is unreadable. |
@@ -312,7 +319,8 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 
 | | |
 |---|---|
-| [`presence.py`](wayne/engine/presence.py) | What each of them is doing, where, and with whom. One state drives the status dot, how fast they read, whether they answer, and what they're in the middle of when you call. |
+| [`presence.py`](wayne/engine/presence.py) | What each of them is doing, where, and with whom. One state drives the status dot, how fast they read, whether they can answer (in the garden, yes; mid-fight, no), and what they're in the middle of when you call. |
+| [`identity.py`](wayne/identity.py) | Who knows what about whom: everything, who you are, only the masks, or nothing. It sets what each one is told, what they call everyone, and what's kept out of a call or chat when someone outside the secret is on it. |
 | [`initiative.py`](wayne/engine/initiative.py) | The pass after every conversation: what they're off to do, promises to keep, whether they're worried about you, whether a case is closed. Also their morning plans and status lines. |
 | [`places.py`](wayne/engine/places.py) · [`gotham.json`](wayne/engine/gotham.json) | The gazetteer: where "the docks" or "home" actually is, beats to patrol, the shape of the city. |
 | [`diary.py`](wayne/engine/diary.py) | What each of them actually did today, written as it changes and never recomputed: what they're told about their own night, and whoever left them, reads from it. |
@@ -334,6 +342,7 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 - **Whisper's confident mistakes are caught.** Low-confidence audio is flagged to the contact, who asks rather than assumes.
 - **The voice can't hear itself.** Echo cancellation, a higher threshold while a reply plays, and a final check that discards a transcript matching what was just said aloud.
 - **Memory knows when.** Facts are dated and the conversation timestamped, so "it's been a while" means something.
+- **Careful around Jim.** On a call with him, the others hear a note that he's there and what he doesn't know, and a slip that gets through anyway ("Bruce", "Dad", someone's real name, "Babs") is caught and changed to the mask before it's said aloud or posted.
 - **They remember last week.** "What did I tell you about the Kord deal?" or "what were you up to on Tuesday night?" is looked up in what was said and what happened: a few lines of their own memory, never more than they'd know. Hearsay only counts once it reaches them, the group chat only as far as they've read, and nothing about the masks reaches Selina.
 - **If the voice fails**, the link degrades and they carry on in text. No stack traces.
 

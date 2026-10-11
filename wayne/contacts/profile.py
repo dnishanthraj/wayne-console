@@ -151,6 +151,26 @@ class Contact:
     beat: tuple = ()
     # Whether they see the family tracker as he does (Alfred in the cave, Oracle).
     sees_whereabouts: bool = False
+    # Who they are to someone who knows only the masks (see wayne.identity): their mask — "Nightwing" — or, for
+    # the ones with none, a cover: "a British voice on Batman's line".
+    mask: str = ""
+    cover: str = ""
+    # What the others call them besides their name — "Babs", "Timmy", "Dickiebird" — kept out of earshot of
+    # anyone who mustn't put a face to the mask, the same as their name.
+    nicknames: tuple = ()
+    # What to keep in mind when a particular person is on the call or in the chat, by their id — Barbara, with
+    # her father there: he doesn't know she's Batgirl.
+    around: dict = field(default_factory=dict)
+    # How they see the work, if not as the family does: "gcpd" — the scanner and the board as the police see
+    # them, every vigilante by their mask (Jim Gordon).
+    sees_work: str = ""
+    # When they ring him unasked because of the night: {"severity": 4, "chance": 0.6, "gap": 120} — Jim, when
+    # something big lands on GCPD's scanner and nobody's on it.
+    calls_in: dict = field(default_factory=dict)
+    # What the Batcomputer calls them: "Commissioner Gordon". Their full name if not given.
+    system_name: str = ""
+    # Whether they're on the family's location app at all — Jim isn't family, whatever he is.
+    family_app: bool = True
 
     @property
     def has_voice(self):
@@ -300,6 +320,14 @@ def _load_profile(path):
         pronoun=str(raw.get("pronoun", "they")),
         week=tuple(raw.get("week", [])),
         circle=tuple(raw.get("circle", [])),
+        mask=str(raw.get("mask", "")),
+        cover=str(raw.get("cover", "")),
+        nicknames=tuple(raw.get("nicknames", [])),
+        around=dict(raw.get("around", {})),
+        sees_work=str(raw.get("sees_work", "")),
+        calls_in=dict(raw.get("calls_in", {})),
+        system_name=str(raw.get("system_name", "")),
+        family_app=bool(raw.get("family_app", True)),
     )
 
 

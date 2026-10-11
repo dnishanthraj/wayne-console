@@ -75,6 +75,8 @@
   ],
   "full_name": "Dick Grayson",
   "role": "Nightwing",
+  "mask": "Nightwing",
+  "nicknames": ["Dickie", "Dickiebird", "Golden Boy", "Grayson"],
   "tagline": "The first Robin. Still the one everyone calls.",
   "accent": "#3E8EDB",
   "model": "gemma4:26b-a4b-it-qat",

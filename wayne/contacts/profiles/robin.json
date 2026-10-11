@@ -80,6 +80,8 @@
   ],
   "full_name": "Tim Drake",
   "role": "Robin",
+  "mask": "Robin",
+  "nicknames": ["Timmy", "Replacement", "Drake"],
   "tagline": "Worked it out at nine. Never stopped working.",
   "accent": "#4FB06D",
   "model": "gemma4:26b-a4b-it-qat",

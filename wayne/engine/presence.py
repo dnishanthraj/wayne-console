@@ -144,12 +144,17 @@ def together(presence, t=None):
     t = t or time.time()
     book = directory()
     everyone = {presence.contact.id: presence}
-    for contact in book:
+    # Who can be found together is the family and their circle on the app — not Jim, who keeps his own
+    # company and isn't on it (whoever's asked about him gets nobody).
+    members = [c for c in book if getattr(c, "family_app", True)]
+    if not getattr(presence.contact, "family_app", True):
+        members = []
+    for contact in members:
         if contact.id not in everyone:
             everyone[contact.id] = _registry.get(contact.id) or of(contact)
     # One order for everyone, whoever's asking: put first in their own list, Dick
     # and Tim each led the pair — Dick at home, Tim "in Blüdhaven", together.
-    ids = [c.id for c in book]
+    ids = [c.id for c in members]
     order = {cid: i for i, cid in enumerate(ids + ([presence.contact.id] if presence.contact.id not in ids else []))}
     seen, raw = {}, {}
 
@@ -1349,14 +1354,72 @@ _DO_NOT_DISTURB = re.compile(r"(?i)\b(do not disturb|dnd|don'?t call|no calls|no
                              r"asleep|sleeping|off the grid|offline)\b|💤|🔕|😴|🛌")
 
 
+# What they're doing, as far as a phone goes. Easy: hands busy, head free — the roses, the stove, the drive, the
+# walk, the stakeout with an earpiece in: "busy" on a status, but they'd pick up. Hard: they can't — mid-fight,
+# sparring, in surgery, on a stage, at a funeral, at the podium. Social: they could step away, and might not.
+_EASY = re.compile(
+    r"(?i)\b(tend\w*|garden\w*|roses|flowers|prun\w*|potting|cook\w*|bak\w*|kitchen|clean\w*|polish\w*|iron\w*|"
+    r"laundry|tidy\w*|dust\w*|walk\w*|stroll\w*|driv\w*|commut\w*|on the way|heading|en route|on (?:his|her|their) way|"
+    r"travel\w*|waiting|queue\w*|reading|read\b|watching|tv|telly|film|movie|listening|crossword|tinker\w*|fixing|"
+    r"repair\w*|errand\w*|shopping|groceries|feeding|coffee|tea\b|breakfast|snack\w*|at home|home\b|lounging|"
+    r"patrol\w*|on watch|stake ?out|staking|surveillance|lookout|rooftop\w*|perched|working late|paperwork|"
+    r"office|desk|bench|workshop|garage|lab\b)\b")
+_HARD = re.compile(
+    r"(?i)\b(in the thick|fight\w*|brawl\w*|sparr\w*|training|workout|gym|boxing|surgery|operating|in court|"
+    r"testif\w*|on stage|perform\w*|press conference|press briefing|exam\b|lectur\w*|teaching|in class|funeral|"
+    r"memorial|church|mass\b|interrogat\w*|shower\w*|bath\b|swimming|diving|on a flight|flying)\b")
+_SOCIAL = re.compile(
+    r"(?i)\b(dinner with|lunch with|brunch with|drinks with|a drink with|coffee with|date\b|party|gala|reception|"
+    r"meeting|board|interview|with friends|bowling|karaoke|sunday dinner|movie night|game night)\b")
+
+
+def reach(contact, state):
+    """
+    Whether they could answer at all right now — 0 to 1 — and which kind of not
+    if they don't: ("ring" — the phone was out of reach, it rang out; "decline" —
+    they saw it and couldn't step away). From what they're actually doing, the
+    case they're on above all: on the way there, or wrapping up, they'll talk; in
+    the thick of a fight they won't; just arrived, sizing it up, maybe.
+    """
+    try:
+        from . import cases
+        case = cases.active(contact.id)
+    except Exception:
+        case = None
+    if case is not None:
+        key, _how = cases.phase(case)
+        mine = (case.get("members") or {}).get(contact.id) or {}
+        if key == "en route" or mine.get("status") == "assigned":
+            return 0.95, "ring"
+        violent = any(w in case["kind"].lower() for w in cases._VIOLENT)
+        return {"arriving": (0.55, "decline"), "in it": ((0.08, "ring") if violent else (0.6, "decline")),
+                "gone wrong": (0.25, "ring"), "wrapping up": (0.9, "decline")}.get(key, (0.7, "decline"))
+    doing = state.get("doing") or ""
+    if _HARD.search(doing):
+        return 0.15, "ring"
+    if _SOCIAL.search(doing):
+        return 0.6, "decline"
+    return 1.0, "decline"
+
+
 def answers(contact, state, again=False, rng=random):
     """
     Whether they pick up: None if they do, else "declined" (they saw it and
     rejected it) or "no_answer" (it rang out). `again` is a second call hard
     on the heels of the first, which reads as urgent — people answer those.
+
+    Two questions, as with anyone: could they (see reach — the roses, the drive
+    there, the fight they're in), and would they (their own odds by how they
+    are, in their profile — Randy mostly doesn't). Busy at something that
+    leaves the hands busy and the head free is free time, as far as a phone goes.
     """
     odds = {**_ANSWERS, **(contact.initiative or {}).get("answers", {})}
-    chance = odds.get(state["status"], 0.9)
+    status = state["status"]
+    doing = state.get("doing") or ""
+    if status == BUSY and _EASY.search(doing) and not _HARD.search(doing) and not _SOCIAL.search(doing):
+        status = IDLE
+    could, otherwise = reach(contact, state) if status != OFFLINE else (1.0, "ring")
+    chance = odds.get(status, 0.9) * could
     # They said so on their status — "do not disturb", 💤 — and mean it: the
     # first call mostly goes unanswered. A second one soon after gets through,
     # as phones let repeated calls through a do-not-disturb.
@@ -1364,15 +1427,16 @@ def answers(contact, state, again=False, rng=random):
         chance *= 0.35
     # Each call hard on the heels of the last cuts the chance of ignoring it —
     # by how much is theirs (`redial`): Alfred picks up the second time almost
-    # surely; Randy, who doesn't answer, mostly still doesn't.
+    # surely; Randy, who doesn't answer, mostly still doesn't. Not through a
+    # fight, though: a phone ringing in a pocket mid-punch stays ringing.
     tries = int(again)
-    if tries:
+    if tries and could > 0.2:
         chance = 1 - (1 - chance) / ((contact.initiative or {}).get("redial", 3.0) ** tries)
     if rng.random() < chance:
         return None
-    if state["status"] == OFFLINE:
-        return "no_answer"          # the phone was nowhere near them
-    if state["status"] == BUSY:
+    if state["status"] == OFFLINE or otherwise == "ring":
+        return "no_answer"          # the phone was nowhere near them, or they couldn't get to it
+    if state["status"] == BUSY or could < 1.0:
         return "declined" if rng.random() < 0.8 else "no_answer"
     return "declined" if rng.random() < 0.5 else "no_answer"
 

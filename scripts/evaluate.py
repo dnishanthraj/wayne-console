@@ -88,6 +88,7 @@ _scratch_world()
 import ollama  # noqa: E402
 
 from wayne import delivery  # noqa: E402
+from wayne import identity as wayne_identity  # noqa: E402
 from wayne import operator as operator_profile  # noqa: E402
 from wayne.contacts import directory  # noqa: E402
 from wayne.engine import (  # noqa: E402
@@ -137,7 +138,7 @@ SHARED_CALL = [
 _LEVEL_WORDS = {"word": 4, "line": 14, "few": 34, "long": 70}
 
 JUDGE_PROMPT = """You are marking how well a character is played in a roleplay set in Gotham.
-The user plays Bruce Wayne. The character is {who}.
+The user plays {player}. The character is {who}.
 This is {channel}. Mark only what {name} says.
 
 How {name} talks: {voice}
@@ -211,6 +212,8 @@ def load_scenarios(contact, tier):
             continue
         if s.get("unless") == "search" and contact.can_search:
             continue
+        if s.get("knows") == "him" and not wayne_identity.knows_him(contact.id):
+            continue            # his family, his car, his Sunday dinner: nothing to someone who knows only Batman
         if tier == "quick" and not s.get("core"):
             continue
         fitted.append(s)
@@ -456,11 +459,8 @@ _MASKS = r"\b(nightwing|red hood|robin|batgirl|batwing|orphan|oracle)\b"
 
 
 def mask_blind(contact_id):
-    """Whether this contact isn't told who's under the masks (operators/bruce.json)."""
-    facts = [f for f in operator_profile.profile().get("world", [])
-             if "under the masks" in f.get("text", "").lower()]
-    return bool(facts) and all(f.get("known_by", "*") != "*" and contact_id not in f["known_by"]
-                               for f in facts)
+    """Whether this contact isn't told who's under the masks (see wayne.identity)."""
+    return not wayne_identity.knows_faces(contact_id)
 
 
 def leaks_mask(text):
@@ -624,10 +624,18 @@ def _framing(channel):
 
 
 def _transcript(contact, turns, label=None):
-    name = (label or contact.name).upper()
+    name, him = (label or contact.name).upper(), wayne_identity.name_for(contact.id).upper()
     return "\n".join(
-        f"BRUCE: {t['him'] if t['him'] not in (SILENCE, HANG_UP) else '(silence)'}\n"
+        f"{him}: {t['him'] if t['him'] not in (SILENCE, HANG_UP) else '(silence)'}\n"
         f"{name}: {delivery.clean(t['alfred'])}" for t in turns)
+
+
+def _player(contact):
+    """Who the user is to this character: Bruce Wayne — or, to Jim, only Batman (see wayne.identity)."""
+    if wayne_identity.level(contact.id) == "masks":
+        return (f"Batman — to {contact.name}, only Batman: {contact.name} doesn't know who he is under the cowl, and "
+                "naming him, guessing at it, or calling him Bruce is a failure of the part")
+    return "Bruce Wayne"
 
 
 def _address(contact):
@@ -656,6 +664,7 @@ def judge(model, contact, scenario, turns):
             options={**contact.options, "temperature": 0},
             messages=[{"role": "system", "content": JUDGE_PROMPT.format(
                 good=scenario["good"], name=contact.name, channel=channel, medium=medium,
+                player=_player(contact),
                 length_rule=length_rule, voice=_voice(contact, scenario.get("channel")),
                 address=_address(contact),
                 facts=FACTS_BRIEF.format(name=contact.name, facts=facts) if facts else "",
@@ -1076,7 +1085,8 @@ def report(name, contacts, per_contact, cast=None, voices=None):
             for t in r["turns"]:
                 him = "*(silence)*" if t["him"] == SILENCE else "*(still nothing)*" if t["him"] == HANG_UP else t["him"]
                 timing = "search" if t["searched"] else f"{t['first_s']:.2f}s" if t["first_s"] else "—"
-                lines += [f"- **bruce:** {him}", f"- **{c.name.lower()}** ({timing}): {t['alfred']}"]
+                lines += [f"- **{wayne_identity.name_for(c.id).lower()}:** {him}",
+                          f"- **{c.name.lower()}** ({timing}): {t['alfred']}"]
                 if t.get("culture"):
                     lines.append("  - *(culture feed in play)*")
                 if t.get("found"):

@@ -62,9 +62,14 @@ _THE_WORK = re.compile(
 
 
 def _crosses_secret(text, contact_id):
-    secrets = operator.profile().get("secrets", {})
-    if not secrets.get("known_by") or contact_id in secrets.get("known_by", []):
+    """
+    Whether news would tell this contact more than they know (see wayne.identity): anything of the work, or a
+    word of the secret's, to anyone who doesn't know everything. `contact_id` None: as if to someone outside.
+    """
+    from .. import identity
+    if contact_id is not None and not identity.outside(contact_id):
         return False
+    secrets = operator.profile().get("secrets", {})
     return (any(re.search(rf"\b{re.escape(t)}\b", text, re.I) for t in secrets.get("terms", []))
             or bool(_THE_WORK.search(text)))
 
@@ -95,29 +100,34 @@ def _line(session, message):
     """
     One line of the transcript, said by whoever said it: on a group call his side holds everyone else's
     labelled lines too, and every one of them went down as his — "Bruce said…" hearsay in Tim's words.
+    His name is the one this contact knows him by: Batman, to Jim.
     """
+    cid = session.contact.id
     if message["role"] != "user":
         return f"{session.contact.name}: {message['content']}"
+    him = {operator.full_name(), operator.name(), operator.full_name(cid), operator.name(cid)}
     lines = []
     for part in message["content"].splitlines():
         labelled = re.match(r"^\(?([A-Z][\w.'-]*(?:\s[A-Z][\w.'-]*){0,2})\)?:\s*(.*)$", part.strip())
-        if labelled and labelled.group(1) not in (operator.full_name(), operator.name()):
+        if labelled and labelled.group(1) not in him:
             lines.append(f"{labelled.group(1)}: {labelled.group(2)}")
         else:
-            lines.append(f"{operator.name()}: {labelled.group(2) if labelled else part}")
+            lines.append(f"{operator.name(cid)}: {labelled.group(2) if labelled else part}")
     return "\n".join(lines)
 
 
 def _notable(session, exchanges):
     """One model pass: what from this call might be passed on. [] if nothing."""
     transcript = "\n".join(_line(session, m) for m in exchanges)
+    cid = session.contact.id
+    him = operator.name(cid)            # as this contact knows him: what they'd pass on is "Batman said…", from Jim
     instruction = (
-        f"Here is a conversation between {operator.full_name()} and {session.contact.full_name}.\n\n"
+        f"Here is a conversation between {operator.full_name(cid)} and {session.contact.full_name}.\n\n"
         f"{transcript}\n\n"
-        f"List at most two notable things {operator.name()} said or that happened in it that "
+        f"List at most two notable things {him} said or that happened in it that "
         f"{session.contact.name} might later mention to someone close to them. Only what was actually "
-        f"said. Leave out anything {operator.name()} asked to keep private or quiet. Write each as a "
-        f"short line beginning with '{operator.name()}'. If nothing is worth passing on, write NONE.")
+        f"said. Leave out anything {him} asked to keep private or quiet. Write each as a "
+        f"short line beginning with '{him}'. If nothing is worth passing on, write NONE.")
     try:
         reply = model.ask(session.contact.model, [{"role": "user", "content": instruction}],
                           {**session.contact.options, "temperature": 0, "num_predict": 120},
@@ -127,7 +137,7 @@ def _notable(session, exchanges):
     if re.search(r"\bNONE\b", reply):
         return []
     lines = [re.sub(r"^[\s\-*•\d.]+", "", line).strip() for line in reply.splitlines()]
-    return [line for line in lines if line.startswith(operator.name())][:2]
+    return [line for line in lines if line.startswith(him)][:2]
 
 
 def note_call(session, contacts, start_index, present=()):

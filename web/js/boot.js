@@ -25,6 +25,8 @@
   var el = {};
   var onAuthenticated = null;
   var ran = false;
+  var wired = false;           // listeners once, ever — every lock used to add another set, and one Enter unlocked twice
+  var clockTimer = null;
 
   // Wrong attempts before the gate stops accepting any, and how long it stops
   // for. Escalating, because a second run of three wrong guesses is a different
@@ -42,11 +44,16 @@
   var lockouts = 0;
   var lockedUntil = 0;
   var lockTimer = null;
+  var checking = false;
 
   function isLocked() { return Date.now() < lockedUntil; }
 
   function delay(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function say(event) {
+    try { if (global.ConsoleSystem) global.ConsoleSystem.say(event); } catch (err) { /* no voice: silence */ }
   }
 
   function addLine(label, value, ok) {
@@ -80,15 +87,28 @@
     if (tone) { el.msg.dataset.tone = tone; } else { delete el.msg.dataset.tone; }
   }
 
+  /* The time and the day, big and quiet above the aperture — and the greeting the hour calls for. */
+  function tickClock() {
+    if (!el.clock) return;
+    var now = new Date();
+    var hh = String(now.getHours()).padStart(2, '0'), mm = String(now.getMinutes()).padStart(2, '0');
+    el.clock.querySelector('b').textContent = hh + ':' + mm;
+    var hour = now.getHours();
+    var greeting = hour < 5 ? 'Still up' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    el.clock.querySelector('span').textContent = greeting + ' · ' +
+      now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
   function grant() {
     attempts = 0;
     lockouts = 0;
     el.gate.dataset.auth = 'granted';
-    message('Access granted', 'good');
+    message('Passcode accepted', 'good');
     tone('granted');
     return delay(760).then(function () {
       el.gate.setAttribute('hidden', '');
       document.documentElement.dataset.phase = 'live';
+      clearInterval(clockTimer);
       if (onAuthenticated) onAuthenticated();
       // Only once the gate has finished fading. Clearing it here — as this used
       // to, in the same tick as hiding — dropped the granted styles instantly,
@@ -101,9 +121,9 @@
   /**
    * Play one of the gate's tones, if the audio context will have us.
    *
-   * Everything here runs inside a form submit, which is the gesture browsers
-   * want before an AudioContext will start — but the context may still be
-   * suspended on the first attempt, so it is resumed rather than assumed. A
+   * Everything here runs inside a form submit or a press, which is the gesture
+   * browsers want before an AudioContext will start — but the context may still
+   * be suspended on the first attempt, so it is resumed rather than assumed. A
    * silent failure is correct: no sound is a worse console, not a broken one.
    */
   function tone(name) {
@@ -127,9 +147,9 @@
       return;
     }
     var left = MAX_ATTEMPTS - attempts;
-    message('Access denied — ' + left + ' attempt' + (left === 1 ? '' : 's') +
-            ' remaining', 'bad');
+    message('Access denied — ' + left + ' attempt' + (left === 1 ? '' : 's') + ' left', 'bad');
     tone('denied');
+    say('denied');
     el.input.focus();
   }
 
@@ -140,6 +160,7 @@
     el.gate.dataset.auth = 'locked';
     el.input.disabled = true;
     tone('lockedOut');
+    say('lockout');
 
     clearInterval(lockTimer);
     lockTimer = setInterval(function () {
@@ -159,33 +180,45 @@
     message('Terminal locked — ' + Math.round(span / 1000) + 's', 'bad');
   }
 
-  function submit(event) {
-    event.preventDefault();
-    if (isLocked()) return;
-    var code = el.input.value;
-    if (!code) return;
-
+  function check(request) {
+    checking = true;
     el.gate.dataset.auth = 'checking';
     message('Verifying…');
-
     // A beat of deliberate latency: an instant answer reads as a text
     // comparison, which is exactly what it is.
-    Promise.all([
-      fetch('/api/unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode: code })
-      }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }),
+    return Promise.all([
+      request.then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }),
       delay(620)
     ]).then(function (results) {
-      if (results[0].ok) {
+      checking = false;
+      var answer = results[0];
+      if (answer.ok) {
         // Never wait on audio forever: a browser that won't start it without
         // a gesture leaves the promise pending, and the gate with it.
-        Promise.race([global.ConsoleAudio.resume(), delay(900)]).then(grant, grant);
+        var go = function () { return grant(); };
+        Promise.race([global.ConsoleAudio.resume(), delay(900)]).then(go, go);
       } else {
         deny();
       }
     });
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    if (isLocked() || checking) return;
+    var code = el.input.value;
+    if (!code) return;
+    check(fetch('/api/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: code })
+    }));
+  }
+
+  function wire() {
+    if (wired) return;
+    wired = true;
+    el.auth.addEventListener('submit', submit);
   }
 
   function start(options) {
@@ -194,9 +227,12 @@
     el.auth = document.getElementById('auth');
     el.input = document.getElementById('passcode');
     el.msg = document.getElementById('auth-msg');
+    el.clock = document.getElementById('gate-clock');
     onAuthenticated = options.onAuthenticated;
-
-    el.auth.addEventListener('submit', submit);
+    wire();
+    tickClock();
+    clearInterval(clockTimer);
+    clockTimer = setInterval(tickClock, 1000);
 
     if (ran) return;
     ran = true;

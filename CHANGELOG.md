@@ -5,6 +5,70 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-11
+
+### Added
+
+- **Jim Gordon.** The Commissioner is a contact you can call and text
+  (`GORDON_VOICE_ID`). He has worked with Batman for years, is Barbara's
+  father, and has never asked who he is: he calls you Batman, and once
+  turned down the chance to see under the cowl. He sees the city the way
+  GCPD does (the scanner, which masks were on which scene, what's closed,
+  which rogues are loose) and never a face. He's off the family tracker and
+  the map's roster. When the scanner has a major call or a breakout with
+  nobody on it, he may ring you first.
+- **What each of them knows.** Everyone has a level: everything, who you
+  are, only the masks, or nothing. Alfred and the family know everything,
+  Selina knows who you are and nobody else's mask, Jim knows only the masks.
+  The level sets what each one is told about you, what they call you and
+  everyone else ("Batman", "Batgirl"), and what reaches them as hearsay or
+  memory. It's set in the Codex (*What they know*) and can change as the
+  story does.
+- **Careful in company.** On a group call or in a group chat with Jim, the
+  others are told he's there and what he doesn't know. Everyone's names are
+  shown and said to him as masks, and tags in the chat are masks too
+  (@Batgirl). A slip that gets through anyway ("Bruce", "Dad", a real name, a
+  nickname like "Babs") is caught and turned into the mask before it's voiced
+  or posted.
+- **The Batcomputer says more.** It now speaks when a contact is calling,
+  declines or doesn't pick up; when the Batwing is summoned, holding
+  overhead, on another job, going home or lifting someone; when a route is
+  set or you've arrived; when a case is taken, reached, goes wrong or
+  someone's hurt; on a major call or a breakout; when secure mail or the
+  night report comes in; and when the link drops and comes back. It never
+  talks over a call or a ring, and leaves a gap between lines.
+- **Every line kept as an mp3.** Each line is rendered once and kept in
+  `data/_system_voice/<voice>/<moment>/<the line>.mp3`, readable as files.
+  Everything it could say about everyone in the directory is rendered in the
+  background at start, so nothing waits on the network or is paid for twice.
+  Clips kept under the old hashed names are moved, not re-rendered.
+  `scripts/voice_lines.py` shows what's on disk and renders or prunes the
+  rest.
+- A new eval set for Jim (`eval/scenarios/gordon.json`). The judge is told
+  who the user is to each character, so naming Batman to Jim is marked as a
+  failure.
+
+### Changed
+
+- **Picking up is realistic.** Whether someone answers depends on what
+  they're doing, not only on a busy flag. Alfred tending the roses, or anyone
+  cooking or running errands, picks up. On the way to a case they nearly
+  always do, at the scene sometimes, mid-fight rarely, and wrapping up
+  usually. Training, surgery or a meeting means probably not.
+- **The lock screen.** A clock and a greeting over the passcode. Typing the
+  passcode is no longer greeted as a "voice print": nothing on the lock
+  screen claims to have heard your voice.
+
+### Fixed
+
+- One Enter on the lock screen could unlock twice after locking and
+  unlocking, because each lock added another set of listeners.
+- The map's side panel no longer narrows when you switch from People to
+  Scanner.
+- The eval no longer labels the user "Bruce" to a contact who knows only
+  Batman, and skips the scenarios that need him to be Bruce (Sunday dinner,
+  his father's car).
+
 ## [0.12.0] - 2026-10-11
 
 ### Changed

@@ -284,7 +284,9 @@ def _pick(candidates, linked, viewer, watcher, outsider, guarded, window, now, s
         # Their own conversation they were part of, and what the whole city knows, they know; anything else — or
         # anything at all with an outsider listening — is checked against the secret.
         public = kind == index.EVENT and item["event"]["scope"] == events.PUBLIC and not item["event"]["secret"]
-        if outsider and not public and (item["kind"] != "said" or guarded) and _secret(item["text"], viewer, guarded):
+        own = kind == index.EVENT and item["event"]["actor"] == viewer          # their own day: they lived it
+        if (outsider and not public and not (own and not guarded) and (item["kind"] != "said" or guarded)
+                and _secret(item["text"], viewer, guarded)):
             continue
         recency = math.exp(-max(0.0, now - item["at"]) / _HALF_LIFE.get(item["kind"], 5 * 86400))
         timely = 1.0 if window and window[0] <= item["at"] < window[1] else 0.0
@@ -319,7 +321,7 @@ def _secret(text, viewer, guarded):
     """Whether a line touches the masks for this listener (an insider, guarded, is checked as an outsider would be)."""
     from ..engine import grapevine
     if guarded:
-        return bool(grapevine._THE_WORK.search(text)) or grapevine._crosses_secret(text, "__outside__")
+        return grapevine._crosses_secret(text, None)
     return grapevine._crosses_secret(text, viewer)
 
 
@@ -344,6 +346,7 @@ def _render(chosen, viewer, now, budget):
     from ..contacts import directory
     from ..operator import name as operator_name
     book = directory()
+    him = operator_name(viewer)         # as they know him: Batman, to Jim
     lines, used = [], 0
     for item in chosen:
         text = " ".join(item["text"].split())
@@ -354,13 +357,13 @@ def _render(chosen, viewer, now, budget):
             if ask:
                 words = " ".join(ask["text"].split())
                 parts.append(f"on a call: \"{_clip(words, 22)}\"" if _LABELLED.match(words)       # everyone's lines
-                             else f"{operator_name()} said{by}: \"{_clip(words, 22)}\"")
+                             else f"{him} said{by}: \"{_clip(words, 22)}\"")
             if answer:
                 parts.append(f"you said{by if not ask else ''}: \"{_clip(' '.join(answer['text'].split()), 22)}\"")
             text = " — ".join(parts)
         elif item["kind"] == "message":
             sender = item["message"].get("from")
-            who = "you" if sender == viewer else operator_name() if sender == "me" else \
+            who = "you" if sender == viewer else him if sender == "me" else \
                 (book.get(sender).name if book.get(sender) else "someone")
             text = f"in {item['message']['group']}, {who} wrote: \"{_clip(text, 30)}\""
         elif item["kind"] == "hearsay":

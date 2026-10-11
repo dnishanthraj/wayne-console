@@ -14,6 +14,8 @@
   <div class="gate" id="gate">
     <div class="gate__inner">
 
+      <p class="gate__clock" id="gate-clock" aria-hidden="true"><b></b><span></span></p>
+
       <svg class="mark" id="mark" viewBox="0 0 120 120" width="118" height="118" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-linecap="round">
           <circle class="mark__ring mark__ring--1" cx="60" cy="60" r="52" stroke-width="1"
@@ -35,7 +37,7 @@
         <input class="auth__input" id="passcode" type="password" autocomplete="off"
                spellcheck="false" placeholder="············">
         <button class="auth__btn" type="submit">Authenticate</button>
-        <p class="auth__msg" id="auth-msg"></p>
+        <p class="auth__msg" id="auth-msg" role="status"></p>
       </form>
 
     </div>

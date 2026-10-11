@@ -39,17 +39,36 @@ def profile():
         return json.loads((OPERATORS_DIR / "bruce.json").read_text())
 
 
-def name():
+def name(contact_id=None):
+    """His name — as this contact knows him, if one's given: Batman to someone who knows only the mask."""
+    if contact_id:
+        from . import identity
+        return identity.name_for(contact_id)
     return profile().get("name") or config.USER_NAME
 
 
-def full_name():
+def full_name(contact_id=None):
+    if contact_id:
+        from . import identity
+        return identity.full_name_for(contact_id)
     return profile().get("full_name") or name()
 
 
-def _knows(fact, contact_id):
+def mask_name():
+    """Who he is in the dark — Batman — to the ones who know him only that way."""
+    return profile().get("mask") or name()
+
+
+def _knows(fact, contact_id, level):
+    """
+    Whether a fact reaches this contact: '*' for everyone, or a list (or one) of
+    contact ids and knowledge levels — 'all', 'his', 'masks', 'none' (see wayne.identity).
+    """
     known = fact.get("known_by", "*")
-    return known == "*" or contact_id in known
+    if known == "*":
+        return True
+    known = [known] if isinstance(known, str) else known
+    return contact_id in known or level in known
 
 
 def roleplay():
@@ -61,17 +80,27 @@ def roleplay():
 
 
 def briefing(contact_id):
-    """Who he is, what this contact calls him, and what this contact knows."""
+    """
+    Who he is, what this contact calls him, and what this contact knows — by
+    how they know him (wayne.identity): to Jim, Batman and nothing more.
+    """
+    from . import identity
     p = profile()
-    lines = [f"=== WHO HE IS ===\n{p.get('intro', '')}".strip()]
-    address = p.get("address", {}).get(contact_id) or p.get("default_address")
+    level = identity.level(contact_id)
+    intro = (p.get("intros") or {}).get(level) or p.get("intro", "")
+    lines = [f"=== WHO HE IS ===\n{intro}".strip()]
+    address = p.get("address", {}).get(contact_id) or (p.get("default_addresses") or {}).get(level) \
+        or p.get("default_address")
     if address:
         lines.append(f"What you call him: {address}")
-    facts = [f["text"] for f in p.get("world", []) if _knows(f, contact_id)]
+    facts = [f["text"] for f in p.get("world", []) if _knows(f, contact_id, level)]
     if facts:
         lines.append("What you know — background, not material: don't recite it, raise it "
                      "only when it matters, and never claim more than this:\n"
                      + "\n".join(f"- {fact}" for fact in facts))
+    others = identity.who_doesnt_know(contact_id)
+    if others:
+        lines.append(others)
     return "\n\n".join(lines)
 
 

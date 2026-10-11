@@ -358,8 +358,11 @@ def phase_of_him(case, now=None):
     return how
 
 
-def brief(contact_id, now=None):
-    """What they're working, or just finished, as a line for the model."""
+def brief(contact_id, now=None, masks=False):
+    """
+    What they're working, or just finished, as a line for the model. `masks`: with someone listening who
+    knows only the masks (Jim, on the line) — everyone on it by their mask, and nothing of where he is.
+    """
     now = now or time.time()
     case = active(contact_id)
     if case:
@@ -372,13 +375,20 @@ def brief(contact_id, now=None):
             how = f"on your way to join them, about {left} minute{'s' if left != 1 else ''} out"
         from ..contacts import directory
         book = directory()
-        others = [book.get(c).name if book.get(c) else "Bruce — Batman himself" if c == "bruce" else c
-                  for c in team(case) if c != contact_id]
+        from .. import identity, operator
+        if masks:
+            others = [operator.mask_name() if c == "bruce" else identity.mask_of(book.get(c))
+                      for c in team(case) if c != contact_id]
+        else:
+            others = [book.get(c).name if book.get(c) else "Bruce — Batman himself" if c == "bruce" else c
+                      for c in team(case) if c != contact_id]
         from . import batman, outcomes
         bring = " and ".join(outcomes.strengths(contact_id, case["kind"]))
         lacking = outcomes.weakest(contact_id, case["kind"])
         if "bruce" in team(case):
             him = ""
+        elif masks:
+            him = " He isn't on this one."
         else:
             # Never told, they took it he was out there with them: "you're late", "get out of there".
             bruce = batman.state(now)

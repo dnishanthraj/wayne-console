@@ -1102,11 +1102,12 @@
 
   function mentionTarget(name, ids, group) {
     name = name.toLowerCase();
-    if (name === 'bruce' || name === 'me') return 'me';
+    // "@Batman" and "@Batgirl" too: with Jim in the chat, everyone's tagged by their mask.
+    if (name === 'bruce' || name === 'batman' || name === 'me') return 'me';
     if (group && name === 'everyone') return 'all';
     for (var i = 0; i < (ids || []).length; i++) {
       var c = state.contacts[ids[i]];
-      if (c && (c.name.toLowerCase() === name || c.id === name)) return c.id;
+      if (c && (c.name.toLowerCase() === name || c.id === name || (c.mask || '').toLowerCase() === name)) return c.id;
     }
     return null;
   }
@@ -1133,7 +1134,7 @@
 
   /* A tag on him — "@Bruce", or "@everyone" in a group: a ping, not a mention in passing. */
   function pingsMe(text, group) {
-    return new RegExp('(^|[^\\w@])@(bruce' + (group ? '|everyone' : '') + ')\\b', 'i').test(text || '');
+    return new RegExp('(^|[^\\w@])@(bruce|batman' + (group ? '|everyone' : '') + ')\\b', 'i').test(text || '');
   }
 
   /* Typing "@" in the box: who can be tagged here, to pick from. */
@@ -2979,6 +2980,12 @@
 
       case 'case_closed':
         notifyCase(event);
+        sayAmbient('case_closed');
+        break;
+
+      case 'system':
+        // A moment for the Batcomputer to say: the Batwing overhead, Robin on scene, the scanner's worst.
+        sayAmbient(event.event, event.contact);
         break;
 
       case 'mail':
@@ -2986,6 +2993,9 @@
         setMailCount(event.unread || 0);
         if (window.Mail) Mail.refresh();
         if (event.message && event.message.folder !== 'spam' && !(window.Mail && Mail.isOpen())) notifyMail(event.message);
+        if (event.message && event.message.folder === 'secure') {
+          sayAmbient(event.message.kind === 'report' ? 'night_report' : 'mail_secure');
+        }
         break;
 
       case 'room':
@@ -3058,6 +3068,8 @@
     var reconnecting = !!state.socket;
     state.socket = new WebSocket(proto + '//' + location.host + '/ws');
     state.socket.onopen = function () {
+      state.socketOpenedAt = Date.now();
+      if (state.linkLost) { state.linkLost = false; sayAmbient('link_back'); }
       // Back after a drop: whatever call or ring was up is gone server-side
       // or will be ended — reset rather than sit on a line that isn't there.
       if (!reconnecting) return;
@@ -3074,6 +3086,13 @@
       try { handle(JSON.parse(message.data)); } catch (e) { /* malformed frame */ }
     };
     state.socket.onclose = function () {
+      // A drop after the line had been up a while (not a page still loading): the Batcomputer says so —
+      // from the clip it kept, since the server it would ask is the thing that's gone.
+      if (!state.linkLost && state.socketOpenedAt && Date.now() - state.socketOpenedAt > 5000
+          && document.documentElement.dataset.phase === 'live') {
+        state.linkLost = true;
+        ConsoleSystem.sayKept('link_lost');
+      }
       setState('idle');
       clearTimeout(state.reconnectTimer);
       state.reconnectTimer = setTimeout(connectSocket, 1500);
@@ -3794,11 +3813,42 @@
     });
   }
 
+  /* --- the Batcomputer, unasked ----------------------------------------------
+     Its moments that nobody pressed a button for — the Batwing overhead, Robin
+     on scene, a priority call — spoken only when they won't talk over anyone
+     (never on a call, never while one rings), a few seconds apart, and the same
+     thing not again too soon. One waiting at most; the rest are on the toasts. */
+  var ambient = { last: 0, per: {}, waiting: null, timer: null };
+  var AMBIENT_GAP = 6000;
+  var AMBIENT_COOLDOWN = { scanner_major: 10 * 60000, breakout: 10 * 60000, mail_secure: 2 * 60000,
+                           night_report: 60 * 60000, case_closed: 20000, link_lost: 30000, link_back: 30000 };
+
+  function sayAmbient(name, contactId) {
+    if (!name || document.documentElement.dataset.phase !== 'live') return;
+    if (state.connectedId || state.incomingId || state.ringingId) return;
+    var now = Date.now(), key = name + ':' + (contactId || '');
+    if (now - (ambient.per[key] || 0) < (AMBIENT_COOLDOWN[name] || 15000)) return;
+    if (now - ambient.last < AMBIENT_GAP) {
+      ambient.waiting = [name, contactId];
+      clearTimeout(ambient.timer);
+      ambient.timer = setTimeout(function () {
+        var next = ambient.waiting;
+        ambient.waiting = null;
+        if (next) sayAmbient(next[0], next[1]);
+      }, AMBIENT_GAP - (now - ambient.last) + 50);
+      return;
+    }
+    ambient.last = now;
+    ambient.per[key] = now;
+    ConsoleSystem.say(name, contactId);
+  }
+
   function startBoot() {
     ConsoleBoot.start({
       contactCount: state.order.length,
       onAuthenticated: function () {
         ConsoleSystem.say('unlock');
+        ConsoleSystem.keep('link_lost');
         el.input.focus();
         if (!state.socket || state.socket.readyState > WebSocket.OPEN) connectSocket();
       }

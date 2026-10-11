@@ -69,6 +69,8 @@
   ],
   "full_name": "Cassandra Cain",
   "role": "Orphan",
+  "mask": "Orphan",
+  "nicknames": ["Cass", "Cassie"],
   "tagline": "Reads everyone. Says little. Means all of it.",
   "accent": "#9AA5B8",
   "model": "gemma4:26b-a4b-it-qat",

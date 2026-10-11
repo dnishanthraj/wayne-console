@@ -20,7 +20,7 @@ import random
 import re
 import time
 
-from .. import operator
+from .. import identity, operator
 from ..memory import groups as store
 from ..memory import texts
 
@@ -37,8 +37,15 @@ QUIET = 0.15
 RECENT = 3 * 86400
 
 
-def names(directory):
+def names(directory, viewer=None):
+    """
+    Who sent what, as `viewer` knows them (see wayne.identity) — to Jim, Batgirl
+    and Batman — or, with no viewer, by name.
+    """
+
     def name(sender):
+        if viewer is not None:
+            return identity.label(sender, viewer)
         if sender == "me":
             return operator.name()
         contact = directory.get(sender)
@@ -94,6 +101,8 @@ def relations(contact, group, directory):
         other = directory.get(member)
         if other is None or other.id == contact.id:
             continue
+        if identity.label(other.id, contact.id) != other.name:
+            continue        # known to them only by a mask: what they'd say of the person underneath stays unsaid
         about = [s for s in sentences if re.match(rf"^\W*{re.escape(other.name)}\b", s)
                  or f" {other.name}:" in f" {s}"]
         if about:
@@ -104,34 +113,23 @@ def relations(contact, group, directory):
 
 
 def insiders():
-    """Who knows about the masks (the operator profile says), or an empty set if nobody's told."""
-    return set((operator.profile().get("secrets") or {}).get("known_by") or [])
+    """Who knows everything — he's Batman, and who's under every mask (see wayne.identity)."""
+    from ..contacts import directory
+    return identity.insiders(directory())
 
 
 def outside(contact_id):
-    """Someone who doesn't know about the masks — when anyone is meant not to."""
-    known = insiders()
-    return bool(known) and contact_id not in known
+    """Someone the secret's still partly kept from — Selina, who knows only him; Jim, who knows only the masks."""
+    return identity.outside(contact_id)
 
 
 def secrets_note(group, contact_id):
     """
-    Who in this group doesn't know about the masks — so nobody gives anyone
-    away. Selina in a chat with the family is told nothing, and the family are
-    told she's there.
+    Who in this group knows less than this contact, and how to talk with them
+    there (see wayne.identity.guard_note): real names only with Selina in it,
+    masks only — and Batman, never Bruce — with Jim in it.
     """
-    from ..contacts import directory
-    known = insiders()
-    if not known or contact_id not in known:
-        return ""
-    outsiders = [m for m in group.members if m not in known]
-    if not outsiders:
-        return ""
-    book = directory()
-    who = ", ".join(book.get(m).name if book.get(m) else m for m in outsiders)
-    return (f"Not everyone in this chat knows about the masks ({who} doesn't). In front of {who}: "
-            "no patrols, cases, villains, suits, gear, the cave, or who anyone really is — only what "
-            "a family and its friends would say. Real names only.")
+    return identity.guard_note(contact_id, [m for m in group.members if m != contact_id], where="chat")
 
 
 _WORD = re.compile(r"[a-z][a-z']{4,}")
@@ -162,7 +160,7 @@ def block(contact_id, directory, now=None, prompt=None):
     calls about something else entirely.
     """
     now = now or time.time()
-    name = names(directory)
+    name = names(directory, contact_id)
     parts = []
     contact = directory.get(contact_id)
     for group in store.groups_with(contact_id):
@@ -175,8 +173,8 @@ def block(contact_id, directory, now=None, prompt=None):
             seen = [m for m in seen if now - m["at"] < 1800][-2:]
             if not seen:
                 continue
-        members = ", ".join([operator.name()] + [name(m) for m in group.members if m != contact_id])
-        parts.append(f"Group chat \"{group.name}\" (you, {members}){_comms_aside(group)} — the latest you've read:\n"
+        members = ", ".join([operator.name(contact_id)] + [name(m) for m in group.members if m != contact_id])
+        parts.append(f"Group chat \"{group.name}\" (you, {members}){_comms_aside(group, contact_id)} — the latest you've read:\n"
                      + transcript(seen, name))
     if not parts:
         return ""
@@ -184,7 +182,7 @@ def block(contact_id, directory, now=None, prompt=None):
             "it's natural:\n" + "\n\n".join(parts))
 
 
-def _comms_aside(group):
+def _comms_aside(group, viewer=None):
     """A case's comms channel, said as one — and whether he was ever on the scene, or only reading along."""
     meta = group.meta() or {}
     if not meta.get("comms"):
@@ -195,16 +193,16 @@ def _comms_aside(group):
         return " — a case's comms channel"
     over = " — it's over now" if case["status"] == "closed" else ""
     if "bruce" in cases.team(case):
-        return f" — comms for the {case['kind'].lower()} at {case['place']}, {operator.name()} on it with you{over}"
-    return (f" — comms for the {case['kind'].lower()} at {case['place']}{over}; {operator.name()} wasn't on it, "
+        return f" — comms for the {case['kind'].lower()} at {case['place']}, {operator.name(viewer)} on it with you{over}"
+    return (f" — comms for the {case['kind'].lower()} at {case['place']}{over}; {operator.name(viewer)} wasn't on it, "
             "only reading along from wherever he was")
 
 
 def addressed(text, contact):
-    """Named in it — 'Dick?', '@tim', 'Barbara, ...', '@everyone' — so they answer."""
+    """Named in it — 'Dick?', '@tim', 'Barbara, ...', 'Babs', '@Batgirl', '@everyone' — so they answer."""
     if pings_everyone(text):
         return True
-    for name in {contact.name, contact.full_name, contact.id}:
+    for name in identity.names_of(contact) - {getattr(contact, "cover", "")} | {contact.id}:
         if re.search(rf"(?<!\w)@?{re.escape(name)}\b", text or "", re.I):
             return True
     return False
@@ -213,16 +211,16 @@ def addressed(text, contact):
 def tagged(text, contact):
     """'@Tim' — a tag, which pings, rather than just his name in passing."""
     return pings_everyone(text) or any(re.search(rf"(?<!\w)@{re.escape(n)}\b", text or "", re.I)
-               for n in {contact.name, contact.full_name.split()[0], contact.id})
+               for n in {contact.name, contact.full_name.split()[0], contact.id, getattr(contact, "mask", "")} if n)
 
 
 def handles(group, directory, sender=None):
-    """Who can be tagged in this chat, and as what: {id: "Tim"}, him as "me"."""
-    found = {"me": operator.name()}
+    """Who can be tagged in this chat, and as what: {id: "Tim"}, him as "me" — by their masks with Jim in it."""
+    found = {"me": identity.handle("me", group.members)}
     for cid in group.members:
         contact = directory.get(cid)
         if contact is not None and cid != sender:
-            found[cid] = contact.name
+            found[cid] = identity.handle(cid, group.members)
     return found
 
 
@@ -239,8 +237,9 @@ def _naming(group, directory, sender):
     known = {}
     for cid, name in names.items():
         contact = directory.get(cid)
-        known[cid] = {name.lower(), cid} | ({contact.full_name.split()[0].lower()} if contact else set())
-    known["me"] |= {operator.full_name().split()[0].lower()}
+        known[cid] = {name.lower(), cid} | ({n.lower() for n in identity.names_of(contact) if " " not in n}
+                                            | {contact.full_name.split()[0].lower()} if contact else set())
+    known["me"] |= {operator.full_name().split()[0].lower(), operator.mask_name().lower()}
 
     def who(word):
         word = word.lower()
