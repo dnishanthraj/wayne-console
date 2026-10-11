@@ -367,7 +367,8 @@ def _render(chosen, viewer, now, budget):
                 (book.get(sender).name if book.get(sender) else "someone")
             text = f"in {item['message']['group']}, {who} wrote: \"{_clip(text, 30)}\""
         elif item["kind"] == "hearsay":
-            text = f"{item['event']['actor']} told you: {_clip(text, 30)}"
+            from ..engine import grapevine
+            text = f"{grapevine.teller(item['event'], viewer)} told you: {_clip(text, 30)}"
         elif item["kind"] == "diary":
             actor = item["event"]["actor"]
             text = (f"you: {_clip(text, 24)}" if actor == viewer else

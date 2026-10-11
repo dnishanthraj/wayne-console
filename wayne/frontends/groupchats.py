@@ -15,6 +15,7 @@ import random
 import re
 import time
 
+from .. import identity
 from ..engine import groupchat, initiative, plans, presence
 from ..memory import groups as store
 
@@ -640,7 +641,9 @@ class GroupChats:
             # Where they are is only the chaser's to pass on if they'd know it —
             # Selina isn't told Cass is on patrol.
             known = absent.shares_status and not groupchat.outside(chaser.id)
-            chase = {"name": absent.name, "ago": describe_gap(age), "doing": state["doing"] if known else ""}
+            # Named as everyone in the chat may hear them: "@Batgirl" with Jim in it, never "@Barbara".
+            chase = {"name": identity.handle(absent.id, group.members), "ago": describe_gap(age),
+                     "doing": state["doing"] if known else ""}
             log.info("%s chasing %s in group %s", chaser.id, absent.id, group.id)
             self._spawn(self._post_as(group, chaser, chase=chase))
             return

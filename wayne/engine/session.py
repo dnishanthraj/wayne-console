@@ -58,6 +58,22 @@ _OLLAMA_CHAT = ollama.chat      # the real one: a test's stand-in is called as i
 
 # Searches run on a worker so the holding line can be written meanwhile.
 _SEARCHES = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+# What they've been leaning on lately — counted from what they've said anywhere, a minute at a time; and the cast's
+# shared favourites, every ten minutes (see guards.habits, _habits_note).
+_HABITS = {}
+_CAST_HABITS = [0.0, []]
+
+
+def _address_words():
+    """Every word anyone's called by — names, nicknames, masks, his own — which is never a habit to drop."""
+    from ..contacts import directory
+    words = set()
+    for c in directory():
+        for name in identity.names_of(c):
+            words |= set(re.findall(r"[a-z']+", name.lower()))
+    for name in (operator.name(), operator.mask_name()):
+        words |= set(re.findall(r"[a-z']+", (name or "").lower()))
+    return words
 
 # Only when a generated holding line fails its checks (see `_holding_line`).
 _PRE_SEARCH_PHRASES = [
@@ -482,6 +498,31 @@ class ContactSession:
         payload = prompting.build_payload(self.contact, self.history.for_model(), ".")
         ollama.chat(model=self.contact.model, messages=payload, stream=False,
                     options=self._options(num_predict=1), **self._extra())
+
+    def _habits_note(self):
+        """
+        What they've been leaning on lately — their own turns of phrase from every conversation ("Honestly, Bruce?",
+        "And Bruce—"), and the ones the whole cast has picked up — for this line to steer round. '' when nothing has.
+        """
+        from ..contacts import directory
+        from ..store import transcript
+        now = time.time()
+        try:
+            names = _address_words()
+            mine = _HABITS.get(self.contact.id)
+            if not mine or now - mine[0] > 60:
+                said = [line["text"] for line in transcript.lines(self.contact.id, since=now - 14 * 86400, limit=120)
+                        if line["role"] == "assistant"]
+                mine = _HABITS[self.contact.id] = (now, guards.habits(said, names))
+            if now - _CAST_HABITS[0] > 600:
+                cast = {c.id: [line["text"] for line in transcript.lines(c.id, since=now - 36 * 3600, limit=60)
+                               if line["role"] == "assistant"] for c in directory()}
+                _CAST_HABITS[:] = [now, guards.shared_habits(cast, names)]
+        except Exception as exc:                  # a habit uncounted costs nothing; a turn lost to it would
+            _log.debug("counting habits failed: %s", exc)
+            return ""
+        items = list(mine[1]) + [h for h in _CAST_HABITS[1] if h not in mine[1]]
+        return ("Leaning on lately — leave it out this time: " + "; ".join(items[:5]) + ".") if items else ""
 
     def keep_warm(self, texting=False):
         """
@@ -1750,7 +1791,8 @@ class ContactSession:
                     "place, it's over for you — end with [leave]. If he asks you to remove someone, end with [remove: their first name]. If he "
                     "asked you to add someone — and only then, or if someone is truly needed and he "
                     "hasn't said to keep it small — end with [add: their first name]"
-                    + (f" (could be {', '.join(c.name for c in others)})" if others else "") + ".")
+                    + (f" (could be {', '.join(identity.label(c.id, self.contact.id) for c in others)})"
+                       if others else "") + ".")
         tags = ", ".join("@" + n for n in groupchat.handles(group, book, self.contact.id).values())
         if comms:
             # On comms everyone hears everything — him included, wherever he is. A
@@ -2322,6 +2364,9 @@ class ContactSession:
             if worn:
                 awareness.append("Worn thin in this conversation already: " + "; ".join(worn)
                                  + " — say it some other way, or not at all.")
+        leaning = self._habits_note()
+        if leaning:
+            awareness.append(leaning)
         # Where they stand with him, and with whoever else is on the call: the colour on everything they say.
         from . import bonds
         standing = bonds.note(self.contact)

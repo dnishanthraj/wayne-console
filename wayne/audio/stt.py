@@ -18,6 +18,7 @@ import sounddevice as sd
 from ..config import WHISPER_HINT_PROMPT, WHISPER_MODEL
 
 _TRANSCRIBING = threading.Lock()
+_CPU_TRANSCRIBING = threading.Lock()
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -28,6 +29,12 @@ _MAX_RECORD_SECONDS = 120
 
 _backend = None
 _backend_lock = threading.Lock()
+# On a call the GPU is the model's: Whisper there and Ollama there slow each other down — 1.9 seconds of speech took
+# 11 to hear while a prompt was read, and the prompt took 10 instead of 3. So on a call he's heard on the CPU, by its
+# own copy of the model (faster-whisper, int8), which nothing else is using; off one, MLX on the GPU is quicker.
+_cpu = None
+_cpu_lock = threading.Lock()
+_CPU_THREADS = 4
 
 
 # Whisper loops when it is unsure, emitting the same clause over and over:
@@ -95,7 +102,25 @@ def _resolve_backend():
         return _backend
 
 
-def transcribe_audio(audio, hint=None):
+def _cpu_model():
+    """The CPU's copy of the model, loaded once (None where faster-whisper isn't installed)."""
+    global _cpu
+    with _cpu_lock:
+        if _cpu is None:
+            try:
+                from faster_whisper import WhisperModel
+                _cpu = WhisperModel("small.en", device="cpu", compute_type="int8", cpu_threads=_CPU_THREADS)
+            except Exception:
+                _cpu = False
+        return _cpu or None
+
+
+def warm_cpu():
+    """Load the CPU's copy now — at start, off the loop — so the first call doesn't wait for it."""
+    _cpu_model()
+
+
+def transcribe_audio(audio, hint=None, on_cpu=False):
     """
     Transcribe a float32 mono array at SAMPLE_RATE.
 
@@ -124,6 +149,8 @@ def transcribe_audio(audio, hint=None):
         audio = audio / max_amp * 0.95
 
     kind, model = _resolve_backend()
+    if on_cpu and kind == "mlx" and _cpu_model() is not None:
+        kind, model = "faster", _cpu_model()
 
     if kind == "mlx":
         import mlx_whisper
@@ -153,21 +180,25 @@ def transcribe_audio(audio, hint=None):
     wav_write(virtual_file, SAMPLE_RATE, audio_int16)
     virtual_file.seek(0)
 
-    segments, _ = model.transcribe(
-        virtual_file,
-        language="en",
-        beam_size=1,
-        temperature=0,
-        vad_filter=True,
-        vad_parameters={
-            "threshold": 0.4,
-            "min_speech_duration_ms": 300,
-            "min_silence_duration_ms": 300,
-            "speech_pad_ms": 200,
-        },
-        initial_prompt=hint or WHISPER_HINT_PROMPT,
-        condition_on_previous_text=False,
-    )
+    with _CPU_TRANSCRIBING:
+        segments, _ = model.transcribe(
+            virtual_file,
+            language="en",
+            beam_size=1,
+            temperature=0,
+            vad_filter=True,
+            vad_parameters={
+                "threshold": 0.4,
+                "min_speech_duration_ms": 300,
+                "min_silence_duration_ms": 300,
+                "speech_pad_ms": 200,
+            },
+            initial_prompt=hint or WHISPER_HINT_PROMPT,
+            condition_on_previous_text=False,
+        )
+        # It decodes as it's read: read once, here. Read twice — the text, then the confidence — the second read
+        # found nothing, and every take on the CPU came back fully confident.
+        segments = list(segments)
     text = collapse_loops(" ".join(s.text for s in segments).strip())
     # faster-whisper exposes the same fields on its segment objects.
     payload = {"segments": [{"avg_logprob": getattr(s, "avg_logprob", -0.3),
@@ -202,10 +233,10 @@ def _hallucinated(text, result, seconds):
 
 def busy():
     """Whether a take is being transcribed right now."""
-    return _TRANSCRIBING.locked()
+    return _TRANSCRIBING.locked() or _CPU_TRANSCRIBING.locked()
 
 
-def transcribe_pcm(raw_bytes, hint=None):
+def transcribe_pcm(raw_bytes, hint=None, on_cpu=False):
     """
     Transcribe little-endian float32 PCM captured by the browser at SAMPLE_RATE.
     Sending raw PCM rather than webm/opus keeps ffmpeg out of the picture
@@ -216,7 +247,7 @@ def transcribe_pcm(raw_bytes, hint=None):
     audio = np.frombuffer(raw_bytes, dtype=np.float32)
     if audio.size == 0:
         return "", 1.0
-    return transcribe_audio(audio.copy(), hint)
+    return transcribe_audio(audio.copy(), hint, on_cpu=on_cpu)
 
 
 def record_while(should_continue, max_seconds=_MAX_RECORD_SECONDS):

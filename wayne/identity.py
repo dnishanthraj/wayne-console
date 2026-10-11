@@ -258,11 +258,27 @@ def guard_vocatives(speaker_id, listener_ids):
                     out |= {c.name, c.full_name}          # to Jim, Dick is Nightwing: never 'Dick'
                 if any(level(lid) == "his" for lid in listener_ids):
                     out.add(c.mask)                       # to Selina, Dick is Dick: never 'Nightwing'
+                    out |= {n for n in getattr(c, "nicknames", ()) if n.lower() in _MASK_NICKNAMES}
+            elif getattr(c, "cover", "") and strict and level(c.id) == "all":
+                out |= {c.name, c.full_name}              # Alfred on Batman's line is a voice, never 'Alfred'
     return tuple(sorted(out))
 
 
 # Nicknames that are also ordinary words: only a capital makes them a name ("Ran", not "ran").
 _PLAIN_WORDS = {"dick", "barb", "ran", "jay", "replacement", "drake", "todd"}
+# Nicknames that are a mask in all but name: to someone who knows no masks, "Oracle" gives Barbara away.
+_MASK_NICKNAMES = {"oracle", "boy wonder"}
+# How the family say someone with respect — swept up with the name, or "Master Dick" became "Master Nightwing".
+_HONORIFIC = r"(?:(?:Master|Miss|Mister|Mr\.?|Ms\.?|Mrs\.?)\s+)?"
+# A surname that's a company or a place, not a person: "Drake Industries", "Wayne Enterprises", "the Fox house".
+_NOT_A_PERSON = (r"(?!\s+(?:Industries|Enterprises|Tower|Manor|Foundation|Corp\w*|Inc\b|Group|Estate|Center|Centre|"
+                 r"Building|house|House|Memorial))")
+
+
+def _spoken_cover(contact):
+    """A cover said out loud: "a British voice on Batman's line" → "the British voice on Batman's line"."""
+    import re
+    return re.sub(r"^(?:a|an)\s+", "the ", contact.cover)
 
 
 def scrub(text, speaker_id, listener_ids):
@@ -280,22 +296,26 @@ def scrub(text, speaker_id, listener_ids):
     if knows_him(speaker_id) and "him" in needs:
         first = re.escape(operator.name())
         surname = re.escape(operator.full_name().split()[-1]) if " " in operator.full_name() else "Wayne"
-        text = re.sub(rf"\b{first}\b(?!\s+{surname})", operator.mask_name(), text)
+        text = re.sub(rf"\b{_HONORIFIC}{first}\b(?!\s+{surname})", operator.mask_name(), text)
     if knows_faces(speaker_id) and "faces" in needs and strict(others):
         from .contacts import directory
         for c in directory():
-            if not getattr(c, "mask", "") or level(c.id) != "all":
+            mask = getattr(c, "mask", "") or (_spoken_cover(c) if getattr(c, "cover", "") else "")
+            if not mask or level(c.id) != "all":
                 continue
             # Longest first, so 'Barbara Gordon' goes before 'Barbara', and 'Dickiebird' before 'Dickie'.
             for name in sorted({c.full_name, c.name, *getattr(c, "nicknames", ())}, key=len, reverse=True):
                 plain = name.lower() in _PLAIN_WORDS
 
-                def masked(m, mask=c.mask):
-                    return mask if m.group(0)[:1].isupper() else mask.lower()
-                text = re.sub(rf"(?<![\w-]){re.escape(name)}(?![\w-])", masked, text,
+                def masked(m, mask=mask):
+                    if mask[:1].isupper():                # a mask is a name: Nightwing, said as he'd write it
+                        return mask if m.group(0)[:1].isupper() else mask.lower()
+                    opening = not m.string[:m.start()].strip() or m.string[:m.start()].rstrip()[-1:] in ".!?"
+                    return mask[:1].upper() + mask[1:] if opening else mask   # a cover: "The British voice…"
+                text = re.sub(rf"(?<![\w-]){_HONORIFIC}{re.escape(name)}(?![\w-]){_NOT_A_PERSON}", masked, text,
                               flags=0 if plain else re.IGNORECASE)
             # "@babs Barbara" becomes the mask twice over: said once.
-            text = re.sub(rf"(@?{re.escape(c.mask)})(?:\s+@?{re.escape(c.mask)}\b)+", r"\1", text, flags=re.IGNORECASE)
+            text = re.sub(rf"(@?{re.escape(mask)})(?:\s+@?{re.escape(mask)}\b)+", r"\1", text, flags=re.IGNORECASE)
     return text
 
 

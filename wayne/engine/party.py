@@ -210,9 +210,8 @@ class Call:
                          f"{holder}: you won't take the phone — tell {holder} to say you're not here, or say it yourself, "
                          "loud enough that he hears.")
             elif room == session.contact.id:
-                from ..contacts import directory
-                them = directory().get(cid)
-                name = them.name if them else cid
+                # As they'd say it with this call listening: by the mask, if Jim's on the line.
+                name = identity.handle(cid, [m.contact.id for m in self.members])
                 note += (f" {name} is right here with you but doesn't want to talk to him"
                          f"{f' ({why})' if why else ''}. If he asks for them, cover for them or don't, as you would — "
                          "you can be honest, or not, but don't make up anything else.")

@@ -203,9 +203,24 @@ def addressed(text, contact):
     if pings_everyone(text):
         return True
     for name in identity.names_of(contact) - {getattr(contact, "cover", "")} | {contact.id}:
-        if re.search(rf"(?<!\w)@?{re.escape(name)}\b", text or "", re.I):
+        for found in re.finditer(rf"(?<!\w)@?{re.escape(name)}\b", text or "", re.I):
+            if _end_of_a_name(text, found.start(), name, contact):
+                continue
             return True
     return False
+
+
+def _end_of_a_name(text, at, name, contact):
+    """
+    A surname that's the end of somebody's whole name, not said to its owner: "Gordon" in "Barbara Gordon" or
+    "Miss Gordon" isn't Jim being spoken to — "Gordon," on its own, or "Commissioner Gordon", is.
+    """
+    from ..contacts import directory
+    surnames = {c.full_name.split()[-1].lower() for c in directory() if " " in c.full_name}
+    if name.lower() not in surnames or name.lower() == contact.name.lower():
+        return False
+    before = re.search(r"([A-Z][a-z]+\.?)\s+$", (text or "")[:at])
+    return bool(before) and before.group(1).rstrip(".").lower() not in {n.lower() for n in identity.names_of(contact)}
 
 
 def tagged(text, contact):

@@ -7,6 +7,69 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-11
+
+### Changed
+
+- **On a call, you're heard on the CPU.** Whisper and the model shared the
+  GPU and slowed each other down. During a call, 1.9 seconds of speech took
+  11 seconds to transcribe while a prompt was being read, and the prompt
+  took 10 seconds instead of 3. On a call, speech recognition now runs on
+  the CPU with its own copy of the model, which nothing else uses. Off a
+  call, it stays on the GPU, where it's quicker.
+- **Habits are noticed across conversations, not just within one.**
+  "Honestly, Bruce?", "And Bruce—", "if you wanted…": a phrase that's theirs
+  once becomes a tic by the tenth call, and the model's own favourites turn
+  up in everyone's mouth. Each character's last forty replies, from
+  anywhere, are checked for openers and turns of phrase they lean on. The
+  whole cast is checked for phrases several of them have all been using.
+  Both are passed to the next line to steer round. Names and forms of
+  address never count: Alfred's "Master Bruce" is Alfred.
+- **Everyone calls everyone the same thing everywhere.** Each character's
+  profile, your own briefing and their biographies had drifted apart. They
+  now agree:
+  - Dick calls you "B", and "Bruce" when it's serious.
+  - Jason calls you "old man" or nothing, and "Bruce" rarely, at a cost.
+  - Alfred uses "sir" and "Master Bruce" every day, and "Bruce" only when it
+    matters. "Master Wayne", from the films, is gone.
+  - Lucius says "Mr. Wayne", and "Bruce" only when something's wrong.
+  - Selina says "Bruce", "handsome", "Bats" and "Wayne", one list.
+  - Dick's names for the others are "Timmy", "Cass", "Ran" and "Babs".
+  - Alfred has forms of address for Selina, Lucius and Jim.
+
+  "Hey ___" now answers to every nickname in a profile, instead of a list
+  kept in the page that had drifted.
+- **The story straightened out:**
+  - Tim took up Robin after Randy, not straight after Jason.
+  - Dick is an ex-cop in Blüdhaven.
+  - It's "Kory", not "Kori".
+  - Selina knows Cass as Bruce's daughter.
+
+### Fixed
+
+- **Jim never hears a real name.**
+  - A name in its honorific goes whole: "Master Dick" is "Nightwing", not
+    "Master Nightwing". "Master Bruce" is "Batman".
+  - Alfred and Lucius have no mask, so nothing used to cover them in front
+    of Jim. They're covered now, as voices on Batman's line.
+  - Hearsay names whoever passed it on the way the listener knows them:
+    Jim heard "Randy Wayne told you", and knows only a Batwing.
+  - The add-someone hint, the group chat's chase and the note about someone
+    avoiding the call no longer name people by their faces in front of him.
+- **A name at the end of a sentence isn't cut.** With Jim listening, "lunch
+  with Bruce Wayne." lost "Wayne" and then became "lunch with Batman", and
+  "plan B." became "plan." A name is only removed now when it was said to
+  someone, with its comma.
+- "Drake Industries" stays "Drake Industries", not "Robin Industries".
+- **Only Jim is spoken to as "Gordon".** In a group chat, "Barbara Gordon"
+  and "Miss Gordon" counted as speaking to Jim. "Gordon" means him only on
+  its own, or as "Commissioner Gordon".
+- **The speech model is warmed up at startup again.** It was being warmed
+  with silence, which is now turned away before the model even loads, so
+  your first take of the day paid for the load.
+- **Speech recognition on the CPU now reports how sure it is.** Its results
+  were read twice, and the second read found nothing.
+
 ## [1.1.0] - 2026-10-11
 
 Live mic and group calls, from a real session: a family dinner on the line

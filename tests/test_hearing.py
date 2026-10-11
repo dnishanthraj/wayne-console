@@ -28,7 +28,7 @@ def _pcm(seconds):
 def test_a_caption_gives_way_to_his_turn_and_only_hears_the_last_few_seconds(monkeypatch):
     heard = []
 
-    def transcribe(body, hint=None):
+    def transcribe(body, hint=None, **kw):
         heard.append(len(body) / 4 / stt.SAMPLE_RATE)
         return "words", 0.9
     monkeypatch.setattr(stt, "transcribe_pcm", transcribe)
@@ -45,7 +45,7 @@ def test_a_caption_gives_way_to_his_turn_and_only_hears_the_last_few_seconds(mon
 
 def test_his_turn_never_waits_on_the_shared_pool(monkeypatch):
     """Every shared worker tied up with model calls: hearing him still goes ahead, on its own thread."""
-    monkeypatch.setattr(stt, "transcribe_pcm", lambda body, hint=None: ("heard", 0.9))
+    monkeypatch.setattr(stt, "transcribe_pcm", lambda body, hint=None, **kw: ("heard", 0.9))
     monkeypatch.setattr(web, "_speech_hint", lambda: "")
     release = threading.Event()
 
@@ -112,3 +112,21 @@ def test_the_room_is_occasional_and_never_the_same_sound_twice_running():
         seen[cue["sound"]] = cue["at"]
     more = ambience._lay_out("street_day", 1200, 2400, random.Random(4), state, sky="clear")
     assert not more or more[0]["at"] - cues[-1]["at"] >= ambience.MIN_GAP      # carried on, not piled up
+
+
+def test_on_a_call_he_is_heard_on_the_cpu_and_its_confidence_is_read(monkeypatch):
+    from types import SimpleNamespace
+    used = []
+
+    class CPU:
+        def transcribe(self, audio, **kw):
+            used.append("cpu")
+            # A generator, as faster-whisper's is: it decodes as it's read.
+            return (s for s in [SimpleNamespace(text=" Where's Dick?", avg_logprob=-1.2, compression_ratio=1.1,
+                                                no_speech_prob=0.1)]), None
+    monkeypatch.setattr(stt, "_resolve_backend", lambda: ("mlx", "model"))
+    monkeypatch.setattr(stt, "_cpu_model", lambda: CPU())
+    speech = (np.random.default_rng(1).standard_normal(stt.SAMPLE_RATE * 2) * 0.1).astype(np.float32)
+    text, confidence = stt.transcribe_audio(speech, on_cpu=True)
+    assert used == ["cpu"] and text == "Where's Dick?"
+    assert confidence < 1.0                      # the segments were read for it — not found empty the second time

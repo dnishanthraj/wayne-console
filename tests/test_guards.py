@@ -492,3 +492,20 @@ def test_two_of_their_lines_coming_back_as_one_take_are_an_echo():
             "were properly clazed. They're fine, Alfred. Don't let Tim convince you they're mediocre.")
     assert guards.echoes(take, said)
     assert not guards.echoes("Tim, are the carrots really that bad or is Alfred just proud?", said)
+
+
+def test_a_habit_across_conversations_reaches_their_next_line(clock):
+    from wayne.contacts import directory
+    from wayne.engine import session as session_mod
+    from wayne.store import transcript
+    session_mod._HABITS.clear()
+    session_mod._CAST_HABITS[:] = [0.0, []]
+    said = ["Honestly, Bruce? You could have called.", "The feeds are down.", "Honestly, Bruce? That's the plan?",
+            "Dad's worried.", "And Bruce— eat something.", "Honestly, Bruce? Again?", "I'm at the Clocktower.",
+            "And Bruce— I mean it.", "Fine.", "And Bruce— go home."]
+    for i, line in enumerate(said):
+        transcript.keep("batgirl", "user", clock() - 3600 + i * 60, "Babs?")
+        transcript.keep("batgirl", "assistant", clock() - 3600 + i * 60 + 5, line)
+    note = session_mod.ContactSession(directory().get("batgirl"))._habits_note()
+    assert "Honestly" in note and "And Bruce" in note
+    assert "Master Bruce" not in session_mod.ContactSession(directory().get("alfred"))._habits_note()

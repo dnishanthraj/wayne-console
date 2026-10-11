@@ -4413,7 +4413,11 @@ def _warm_speech():
         import numpy as np
 
         from ..audio import stt
-        stt.transcribe_audio(np.zeros(stt.SAMPLE_RATE, dtype=np.float32))
+        # A whisper of noise, not silence: a silent buffer is turned away before the model's even loaded (see
+        # stt._SILENT_RMS), and the warm-up warmed nothing. Both copies — the GPU's, and the CPU's for calls.
+        hush = (np.random.default_rng(0).standard_normal(stt.SAMPLE_RATE) * 0.02).astype(np.float32)
+        stt.transcribe_audio(hush)
+        stt.transcribe_audio(hush, on_cpu=True)
     except Exception:
         pass
 
@@ -4461,6 +4465,8 @@ def _contact_payload(contact):
         "id": contact.id,
         "name": contact.name,
         "full_name": contact.full_name,
+        # What else they answer to — "Hey Babs" rings Barbara — from their profile, the one list of it.
+        "nicknames": list(getattr(contact, "nicknames", ()) or ()),
         "role": contact.role,
         "tagline": contact.tagline,
         "accent": contact.accent,
@@ -5551,10 +5557,13 @@ async def transcribe(request: Request):
     else:
         _HEARING["waiting"] += 1
 
+    # On a call the GPU is the model's: heard on the CPU, so neither waits on the other (see stt._cpu).
+    on_call = bool(console.current_id) or llm.is_on_air()
+
     def hear():
         if partial and _HEARING["waiting"]:
             return "", 1.0                       # his turn came in while this waited: it goes first
-        return stt.transcribe_pcm(body, hint)
+        return stt.transcribe_pcm(body, hint, on_cpu=on_call)
     try:
         text, confidence = await asyncio.get_running_loop().run_in_executor(_STT_POOL, hear)
     finally:
@@ -5563,7 +5572,8 @@ async def transcribe(request: Request):
     if partial:
         return JSONResponse({"text": text, "confidence": round(confidence, 2)})     # a live caption, not a turn
     # How long hearing him took, against how long he spoke: slow here is the GPU shared with a reply being written.
-    log.info("heard %.1fs of speech in %.2fs%s", len(body) / 4 / stt.SAMPLE_RATE, time.monotonic() - began,
+    log.info("heard %.1fs of speech in %.2fs%s%s", len(body) / 4 / stt.SAMPLE_RATE, time.monotonic() - began,
+             " on the CPU" if on_call else "",
              " (while the model was busy)" if console.voice_busy or console.turn_lock.locked() else "")
     return JSONResponse({"text": text, "confidence": round(confidence, 2)})
 

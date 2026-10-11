@@ -337,3 +337,33 @@ def test_someone_off_the_app_always_has_a_last_seen_and_a_sighting_moves_it(cloc
     randy.seen_at("Crime Alley", "seen on the scanner", clock())
     later = randy.public(clock() + 9 * 86400)                                             # days on: still there
     assert later["last_seen"]["where"] == "Crime Alley"
+
+
+# --- what reached Jim that shouldn't have (an audit of the whole cast's names, 11 Oct) ------------------------------
+
+def test_jim_never_hears_a_name_dressed_in_its_honorific_or_a_cover_left_bare():
+    from wayne import identity
+    said = lambda text: identity.scrub(text, "nightwing", ["gordon"])     # noqa: E731
+    assert said("Master Dick, the docks.") == "Nightwing, the docks."             # not "Master Nightwing"
+    assert said("Master Bruce is on his way.") == "Batman is on his way."
+    assert said("Alfred has the feed up.").startswith("The British voice")       # Alfred has no mask, only a cover
+    assert said("Drake Industries is buying the pier.") == "Drake Industries is buying the pier."
+    assert said("Lunch with Bruce Wayne tomorrow.") == "Lunch with Bruce Wayne tomorrow."
+    assert "Alfred" in identity.guard_vocatives("nightwing", ["gordon", "alfred"])
+
+
+def test_a_name_at_the_end_of_a_sentence_is_only_dropped_when_it_was_said_to_someone():
+    from wayne.engine import guards
+    terms = ("Bruce", "Wayne", "B", "lad")
+    assert guards.strip_forbidden_address("The board meets with Bruce Wayne.", terms) == \
+        "The board meets with Bruce Wayne."
+    assert guards.strip_forbidden_address("We go with plan B.", terms) == "We go with plan B."
+    assert guards.strip_forbidden_address("Thanks, B.", terms) == "Thanks."
+
+
+def test_hearsay_names_who_passed_it_on_as_the_hearer_knows_them(clock):
+    from wayne.engine import grapevine
+    grapevine._pass_on("Randy Wayne", "the Narrows cameras are being jammed", [("gordon", clock()), ("robin", clock())],
+                       "batwing")
+    assert grapevine._load("gordon")[0]["from"] == "Batwing"                    # Jim knows no Randy
+    assert grapevine._load("robin")[0]["from"] == "Randy Wayne"

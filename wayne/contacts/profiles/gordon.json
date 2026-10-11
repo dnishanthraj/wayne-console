@@ -4,6 +4,7 @@
   "pronoun": "he",
   "full_name": "Jim Gordon",
   "role": "Commissioner, GCPD",
+  "nicknames": ["Commissioner", "Gordon"],
   "tagline": "Thirty years of honest police in a city that never wanted any.",
   "system_name": "Commissioner Gordon",
   "accent": "#8FA9C2",

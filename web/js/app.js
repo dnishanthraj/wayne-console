@@ -4413,15 +4413,14 @@
   }
 
   // "Hey Babs" is Barbara; "hey Jim", "hey commissioner" is Gordon — their names as he'd say them.
-  var CALLED = { babs: 'batgirl', barb: 'batgirl', barbara: 'batgirl', jim: 'gordon', gordon: 'gordon',
-                 commissioner: 'gordon', cass: 'orphan', cassie: 'orphan', timmy: 'robin', lucius: 'lucius',
-                 alfie: 'alfred', selina: 'catwoman', jay: 'redhood' };
+  // Who "Hey ___" rings: their name, their first name, or anything else they answer to — the nicknames in their
+  // profile ("Hey Babs", "Hey Commissioner"), not a list kept here that drifted from it.
   function calledBy(word) {
     word = (word || '').toLowerCase();
-    if (CALLED[word] && state.contacts[CALLED[word]]) return CALLED[word];
     return state.order.filter(function (id) {
       var c = state.contacts[id] || {};
-      return (c.name || '').toLowerCase() === word || ((c.full_name || '').split(' ')[0] || '').toLowerCase() === word;
+      var names = [c.name, (c.full_name || '').split(' ')[0]].concat(c.nicknames || []);
+      return names.some(function (n) { return (n || '').toLowerCase() === word; });
     })[0] || null;
   }
 

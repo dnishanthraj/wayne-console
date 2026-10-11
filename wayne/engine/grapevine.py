@@ -18,7 +18,7 @@ import re
 import threading
 import time
 
-from .. import operator
+from .. import identity, operator
 from ..store import events
 from . import model
 
@@ -34,15 +34,30 @@ def _load(contact_id):
     What's been passed on to them, the latest passed on first — {from, text, at}, `at` when it reaches them.
     Each is an event (kind hearsay) with them in its audience from that moment (see wayne.store.events).
     """
-    return [{"from": e["actor"], "text": e["text"], "at": e["known_at"]}
+    return [{"from": teller(e, contact_id), "text": e["text"], "at": e["known_at"]}
             for e in events.known_to(contact_id, "hearsay", limit=_KEEP)]
+
+
+def teller(event, viewer_id):
+    """
+    Who passed it on, as the one hearing it knows them: "Randy Wayne told you…" reached Jim, who knows a Batwing
+    and no Randy. The name it was kept under for anyone the record can't place (news from outside the cast).
+    """
+    source = (event.get("data") or {}).get("source")
+    if not source:
+        from ..contacts import directory
+        found = next((c for c in directory() if c.full_name == event.get("actor")), None)
+        source = found.id if found else ""
+    return identity.label(source, viewer_id, full=True) if source else event.get("actor", "")
 
 
 def _pass_on(source, text, reaching, source_id=""):
     """`source` (a name) tells `text` to everyone in `reaching` — [(contact id, when it reaches them)]."""
     if reaching:
         events.add("hearsay", text, actor=source, links=[("contact", source_id)] + [("contact", c) for c, _ in reaching],
-                   audience=[(c, at, f"{source} told you") for c, at in reaching], secret=False)
+                   audience=[(c, at, f"{identity.label(source_id, c, full=True) if source_id else source} told you")
+                             for c, at in reaching],
+                   data={"source": source_id} if source_id else None, secret=False)
 
 
 def closeness(a, b):

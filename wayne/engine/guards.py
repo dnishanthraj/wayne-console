@@ -514,7 +514,10 @@ def strip_forbidden_address(text, terms):
         # " ... lad." with no comma, still clearly a vocative at the end — but
         # not after a determiner or possessive, where it's just a noun: "Tim's
         # a good kid." lost its last word, and "He is your son." became "He is
-        # your."
+        # your." And never a name without its comma: "lunch with Bruce Wayne."
+        # lost "Wayne" (and then became "with Batman"), and "plan B." became "plan."
+        if term[:1].isupper():
+            continue
         text = re.sub(rf"(?<!\ba)(?<!\ban)(?<!\bthe)(?<!\bgood)(?<!\bmy)(?<!\byour)(?<!\bhis)"
                       rf"(?<!\bher)(?<!\bour)(?<!\btheir)(?<!'s)\s+{word}\b(?=\s*[.!?]|$)",
                       "", text, flags=re.I)
@@ -622,6 +625,92 @@ def _shared_phrase(texts):
                 return key
             seen.setdefault(key, n)
     return ""
+
+
+# --- habits: what they lean on across conversations, not just this one -----------------------------------------------
+# "Honestly, Bruce?", "And Bruce—", "if you wanted…": a turn of phrase that's theirs once is a tic by the tenth call,
+# and the model's own favourites turn up in everyone's mouth. Counted over their last replies anywhere — and across the
+# cast — and handed to the next line to steer round. Names and forms of address are never a habit to drop: Alfred's
+# "Master Bruce" is Alfred.
+_FUNCTION = _COMMON | {"if", "or", "as", "was", "were", "has", "have", "had", "can", "could", "would", "should", "will",
+                       "don't", "i'm", "it's", "that's", "you're", "we're", "they're", "i'll", "you'll", "what", "who",
+                       "how", "why", "when", "where", "there", "here", "know", "think", "mean", "want", "need", "get",
+                       "got", "go", "going", "come", "see", "say", "said", "tell", "look", "make", "take", "let", "one",
+                       "all", "about", "up", "out", "no", "yes", "yeah", "okay", "ok", "right", "well", "oh", "now",
+                       "then", "than", "too", "very", "really", "some", "any", "from", "by", "his", "her", "him", "them",
+                       "our", "us", "its", "into", "off", "over", "back", "still", "even", "again", "more", "much"}
+_ADDRESS = {"master", "miss", "mister", "mr", "mrs", "sir", "b", "dad", "mom", "kid", "boss", "old", "man"}
+_PIVOT = re.compile(r"(?i)\band\s+(?:master\s+)?[a-z]+\s*[—–]")            # "…And Bruce— you really think"
+_HANDOFF = re.compile(r"(?i)\band\s+(?:master\s+)?[a-z]+\s*\?\s*$")         # "…And Tim?"
+
+
+def _clean(text):
+    return re.sub(r"\[[^\]]*\]", " ", (text or "").replace("’", "'")).strip()
+
+
+def _grams(text, names):
+    words = re.findall(r"[a-z']+", _clean(text).lower())
+    out = set()
+    for n in (2, 3):
+        for i in range(len(words) - n + 1):
+            gram = words[i:i + n]
+            if any(w not in _FUNCTION and w not in _ADDRESS and w not in names for w in gram):
+                out.add(" ".join(gram))
+    return out
+
+
+def habits(replies, names=(), most=4):
+    """
+    Their own turns of phrase, leaned on: from their recent replies (any conversation), an opener or a run of words
+    in a tenth of them or more (three at least), and the "And Bruce—" pivot or the "…And Tim?" hand-off as a habit.
+    A few words each; [] when nothing's overused.
+    """
+    texts = [_clean(t) for t in replies if t and _clean(t)][-40:]
+    if len(texts) < 6:
+        return []
+    names = {n.lower() for n in names}
+    bar = max(3, -(-len(texts) // 10))
+    found = []
+    openers = [re.findall(r"[a-z']+", t.lower())[:1] for t in texts]
+    openers = [o[0] for o in openers if o]
+    for word in sorted(set(openers), key=openers.count, reverse=True):
+        if openers.count(word) >= bar and word not in _COMMON and word not in names and word not in _ADDRESS \
+                and word not in ("yeah", "no", "yes", "okay", "ok", "well", "oh", "right", "i'm", "it's", "what"):
+            found.append(f"opening with \"{word.capitalize()}\"")
+    if sum(1 for t in texts if _PIVOT.search(t)) >= bar:
+        found.append("swinging to someone mid-line (\"And Bruce—\")")
+    if sum(1 for t in texts if _HANDOFF.search(t)) >= bar:
+        found.append("ending on someone's name (\"…And Tim?\")")
+    counts = {}
+    for t in texts:
+        for gram in _grams(t, names):
+            counts[gram] = counts.get(gram, 0) + 1
+    worn = sorted((g for g, n in counts.items() if n >= bar), key=lambda g: (-counts[g], -len(g)))
+    phrases = []
+    for gram in worn:
+        if any(gram in kept or kept in gram for kept in phrases):
+            continue
+        phrases.append(gram)
+    found += [f"\"{g}\"" for g in phrases]
+    return found[:most]
+
+
+def shared_habits(by_speaker, names=(), most=3):
+    """
+    The cast's: a run of words three or more of them have all been using lately — the model's favourites, turning up in
+    everyone's mouth ("honestly, Bruce"). `by_speaker`: {speaker: [their recent replies]}.
+    """
+    names = {n.lower() for n in names}
+    who = {}
+    for speaker, replies in by_speaker.items():
+        for gram in set().union(*[_grams(r, names) for r in replies if r] or [set()]):
+            who.setdefault(gram, set()).add(speaker)
+    shared = sorted((g for g, s in who.items() if len(s) >= 3), key=lambda g: (-len(who[g]), -len(g)))
+    picked = []
+    for gram in shared:
+        if not any(gram in kept or kept in gram for kept in picked):
+            picked.append(gram)
+    return [f"\"{g}\"" for g in picked[:most]]
 
 
 def worn_out(lines):
