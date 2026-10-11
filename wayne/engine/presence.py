@@ -834,7 +834,12 @@ class Presence:
             elif beside:
                 shown["spot"] = {**(shown["spot"] or {}), "x": beside[0], "y": beside[1]}
             else:
-                walking = self.patrolling(where, t)
+                strolling = self.strolling(where, t)
+                if strolling:
+                    shown["spot"] = {**(shown["spot"] or {}), "x": strolling["x"], "y": strolling["y"]}
+                    if strolling["near"]:
+                        shown["where"] = f"{strolling['near']}, {where}" if strolling["near"] not in where else where
+                walking = None if strolling else self.patrolling(where, t)
                 if walking:
                     # Covering a sector: a run over the roofs to somewhere to watch from, a few
                     # minutes there, on to the next — never a dot parked on the district's name.
@@ -868,6 +873,53 @@ class Presence:
         offset = (0.0, 0.0) if leader == self.contact.id else (0.28, 0.18)
         return patrols.where(self.contact.id, where, t, arrived=arrived, seed_id=leader, offset=offset)
 
+    _STROLL = re.compile(r"(?i)\b(walk(?:ing)?\b(?! to\b| back\b| home\b)|stroll\w*|jog\w*|running\b|a run\b|dog walk\w*|"
+                         r"walking (?:haley|the dog))")
+
+    def strolling(self, where, t=None):
+        """
+        Out for a walk, a run, the dog: going round, not parked — along the edge of a park if there's one near,
+        or a loop of the streets round where they are. {"x", "y", "near"} or None. The same for the same moment.
+        """
+        t = t or time.time()
+        if not where:
+            return None
+        block, _company, _firm = self._situation(t)
+        doing = block.get("doing") or ""
+        if not self._STROLL.search(doing) or places.is_patrol(doing):
+            return None
+        spot = places.resolve(where)
+        if not spot:
+            return None
+        here = (spot["x"], spot["y"])
+        path, near = None, ""
+        for park in (places.gazetteer().get("parks") or []):
+            ring = park.get("coast") or []
+            if len(ring) < 3:
+                continue
+            cx = sum(p[0] for p in ring) / len(ring)
+            cy = sum(p[1] for p in ring) / len(ring)
+            if math.dist(here, (cx, cy)) < 10:
+                # A step inside the edge: the path round the park, not the railings.
+                path = [(cx + (p[0] - cx) * 0.85, cy + (p[1] - cy) * 0.85) for p in ring]
+                near = park.get("name", "")
+                break
+        if path is None:
+            r = 1.1 if re.search(r"(?i)run|jog", doing) else 0.75
+            path = [(here[0] + dx * r, here[1] + dy * r) for dx, dy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        legs = [math.dist(path[i], path[(i + 1) % len(path)]) for i in range(len(path))]
+        total = sum(legs) or 1.0
+        lap = (22 if re.search(r"(?i)run|jog", doing) else 40) * 60          # seconds round, whatever its size
+        since = float(block.get("since") or 0) or (t - t % lap)
+        along = ((t - since) % lap) / lap * total
+        for i, leg in enumerate(legs):
+            if along <= leg or i == len(legs) - 1:
+                a, b = path[i], path[(i + 1) % len(path)]
+                f = 0 if not leg else min(1.0, along / leg)
+                return {"x": a[0] + (b[0] - a[0]) * f, "y": a[1] + (b[1] - a[1]) * f, "near": near}
+            along -= leg
+        return None
+
     def position(self, t=None):
         """Exactly where they are at t, (x, y) — on the road, on a patrol, or where their day has them — or None."""
         t = t or time.time()
@@ -881,7 +933,7 @@ class Presence:
         beside = self._beside(t)
         if beside:
             return beside
-        walking = self.patrolling(where, t)
+        walking = self.patrolling(where, t) or self.strolling(where, t)
         if walking:
             return (walking["x"], walking["y"])
         return (spot["x"], spot["y"])

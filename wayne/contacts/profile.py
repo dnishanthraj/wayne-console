@@ -158,6 +158,8 @@ class Contact:
     # What the others call them besides their name — "Babs", "Timmy", "Dickiebird" — kept out of earshot of
     # anyone who mustn't put a face to the mask, the same as their name.
     nicknames: tuple = ()
+    # What they call someone only when it slips — Randy's "Mom": never twice in a few lines (see session).
+    rare_address: tuple = ()
     # What to keep in mind when a particular person is on the call or in the chat, by their id — Barbara, with
     # her father there: he doesn't know she's Batgirl.
     around: dict = field(default_factory=dict)
@@ -268,8 +270,20 @@ def _interests(interests):
             parts.append(f"{label}: " + "; ".join(interests[key]) + ".")
     if interests.get("takes"):
         parts.append("Opinions you'll defend: " + "; ".join(interests["takes"]) + ".")
+    from ..engine import tastes
+    lately = tastes.summary(interests)
+    if lately:
+        parts.append(lately)
     return ("What you're into — a life outside all this. It's there in how you talk and what you "
             "do with your days; bring it up when it fits, never as a list. " + " ".join(parts))
+
+
+def _texting(raw):
+    """How they text, with what they'd say and never say, and when an emoji happens (see engine.tastes)."""
+    from ..engine import tastes
+    base = raw.get("texting", "") or ""
+    extra = tastes.texting_extras(raw.get("texting_style"))
+    return f"{base}; {extra}" if base and extra else (base or extra)
 
 
 def _load_profile(path):
@@ -305,7 +319,7 @@ def _load_profile(path):
         own_life=tuple(raw.get("own_life", [])),
         deflections=tuple(raw.get("deflections", [])),
         judge=raw.get("judge", ""),
-        texting=raw.get("texting", ""),
+        texting=_texting(raw),
         group=raw.get("group", "Contacts"),
         texting_pace=raw.get("texting_pace", {}),
         texting_style=raw.get("texting_style", {}),
@@ -331,6 +345,7 @@ def _load_profile(path):
         mask=str(raw.get("mask", "")),
         cover=str(raw.get("cover", "")),
         nicknames=tuple(raw.get("nicknames", [])),
+        rare_address=tuple(raw.get("rare_address", [])),
         around=dict(raw.get("around", {})),
         sees_work=str(raw.get("sees_work", "")),
         calls_in=dict(raw.get("calls_in", {})),

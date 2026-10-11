@@ -433,9 +433,23 @@ def claims_home(sentence):
     return bool(_AT_HOME.search(text)) and not _NOT_NOW.search(text)
 
 
-def presumes_presence(sentence):
+# Seeing someone — their face, a look, a smile — only works for whoever's actually in the room: Selina told Randy
+# "don't look at me like that" down a phone line on a call they were each on from their own place.
+GAZE_PATTERNS = [
+    r"\b(don'?t|stop|quit) (look|looking|staring|glaring|glowering) at me\b",
+    r"\blook(?:ing)? at me like that\b", r"\b(give|giving) me (that|the) look\b", r"\bthat look\b",
+    r"\bi can see (you|your|it in your)\b", r"\b(roll|rolling) your eyes\b",
+    r"\b(stop|quit|wipe that) (smil|smirk|pout|frown|grinn)\w*\b", r"\bwipe that (smile|smirk|look)\b",
+    r"\byour face (right now|says)\b", r"\bi saw that\b",
+]
+
+
+def presumes_presence(sentence, together=False):
+    """Staging: something only someone in the room could say — and a look or a face, unless they're `together`."""
     lowered = (sentence or "").lower()
-    return any(re.search(pattern, lowered) for pattern in PRESENCE_PATTERNS)
+    if any(re.search(pattern, lowered) for pattern in PRESENCE_PATTERNS):
+        return True
+    return not together and any(re.search(pattern, lowered) for pattern in GAZE_PATTERNS)
 
 
 def strip_presence(text):
@@ -544,3 +558,43 @@ def spare_opening_cue(text, recent, chance=OPENING_CUE_CHANCE, roll=None):
     rest = text[found.end():]
     return (rest[:1].upper() + rest[1:]) if rest else rest, False
 
+
+
+# --- what a conversation has worn out --------------------------------------------------------------
+# On a call the lines answer each other, and a model answering a line copies its shape: three "It's not X. It's Y."
+# in a row, every reply opening on "Don't…", the last word thrown back as a question, "Mom" in every line. What's
+# been worn out is said to the next one to speak, so they reach for something else — never a script, a nudge.
+_CONTRAST = re.compile(r"(?i)\b(?:it'?s|that'?s|this is|you'?re|i'?m|he'?s|she'?s)\s+not\s+[^.?!]{1,48}[.?!,—–-]+\s*"
+                       r"(?:it'?s|that'?s|this is|you'?re|i'?m|he'?s|she'?s|just)\b")
+_ECHO_Q = re.compile(r"^\W*(?:\[[^\]]*\]\s*)?([A-Za-z][\w' ]{1,24})\?\s")
+_VOCATIVE = re.compile(r"(?i)(?:^|[,.!?]\s*)(mom|mum|dad|honey|handsome|darling|sweetheart|kid|babe|boss|old man|sir|"
+                       r"master \w+|b|bruce|selina|randy)\b(?=\s*[,.!?]|$)")
+
+
+def worn_out(lines):
+    """
+    From the last lines of a conversation, (speaker, text) pairs: what's been used too often to use again —
+    a few words each, for the next speaker to steer round. [] when nothing has.
+    """
+    texts = [t for _, t in lines if t][-10:]
+    if len(texts) < 3:
+        return []
+    found = []
+    if sum(1 for t in texts if _CONTRAST.search(t)) >= 2:
+        found.append("the \"it's not X, it's Y\" turn of phrase")
+    echoes_back = 0
+    for before, after in zip(texts, texts[1:], strict=False):
+        m = _ECHO_Q.match(after)
+        if m and m.group(1).lower() in before.lower():
+            echoes_back += 1
+    if echoes_back >= 2:
+        found.append("throwing the last speaker's words back as a question")
+    openers = [re.sub(r"^\W*(?:\[[^\]]*\]\s*)?", "", t).split(" ")[0].strip(",.!?…").lower() for t in texts]
+    for word in set(openers):
+        if word and openers.count(word) >= 3 and word not in ("i", "the", "a"):
+            found.append(f"opening with \"{word.capitalize()}\"")
+    names = [m.group(1).lower() for t in texts for m in _VOCATIVE.finditer(t)]
+    for name in set(names):
+        if names.count(name) >= 3:
+            found.append(f"calling someone \"{name}\"")
+    return found[:4]

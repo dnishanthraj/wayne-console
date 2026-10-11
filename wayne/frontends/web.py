@@ -858,7 +858,18 @@ class Console(GroupChats):
         the model's busy speaking, where his turn would only queue behind it.
         """
         cid = self.current_id
-        if not cid or self.voice_busy or (self.call and self.call.is_group) or cid not in self.sessions:
+        if not cid or self.voice_busy or cid not in self.sessions:
+            return
+        if self.call and self.call.is_group:
+            # With company: whoever spoke last is likeliest to answer him — read ahead theirs.
+            likely = self.call.last_speaker if self.call.last_speaker in self.call.members else None
+            likely = likely or next((m for m in self.call.members if m.contact.id not in self.call.muted), None)
+            if likely is None or likely.contact.id in self.call.muted:
+                return
+            try:
+                await asyncio.to_thread(likely.prefetch_call_turn)
+            except Exception as exc:
+                log.debug("reading ahead for %s failed: %s", likely.contact.id, exc)
             return
         try:
             await asyncio.to_thread(self.sessions[cid].prefetch_turn)
@@ -2815,6 +2826,13 @@ class Console(GroupChats):
             items = await asyncio.to_thread(culture.refresh, contact)
             if items:
                 log.info("%s caught up on what they follow: %d things", contact.id, len(items))
+                from ..engine import tastes
+                if tastes.due(contact):
+                    # A week of it: anything they've got into, or gone off — from what's real, as themselves.
+                    moved = await asyncio.to_thread(tastes.evolve, contact, items)
+                    if moved.get("into") or moved.get("over"):
+                        log.info("%s's tastes moved: into %s; over %s", contact.id,
+                                 [i["title"] for i in moved.get("into", [])], [i["title"] for i in moved.get("over", [])])
             else:
                 # Nothing came back (offline, rate-limited): try someone else
                 # next time rather than hammering the same searches.
@@ -3321,7 +3339,12 @@ class Console(GroupChats):
         call he's gone silent on drifts off rather than carrying on without him.
         """
         self._lulls += 1
-        if (self.call.waiting_on_him() or self._lulls > MOST_UNPROMPTED
+        # While he's in the conversation, they don't run it without him: a line or two into a pause, then they leave
+        # him room — a call where the two of them volleyed jabs for twenty lines was no call at all. Quiet for a
+        # while, they carry it a little further, then let it drift.
+        engaged = time.time() - getattr(self, "_him_at", 0) < 30
+        most = 2 if engaged else min(4, MOST_UNPROMPTED)
+        if (self.call.waiting_on_him() or self._lulls > most
                 or random.random() >= self._lull_energy):
             # Nobody fills it — he's just been asked something and they give him a
             # moment, or the call's run down — and the page, waiting to hear, is
@@ -3341,7 +3364,7 @@ class Console(GroupChats):
         # Now and then two of them go for the same pause at once.
         rest = [(m, w) for m, w in zip(members, weights, strict=True) if m is not member]
         second = (random.choices([m for m, _ in rest], weights=[w for _, w in rest])[0]
-                  if rest and random.random() < TALK_OVER else None)
+                  if rest and not engaged and random.random() < TALK_OVER else None)
         epoch = self.turn_epoch
         async with self.turn_lock:
             if epoch != self.turn_epoch or not self.call or member not in self.call.members:
@@ -3396,6 +3419,7 @@ class Console(GroupChats):
         # a reply nobody is listening to any more.
         was_speaking = self.voice_busy
         self._lull_energy, self._lulls = 1.0, 0
+        self._him_at = time.time()
         epoch = self.interrupt()
         async with self.turn_lock:
             if epoch != self.turn_epoch:
@@ -4143,6 +4167,35 @@ async def codex_portrait(entry_id: str, request: Request):
     return JSONResponse({"portrait": url})
 
 
+@app.post("/api/groups/{group_id}/picture")
+async def group_picture(group_id: str, request: Request):
+    """A picture for a group chat — dropped or chosen in its info panel. Kept out of git, like the faces."""
+    from ..engine import codex
+    group = group_store.of(group_id)
+    if group is None or not re.fullmatch(r"[a-z0-9]{6,40}", group_id):
+        return JSONResponse({"error": "no such group"}, status_code=404)
+    ext = _IMAGE_TYPES.get((request.headers.get("content-type") or "").split(";")[0].strip())
+    if not ext:
+        return JSONResponse({"error": "png, jpeg or webp"}, status_code=415)
+    data = await request.body()
+    if not data or len(data) > 8_000_000:
+        return JSONResponse({"error": "too big"}, status_code=413)
+    url = await asyncio.to_thread(codex.save_group_picture, group_id, data, ext)
+    await console.broadcast({"type": "group_updated", "group": console.group_payload(group)})
+    return JSONResponse({"picture": url})
+
+
+@app.delete("/api/groups/{group_id}/picture")
+async def group_picture_gone(group_id: str):
+    from ..engine import codex
+    group = group_store.of(group_id)
+    if group is None or not re.fullmatch(r"[a-z0-9]{6,40}", group_id):
+        return JSONResponse({"error": "no such group"}, status_code=404)
+    await asyncio.to_thread(codex.save_group_picture, group_id, None, "")
+    await console.broadcast({"type": "group_updated", "group": console.group_payload(group)})
+    return JSONResponse({"picture": ""})
+
+
 @app.post("/api/codex/place")
 async def codex_place(request: Request):
     """He rewrites what Gotham knows of a place."""
@@ -4408,7 +4461,11 @@ def _speech_hint():
 async def transcribe(request: Request):
     """Raw little-endian float32 PCM at stt.SAMPLE_RATE, captured in the page."""
     body = await request.body()
+    began = time.monotonic()
     text, confidence = await asyncio.to_thread(stt.transcribe_pcm, body, _speech_hint())
+    # How long hearing him took, against how long he spoke: slow here is the GPU shared with a reply being written.
+    log.info("heard %.1fs of speech in %.2fs%s", len(body) / 4 / stt.SAMPLE_RATE, time.monotonic() - began,
+             " (while the model was busy)" if console.voice_busy or console.turn_lock.locked() else "")
     return JSONResponse({"text": text, "confidence": round(confidence, 2)})
 
 

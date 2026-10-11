@@ -239,6 +239,26 @@ def portrait_of(entry_id, contact_id=None):
     return ""
 
 
+def group_picture(group_id):
+    """A group chat's picture, if he's given it one — stamped with when, so a new one isn't the cached old one."""
+    for ext in ("png", "jpg", "webp"):
+        found = PORTRAITS / "groups" / f"{group_id}.{ext}"
+        if found.exists():
+            return f"/static/portraits/groups/{group_id}.{ext}?v={int(found.stat().st_mtime)}"
+    return ""
+
+
+def save_group_picture(group_id, data, ext):
+    """Keep a picture for a group chat (out of git, like everyone's faces); `data` None takes it away."""
+    folder = PORTRAITS / "groups"
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in ("png", "jpg", "webp"):
+        (folder / f"{group_id}.{old}").unlink(missing_ok=True)
+    if data:
+        (folder / f"{group_id}.{ext}").write_bytes(data)
+    return group_picture(group_id)
+
+
 def portrait_version(contact_id):
     """When a contact's picture was last saved — for the page's cache-busting — or 0."""
     for ext in ("png", "jpg", "webp"):

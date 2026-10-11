@@ -668,3 +668,53 @@ def test_dick_hanging_up_takes_tim_off_his_speaker_and_ends_the_call_if_thats_ev
         await asyncio.sleep(0.01)
     asyncio.run(run())
     assert not call.members and hung_up
+
+
+# --- a call that flows: what's worn thin, who can be looked at, and room for him ------------------------------
+
+def test_what_a_call_has_worn_out_is_named_for_the_next_speaker():
+    from wayne.engine import guards
+    lines = [("batwing", "It's not a reunion, Selina. It's a nuisance."),
+             ("catwoman", "[laughs] Careful, Randy."),
+             ("batwing", "It's not artisanal, Mom. It's just actually good."),
+             ("catwoman", "Don't listen to him, Randy."),
+             ("batwing", "Don't make it sound like an invitation, Mom."),
+             ("catwoman", "Don't act like you're too good for us, Randy."),
+             ("batwing", "I have things to do today, Mom.")]
+    worn = guards.worn_out(lines)
+    assert any("it's not X" in w for w in worn) and 'opening with "Don\'t"' in worn
+    assert 'calling someone "mom"' in worn
+    assert guards.worn_out(lines[:2]) == []
+
+
+def test_on_a_call_nobody_can_see_anyone_unless_they_are_in_the_room():
+    from wayne.engine import guards
+    assert guards.presumes_presence("Don't look at me like that, Randy.")
+    assert not guards.presumes_presence("Don't look at me like that, Randy.", together=True)
+    assert not guards.presumes_presence("Look at the time.")
+
+
+def test_a_name_that_only_slips_out_doesnt_slip_twice_in_a_row():
+    from wayne.contacts import directory
+    from wayne.engine import ContactSession
+    randy = ContactSession(directory().get("batwing"))
+    assert randy._rare_spent() == ()
+    randy.history.record_exchange("You're making coffee?", "Yeah. It's better than yours, Mom.")
+    assert "Mom" in randy._rare_spent()
+
+
+def test_while_he_is_in_the_conversation_they_leave_him_room():
+    import asyncio
+    import time as _time
+
+    import wayne.frontends.web as web
+    console = web.Console.__new__(web.Console)
+    sent = []
+
+    async def broadcast(event):
+        sent.append(event)
+    console.broadcast = broadcast
+    console.call = SimpleNamespace(waiting_on_him=lambda: False, members=[], muted={}, speakerphone={})
+    console._lull_energy, console._lulls, console._him_at = 1.0, 2, _time.time()
+    asyncio.run(console._lull())
+    assert sent and sent[-1]["type"] == "turn_complete"                  # a third line into his pause: no

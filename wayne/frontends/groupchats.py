@@ -46,10 +46,12 @@ class GroupChats:
     # --- what the page asks for ---------------------------------------------
 
     def group_payload(self, group):
+        from ..engine import codex
         summary = group.summary()
         last = summary["last"]
         if last:
             summary["last"] = {**last, "read_by": group.readers_of(last)}
+        summary["picture"] = codex.group_picture(group.id)       # his choice of face for the chat, if any
         return summary
 
     async def group_create(self, name, members):

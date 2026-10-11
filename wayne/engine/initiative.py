@@ -301,6 +301,16 @@ def status_line(contact, state):
         if lately:
             # Free time is when a status is about the things you're into.
             situation += f" (Something you've seen lately, if it's on your mind: {lately}.)"
+        from . import tastes
+        into = tastes.lately(contact)
+        if into:
+            situation += f" (Or something you're into: {into['title']} — {into.get('why', '')}.)"
+    ideas = list((getattr(contact, "interests", None) or {}).get("status_ideas") or [])
+    if ideas:
+        import random as _random
+        # The kind of thing they put — for its flavour, never to copy.
+        situation += " The kind of line you put, for flavour only, never copied: " + " / ".join(
+            _random.sample(ideas, min(3, len(ideas)))) + "."
     now = time.strftime("%A %-I%p", time.localtime()).replace("AM", "am").replace("PM", "pm")
     instruction = (
         f"It's {now}. Write the status line you'd set on your phone right now, the one people see "
@@ -487,6 +497,11 @@ def impulse(session):
     pastimes = (contact.interests or {}).get("pastimes") or []
     if pastimes:
         options.append(("hobby", f"something to do with what you do for fun: {random.choice(pastimes)}"))
+    from . import tastes
+    into = tastes.lately(contact)
+    if into:
+        options.append(("taste", f"something you're into right now: {into['title']} ({into.get('detail', '')}) — "
+                                 f"{into.get('why', '')}"))
     lately = culture.pick(contact)
     if lately:
         # What they've seen in the things they follow: a take, an argument
@@ -677,8 +692,24 @@ def bubbles(contact, text, rng=random):
     return _with_slips(contact, [styled(contact, p, rng) for p in out if p], rng)
 
 
+def _one_emoji_moment(contact, messages):
+    """
+    A burst of texts has its emoji where the feeling lands — once, the last time it comes — not one on every
+    message, unless they're someone who really does put one on everything.
+    """
+    if (contact.texting_style or {}).get("emoji", 1.0) >= 0.8:
+        return messages
+    marked = [i for i, m in enumerate(messages) if _EMOJI.search(m)]
+    if len(marked) < 2:
+        return messages
+    keep = marked[-1]
+    return [m if i == keep or i not in marked else (re.sub(r"\s{2,}", " ", _EMOJI.sub("", m)).strip() or m)
+            for i, m in enumerate(messages)]
+
+
 def _with_slips(contact, messages, rng):
     """At most one typo a reply — and its correction, sent straight after."""
+    messages = _one_emoji_moment(contact, messages)
     for i, message in enumerate(messages):
         sent, correction = slip(contact, message, rng)
         if sent != message:

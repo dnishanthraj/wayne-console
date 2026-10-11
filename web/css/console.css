@@ -1304,6 +1304,16 @@ html[data-rail="compact"] .panel__head .panel__label { display: none; }
 
 /* Group details. */
 .modal__title-input { font-size: 16px; margin-bottom: 4px; }
+/* A group's picture beside its name: drop one on it, or click to choose. */
+.modal__head { display: flex; gap: 14px; align-items: center; margin-bottom: 4px; }
+.modal__head-text { flex: 1; min-width: 0; display: grid; gap: 4px; justify-items: start; }
+.modal__head-text .modal__title-input { margin-bottom: 0; }
+.modal__pic { position: relative; flex: none; width: 56px; height: 56px; border-radius: 50%; padding: 0; overflow: hidden;
+  border: 1px solid var(--hairline-2); background: var(--surface-2) center / cover no-repeat; cursor: var(--cursor-pointer);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease); }
+.modal__pic:hover, .modal__pic[data-drop="1"] { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 168, 224, 0.18); }
+.modal__link { padding: 0; border: 0; background: none; color: var(--text-faint); font-size: 12px; cursor: var(--cursor-pointer); }
+.modal__link:hover { color: var(--alert); }
 .modal__members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .modal__member { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center;
   padding: 6px 8px; border: 1px solid var(--hairline); }

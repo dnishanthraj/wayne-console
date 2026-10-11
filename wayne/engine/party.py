@@ -26,6 +26,7 @@ import time
 
 from .. import events, identity
 from .. import operator as wayne_operator
+from . import guards
 
 MAX_CONTACTS = 7          # him and seven of them: the whole family on one line
 # Contact turns per operator turn: the people he addressed, plus one follow-up.
@@ -184,6 +185,10 @@ class Call:
                 note += (f" {name} is right here with you but doesn't want to talk to him"
                          f"{f' ({why})' if why else ''}. If he asks for them, cover for them or don't, as you would — "
                          "you can be honest, or not, but don't make up anything else.")
+        worn = guards.worn_out(self.transcript[-10:])
+        if worn:
+            note += (" Worn thin on this call already: " + "; ".join(worn) + " — say it some other way, or not at all. "
+                     "Not every line needs a comeback; a short one, a pause, or letting it go are all yours.")
         for cid, why in self.muted.items():
             if cid != session.contact.id:
                 name = next((self.label(m.contact.id, session, full=False) for m in self.members
@@ -300,7 +305,8 @@ class Call:
         # Then the room: nobody asked them, but they heard it. One may jump in
         # — agree, argue, rib someone — and whoever they name answers back.
         # Likelier the more of them there are, less likely each time.
-        chance = CHIME * min(1.0, 0.55 + 0.25 * (len(self.members) - 1))
+        # Two of them on the line: an answer and a chime every time is a volley he's watching, not a call he's on.
+        chance = CHIME * min(1.0, 0.55 + 0.25 * (len(self.members) - 1)) * (0.5 if len(self.members) == 2 else 1.0)
         extra = 0
         while extra < 2 and len(self.members) > 1 and random.random() < chance:
             others = [m for m in self.members if m is not self.last_speaker and m.contact.id not in self.muted]

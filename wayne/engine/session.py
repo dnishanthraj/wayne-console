@@ -607,6 +607,8 @@ class ContactSession:
         # 'Tim' too (he's Robin to Jim), 'Nightwing' with Selina there (see wayne.identity).
         listening = [m.contact.id for m in self.call.members if m is not self] if self.call else []
         listening_guard = identity.guard_vocatives(self.contact.id, listening) if listening else ()
+        # Whoever's actually in the room with them can be looked at; anyone else is a voice down a line.
+        together = bool(self.call and self.call.in_the_room(self))
         self._hanging_up = False
         self._call_add = []
         self._room_move = self._muting = None
@@ -619,7 +621,7 @@ class ContactSession:
             # never be read aloud.
             sentence = _SEARCH_MARKER.sub("", sentence).strip()
             text = guards.strip_forbidden_address(
-                sentence.strip(), self.contact.forbidden_address + listening_guard)
+                sentence.strip(), self.contact.forbidden_address + listening_guard + self._rare_spent())
             text = identity.scrub(text, self.contact.id, listening)
             text = guards.tidy_address(text)
             if index == 0:
@@ -663,7 +665,7 @@ class ContactSession:
             if self._looked and _PROMISE_TO_LOOK.search(delivery.clean(text)):
                 dropped_presence += 1
                 return False, None
-            if guards.presumes_presence(delivery.clean(text)):
+            if guards.presumes_presence(delivery.clean(text), together=together):
                 dropped_presence += 1
                 return False, None
             # Where they are is a fact: "I'm in my kitchen" from someone out on a roof is dropped.
@@ -1069,6 +1071,16 @@ class ContactSession:
             + move + " Don't ask what he needs and don't offer help."
         )
         yield from self._speak_aside(instruction, temperature=0.9, cap=3)
+
+    def _rare_spent(self):
+        """
+        Names that only slip out now and then — Randy's "Mom" — that have slipped out lately: not again so soon.
+        """
+        rare = getattr(self.contact, "rare_address", ()) or ()
+        if not rare:
+            return ()
+        recent = " ".join(m["content"] for m in self.history.messages[-12:] if m.get("role") == "assistant")
+        return tuple(name for name in rare if re.search(rf"(?i)\b{re.escape(name)}\b", recent))
 
     def _mute_odds(self):
         """How likely life where they are interrupts this turn: likelier with company or at home, never mid-fight."""
@@ -1572,6 +1584,11 @@ class ContactSession:
         lately = culture.note(self.contact, " ".join(m["text"] for m in unread[-4:]) if unread else (opening or ""))
         if lately:
             context.append(lately)
+        from . import tastes
+        said = " ".join(m["text"] for m in (unread or [])[-4:] if m.get("from") != self.contact.id) or (opening or "")
+        for line in (tastes.note(self.contact, said), tastes.unfamiliar(self.contact, said)):
+            if line:
+                context.append(line)
         # Where they stand with him and the others in the chat — what's still on their mind is theirs to bring up
         # here as anywhere; only what happened.
         from . import bonds
@@ -2140,6 +2157,14 @@ class ContactSession:
             awareness.append(self.call.note_for(self, follow_up))
         elif via is None and self._said_this_call() >= 2 and head is None:
             awareness.append(CLOSING_DIRECTIVE)
+        # What this conversation has worn out — the same turn of phrase, the same opener, a name in every line — for
+        # the next line to steer round. (A call with company has its own, from the whole call: see party.note_for.)
+        if not self.call or not self.call.is_group:
+            worn = guards.worn_out([("me" if m["role"] == "user" else "them", m["content"])
+                                    for m in self.history.messages[-10:] if m.get("content")])
+            if worn:
+                awareness.append("Worn thin in this conversation already: " + "; ".join(worn)
+                                 + " — say it some other way, or not at all.")
         # Where they stand with him, and with whoever else is on the call: the colour on everything they say.
         from . import bonds
         standing = bonds.note(self.contact)
@@ -2181,6 +2206,12 @@ class ContactSession:
         lately = "" if from_contact else culture.note(self.contact, prompt)
         if lately:
             awareness.append(lately)
+        # What they think of what's come up — a film named, a game asked about, a debate of theirs — and slang
+        # they don't know, so they can ask.
+        from . import tastes
+        for line in ([] if from_contact else [tastes.note(self.contact, prompt), tastes.unfamiliar(self.contact, prompt)]):
+            if line:
+                awareness.append(line)
         # Gotham's own news this morning, and the city's figures he names.
         for line in ([] if from_contact else [gazette.note(self.contact, prompt), gazette.who(prompt)]):
             if line:
@@ -2879,6 +2910,21 @@ class ContactSession:
         payload = prompting.build_payload(self.contact, self.history.for_model(), prompting.reference_opening(head))
         ollama.chat(model=self.contact.model, messages=payload, stream=False,
                     options=self._options(num_predict=1), **self._extra())
+
+    def prefetch_call_turn(self):
+        """
+        On a call with company, while he's talking: read ahead who this one is and the call so far, so if they're
+        the one who answers him only his words are new to the model — two to three seconds a voice, otherwise.
+        A plain request, not the cuttable kind: his turn starting must not throw away what it's about to reuse.
+        """
+        # Up to the end of what they've heard and said — exactly where their turn will carry on (see keep_warm: the
+        # model resumes only where a request ended, so a stray last message would waste the whole read).
+        payload = prompting.build_payload(self.contact, self.history.for_model(), "")[:-1]
+        try:
+            ollama.chat(model=self.contact.model, messages=payload, stream=False,
+                        options=self._options(num_predict=1), **self._extra())
+        except Exception:
+            pass
 
     def _at_home(self):
         """Whether they're home right now — arrived, not on the way."""

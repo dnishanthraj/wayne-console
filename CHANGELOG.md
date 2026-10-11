@@ -5,6 +5,56 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-11
+
+### Changed
+
+- **Group calls flow.** While you're talking, the person who spoke last (the
+  likeliest to answer) has their part of the conversation read ahead, so
+  only your words are new when you stop: two to three seconds off each first
+  reply. While you're in the conversation, the others give you room. At most
+  two lines into a pause before they wait for you, no talking over each
+  other, a pause left to you for a few seconds rather than under one, and on
+  a two-person call half as many chime-ins. Every change of voice costs the
+  model a full re-read, and Randy and Selina were volleying a dozen jabs a
+  minute.
+- **Less of the same.** Each speaker is told what the conversation has worn
+  thin (the "it's not X, it's Y" turn of phrase, the last word thrown back as
+  a question, the same opener, the same name in every line) so the next line
+  reaches for something else. A name that only slips out (Randy's "Mom")
+  won't slip twice in a few lines.
+- **Nobody can see anyone down a phone line.** "Don't look at me like that",
+  "stop smirking" and "I saw that" are only said to someone actually in the
+  room.
+- **Walks move.** Out walking the dog or for a run, someone goes round the
+  nearest park's path, or a loop of the streets, instead of standing on the
+  district's name.
+- Searching the map flies to where a place is drawn, not a few doors off.
+- Each transcription is logged with how long the speech was and how long
+  hearing it took, and whether the model was busy at the time.
+
+### Added
+
+- **Tastes, researched and alive.** Each of them has real, current things
+  they love and can't stand, checked against the web as of October 2026 (a
+  second agent removed or corrected anything that didn't hold up). They have
+  opinions they'll argue for, and who'd argue back. When a title, a kind of
+  thing (a film, a game, an album) or one of their debates comes up, they
+  have their view ready. The rest stays out of the prompt so calls stay
+  fast. Tastes move: once a week, from what's actually new in what they
+  follow, they may get into something or go off something, always as
+  themselves and only from real news. Status lines and texts out of the blue
+  draw on what they're into.
+- **Texting like their age.** What each of them says (Tim's "fwiw", Dick's
+  "no bc") and would never say. Slang they don't know: use "fml" with Alfred
+  and he may well ask what it means. When an emoji actually happens for them
+  (Tim's 💀 only for a Dick pun that scores a seven) and when it never does.
+  A burst of texts keeps its emoji for the moment it lands, not one on
+  every message.
+- **Group chat pictures.** Drop a picture on a group's info panel, or click
+  to choose one. It shows in the directory and the chat, and it's kept out
+  of git like everyone's faces.
+
 ## [0.16.2] - 2026-10-11
 
 ### Fixed

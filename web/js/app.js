@@ -132,6 +132,7 @@
      'group-modal', 'group-form', 'group-name', 'group-people', 'group-cancel', 'group-create',
      'messages-delete', 'messages-more', 'thread-menu', 'groups-wrap', 'group-info', 'group-info-name', 'group-info-members',
      'group-info-add', 'group-info-add-label', 'group-info-close', 'group-info-save', 'seats',
+     'group-info-pic', 'group-info-pic-remove', 'group-info-file',
      'messages-call', 'call-pick', 'call-pick-form', 'call-pick-people', 'call-pick-cancel',
      'call-pick-go'].forEach(function (id) { el[id] = $(id); });
   }
@@ -380,7 +381,8 @@
       ? AFTER_QUESTION : IDLE_WINDOWS[Math.min(state.nudges, IDLE_WINDOWS.length - 1)];
     var closing = state.nudges >= MAX_NUDGES;
     var lull = state.party.length > 1 && (state.lulls || 0) < MAX_LULLS;
-    if (lull) { window_ = GROUP_LULL; closing = false; }
+    // He's in the conversation: a pause is his to fill first — a few seconds, not under one, before anyone else does.
+    if (lull) { window_ = Date.now() - (state.heSpokeAt || 0) < 30000 ? [2600, 2400] : GROUP_LULL; closing = false; }
     var wait = window_[0] + Math.random() * window_[1];
     var quietFor = state.quietUntil - Date.now();
     if (quietFor > 0) wait += quietFor;
@@ -1821,6 +1823,36 @@
 
   /* Up to four faces in one circle, laid out for how many there are — a pair
      side by side, three in a triangle, four in a square — and "+N" past that. */
+  /* A group's face: the picture he gave it, or its members' faces stacked. */
+  function groupFace(node, g) {
+    if (g && g.picture) {
+      node.innerHTML = '';
+      node.classList.remove('stack');
+      node.dataset.count = '';
+      node.style.backgroundImage = 'url("' + g.picture + '")';
+      node.style.backgroundSize = 'cover';
+      node.style.backgroundPosition = 'center';
+      return;
+    }
+    node.style.backgroundSize = '';
+    node.style.backgroundPosition = '';
+    stackPortraits(node, (g && g.members) || []);
+  }
+
+  function setGroupPicture(file) {
+    var id = state.groupOpen;
+    if (!id || !file || !/^image\/(png|jpeg|webp)$/.test(file.type)) return;
+    fetch('/api/groups/' + encodeURIComponent(id) + '/picture', { method: 'POST', headers: { 'Content-Type': file.type }, body: file })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.picture === undefined || !state.groups[id]) return;
+        state.groups[id].picture = d.picture;
+        openGroupInfo();
+        renderGroups();
+        if (groupOpenFor(id)) groupFace(el['messages-avatar'], state.groups[id]);
+      }).catch(function () {});
+  }
+
   function stackPortraits(node, members) {
     node.innerHTML = '';
     node.classList.add('stack');
@@ -1904,7 +1936,7 @@
       row.className = 'book__row groups__row';
       var faces = document.createElement('span');
       faces.className = 'book__avatar';
-      stackPortraits(faces, g.members);
+      groupFace(faces, g);
       var unread = state.unread[groupKey(id)];
       if (unread) {
         var badge = document.createElement('span');
@@ -1957,7 +1989,7 @@
     // A group's own colour, fixed: left to inherit, it took the colour of whoever was speaking on a call,
     // sentence by sentence — the send button, the receipts, the tab.
     el.messages.style.setProperty('--contact-accent', 'var(--primary)');
-    stackPortraits(el['messages-avatar'], g.members);
+    groupFace(el['messages-avatar'], g);
     el['messages-name'].textContent = g.name;
     paintHeadMute();
     el['messages-role'].textContent = groupMembersLine(g);
@@ -2020,7 +2052,7 @@
           el['messages-name'].textContent = event.group.name;
           paintHeadMute();
           el['messages-role'].textContent = groupMembersLine(event.group);
-          stackPortraits(el['messages-avatar'], event.group.members);
+          groupFace(el['messages-avatar'], state.groups[event.group.id]);
           renderThread();
         }
         if (!el['group-info'].hidden && state.groupOpen === event.group.id) openGroupInfo();
@@ -2193,6 +2225,8 @@
     var g = state.groups[state.groupOpen];
     if (!g) return;
     el['group-info-name'].value = g.name;
+    groupFace(el['group-info-pic'], g);
+    el['group-info-pic-remove'].hidden = !g.picture;
     var members = el['group-info-members'];
     members.innerHTML = '';
     g.members.forEach(function (cid) {
@@ -2646,6 +2680,29 @@
     });
     el['group-info-close'].addEventListener('click', function () { el['group-info'].hidden = true; });
     el['group-info-save'].addEventListener('click', saveGroupInfo);
+    // The group's picture: chosen, or dropped straight onto it.
+    el['group-info-pic'].addEventListener('click', function () { el['group-info-file'].click(); });
+    el['group-info-file'].addEventListener('change', function () {
+      if (el['group-info-file'].files[0]) setGroupPicture(el['group-info-file'].files[0]);
+      el['group-info-file'].value = '';
+    });
+    el['group-info-pic'].addEventListener('dragover', function (e) { e.preventDefault(); el['group-info-pic'].dataset.drop = '1'; });
+    el['group-info-pic'].addEventListener('dragleave', function () { delete el['group-info-pic'].dataset.drop; });
+    el['group-info-pic'].addEventListener('drop', function (e) {
+      e.preventDefault();
+      delete el['group-info-pic'].dataset.drop;
+      if (e.dataTransfer.files[0]) setGroupPicture(e.dataTransfer.files[0]);
+    });
+    el['group-info-pic-remove'].addEventListener('click', function () {
+      var id = state.groupOpen;
+      if (!id) return;
+      fetch('/api/groups/' + encodeURIComponent(id) + '/picture', { method: 'DELETE' }).then(function () {
+        if (state.groups[id]) state.groups[id].picture = '';
+        openGroupInfo();
+        renderGroups();
+        if (groupOpenFor(id)) groupFace(el['messages-avatar'], state.groups[id]);
+      });
+    });
     el['incoming-decline'].addEventListener('click', declineIncoming);
     setRailWidth(parseInt(recall('railWidth') || '270', 10));
     if (recall('railHidden') === '1') document.documentElement.dataset.rail = 'hidden';
@@ -3174,6 +3231,7 @@
         // Whether their voice could have got into the take: hands-free, while it played. Held to talk, the
         // voice stops the moment he presses — so "Yes, bring the car around" after "Shall I bring the car
         // around?" is him agreeing, not an echo.
+        state.heSpokeAt = Date.now();
         send({ type: 'prompt', text: text, spoken: true, talked_over: state.talkedOver,
                overlapped: state.mode === 'ambient' && !!state.takeHeardVoice,
                confidence: typeof data.confidence === 'number' ? data.confidence : 1 });
@@ -3396,6 +3454,7 @@
       interruptHim();
       el.input.value = '';
       noteActivity({ quietFor: requestedTime(text) });
+      state.heSpokeAt = Date.now();
       send({ type: 'prompt', text: text, talked_over: state.talkedOver });
       state.talkedOver = null;
     });

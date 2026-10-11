@@ -798,6 +798,8 @@
     };
   }
 
+  var drawnAt = {};
+
   function loadCity() {
     // All three at once — then built in order, so the city draws first.
     var files = ['gotham.geojson', 'gotham-buildings.json', 'gotham-trees.json'].map(function (name) {
@@ -805,6 +807,12 @@
     });
     return files[0].then(function (fc) {
       fc.features.forEach(function (f) { f.geometry.coordinates = convert(f.geometry.coordinates); });
+      // Where each place is actually drawn — the build nudges a spot off the buildings — so search flies there.
+      fc.features.forEach(function (f) {
+        if (f.properties && f.properties.l === 'place' && f.properties.n && f.geometry.type === 'Point') {
+          drawnAt[f.properties.n] = f.geometry.coordinates;
+        }
+      });
       map.getSource('city').setData(fc);
       if (window.GothamTraffic) GothamTraffic.init(fc, gazetteer.places || []);
       return files[1];
@@ -2293,8 +2301,9 @@
       if (o.person) return select(o.person, true);
       if (o.report) incidentCard(o.report);
       if (o.jet) jetCard();
-      map.flyTo({ center: ll(o.x, o.y), zoom: Math.max(map.getZoom(), o.district ? 14.2 : 15.6), duration: 1100 });
-      flash(ll(o.x, o.y));
+      var at = (!o.report && !o.jet && drawnAt[o.name]) || ll(o.x, o.y);
+      map.flyTo({ center: at, zoom: Math.max(map.getZoom(), o.district ? 14.2 : 15.6), duration: 1100 });
+      flash(at);
     }
     function draw() {
       list.innerHTML = '';

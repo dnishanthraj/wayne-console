@@ -55,3 +55,22 @@ def test_home_somewhere_else_is_whoever_lives_there():
     assert tim.label("Dick's apartment") == "Dick's apartment"
     assert tim._spoken_place("Dick's apartment") == "Dick's place (Dick's apartment)"
     assert dick._spoken_place("Dick's apartment").startswith("home")
+
+
+def test_out_walking_the_dog_they_go_round_not_stand_still(clock):
+    import math
+
+    from wayne.engine import places
+    dick = presence.of(directory().get("nightwing"))
+    t = clock()
+    dick.set_activity("walking Haley", presence.IDLE, 180, t=t, where="Port's Park")
+    later = t + 3600                                                      # long since there, not on the way
+    assert not dick.trip("Port's Park", places.resolve("Port's Park"), later)
+    a, b = dick.position(later), dick.position(later + 300)
+    port = places.resolve("Port's Park")
+    assert a != b                                                         # moving
+    assert max(math.dist(a, (port["x"], port["y"])), math.dist(b, (port["x"], port["y"]))) < 2.5
+    cass = presence.of(directory().get("orphan"))
+    cass.set_activity("a run", presence.IDLE, 180, t=t, where="Burnside")
+    shown = cass.public(t + 3600)
+    assert "Burnside Park" in shown["where"]                              # round the park that's there

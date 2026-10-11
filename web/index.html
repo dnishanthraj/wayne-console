@@ -410,8 +410,16 @@
   <!-- A group's details: who's in it, who's around, and changes. -->
   <div class="modal" id="group-info" hidden role="dialog" aria-labelledby="group-info-name">
     <div class="modal__card">
-      <input class="modal__input modal__title-input" id="group-info-name" type="text" maxlength="60"
-             aria-label="Group name">
+      <div class="modal__head">
+        <button class="modal__pic" id="group-info-pic" type="button" aria-label="Group picture"
+                data-tip="Drop a picture here, or click to choose one"></button>
+        <div class="modal__head-text">
+          <input class="modal__input modal__title-input" id="group-info-name" type="text" maxlength="60"
+                 aria-label="Group name">
+          <button class="modal__link" id="group-info-pic-remove" type="button" hidden>Remove picture</button>
+        </div>
+        <input id="group-info-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+      </div>
       <p class="modal__label">In the group</p>
       <ul class="modal__members" id="group-info-members"></ul>
       <p class="modal__label" id="group-info-add-label">Add someone</p>
