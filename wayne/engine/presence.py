@@ -819,7 +819,10 @@ class Presence:
             if live:
                 out.update(spot=live, where=live["name"], seen_live=True, doing="working a case" if how.startswith("seen working") else "")
                 with self._lock:        # read on threads now: never a change mid-save
+                    was = self._state.get("seen") or {}
                     self._state["seen"] = {"where": live["name"], "x": live["x"], "y": live["y"], "at": now, "how": how}
+                    if was.get("where") != live["name"] or now - was.get("at", 0) > 300:
+                        self.save()     # the last he saw of them outlasts a restart — written when it moves on
                 return out
             out["last_seen"] = self._last_seen(t)   # the last he knows of where they were, and how — never nowhere
             return out
@@ -1503,8 +1506,9 @@ class Presence:
             self.save()
 
     def clear(self):
-        self._state = {"activity": None, "last_active": 0, "intents": []}
-        self._space.clear()
+        with self._lock:
+            self._state = {"activity": None, "last_active": 0, "intents": []}
+            self._space.clear()
 
 
 # How likely they are to answer, by what they're doing — unless the profile

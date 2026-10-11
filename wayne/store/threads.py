@@ -19,12 +19,27 @@ from . import seal as sealing
 
 _MARKS = ("seen_at", "read_at", "ignored")
 _hooks = []              # told of every message added: the search index keeps up this way
+_drop_hooks = []         # and of every one deleted — trimmed off the end of a thread, or the thread cleared
 
 
 def on_add(hook):
     """`hook(db, rid, thread, message)` after each message is kept."""
     if hook not in _hooks:
         _hooks.append(hook)
+
+
+def on_drop(hook):
+    """`hook(db, rids, thread)` after messages are deleted."""
+    if hook not in _drop_hooks:
+        _drop_hooks.append(hook)
+
+
+def _dropped(store, rids, thread):
+    for hook in list(_drop_hooks) if rids else ():
+        try:
+            hook(store, rids, thread)
+        except Exception:
+            pass
 _COLUMNS = "rid, id, sender, at, kind, seen_at, read_at, ignored, body"
 
 
@@ -98,10 +113,16 @@ class Thread:
                 (self.thread, message["id"], message.get("from", ""), message["at"], message.get("kind") or None,
                  message.get("seen_at") or None, message.get("read_at") or None, 1 if message.get("ignored") else 0,
                  sealing.seal(sealing.dumps(body))))
+            trimmed = []
             if cap:
-                conn.execute("DELETE FROM messages WHERE thread = ? AND rid <= (SELECT rid FROM messages WHERE thread = ? "
-                             "ORDER BY rid DESC LIMIT 1 OFFSET ?)", (self.thread, self.thread, cap))
+                past = ("thread = ? AND rid <= (SELECT rid FROM messages WHERE thread = ? ORDER BY rid DESC LIMIT 1 "
+                        "OFFSET ?)")
+                trimmed = [r[0] for r in conn.execute(f"SELECT rid FROM messages WHERE {past}",
+                                                      (self.thread, self.thread, cap))]
+                if trimmed:
+                    conn.execute(f"DELETE FROM messages WHERE {past}", (self.thread, self.thread, cap))
             rid = cur.lastrowid
+        _dropped(store, trimmed, self.thread)
         for hook in list(_hooks):
             try:
                 hook(store, rid, self.thread, message)
@@ -142,7 +163,9 @@ class Thread:
 
     def clear(self):
         with self.db.tx() as conn:
+            gone = [r[0] for r in conn.execute("SELECT rid FROM messages WHERE thread = ?", (self.thread,))]
             conn.execute("DELETE FROM messages WHERE thread = ?", (self.thread,))
+        _dropped(self.db, gone, self.thread)
 
 
 def _range(prefix):

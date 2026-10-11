@@ -167,7 +167,16 @@ def late_words(e):
     if mins < 50:
         return f"{int(round(mins / 5.0) * 5)} minutes late"
     hours = round(mins / 60.0 * 2) / 2
-    return ("an hour" if hours <= 1 else f"{hours:g} hours".replace(".5 hours", " and a half hours")) + " late"
+    if hours <= 1:
+        return "an hour late"
+    if hours == 1.5:
+        return "an hour and a half late"
+    whole = int(hours)
+    said = _NUMBERS.get(whole, str(whole))
+    return f"{said} and a half hours late" if hours > whole else f"{said} hours late"
+
+
+_NUMBERS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
 
 @_locked

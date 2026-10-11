@@ -1,9 +1,71 @@
 # Changelog
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
+From 1.0.0 the version means something: anything that would ask you to do
+something to your data directory or change how you run the console is a new
+major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-10-11
+
+Everything on the list is done. The last two releases came from two reviews
+of the whole codebase (how prompts fit the model's window, and how data moves
+and is kept); this one clears the rest of what they found, along with a few
+things a final pass over every screen turned up. 775 tests, all passing.
+
+### Fixed
+
+- **Off a case, off its comms.** Someone pulled off a case, or moved to
+  another one, stayed in its comms channel and carried on talking there.
+  They now go off comms with a line saying so. Alfred and Barbara at their
+  screens stay, and so does anyone on a live call with you until it ends.
+- **Taken off comms by you, kept off.** Remove someone from a case's comms
+  and the next person to join used to bring them straight back. They now
+  stay off until you add them yourself. Two records of who you'd removed
+  became one, and adding someone back lifts it.
+- **When the lead leaves, the next one leads properly.** The case kept the
+  old lead's details: how far they'd had to come, and that you'd sent them.
+  So a case Jason was left working alone stayed on your board as if you'd
+  sent someone, though Jason doesn't share where he is. The next one on it
+  now leads on their own terms, and how the case runs is worked out again
+  for the people left on it.
+- **A lift you go back on leaves nobody flying alone.** Change course or stop
+  mid-lift and the Batwing went with you, but whoever you were picking up
+  flew on along the old route with nothing under them. Now they make their
+  own way from where they were waiting, or from where it set them down, to
+  their case or wherever they were going, and they may well say something
+  about it.
+- **What's deleted is gone from search.** Diary lines past their month, a
+  trimmed group chat, a cleared thread, things someone was made to forget:
+  all gone from the database, but recall's search index still had them,
+  where they could crowd out what's really there. Deletions now reach the
+  index, and after the daily tidy it's rebuilt from what's left.
+- **A reply you're owed outlasts a busy night.** Mail waiting to be written
+  is capped, and the oldest went first, even a reply to a letter you'd sent.
+  Now the oldest news goes first and an owed reply never does.
+- **Where you last saw them outlasts a restart.** The last sighting of
+  someone who keeps their location to themselves is now saved when it moves
+  on, instead of only being held in memory.
+- **A breakout is news once.** Two parts of the console checking on a rogue
+  at the same moment could both record the same escape. Whoever gets there
+  second now takes the first one's word.
+- **The reset script does what Settings does.** `scripts/reset_world.py` ran
+  its own copy of the reset and missed what Settings now clears: links left
+  behind by deleted events, and on a conversations-only reset, the diary
+  entries and errands those conversations made. It now uses the same code.
+
+### Changed
+
+- **Lateness reads like a person wrote it:** "two and a half hours late",
+  not "2 and a half hours late".
+- **The diary's day strip on a narrow window** keeps each day on one line,
+  with its count beside it, instead of wrapping "Thu 8 Oct" onto three lines.
+- **Exporting to the old JSON files** now says plainly what it leaves out:
+  everything newer than those files (the diary, bonds, tastes, who knows the
+  secret, the papers' view of you) lives only in the database and its daily
+  backups.
+- README and TODO brought up to date for 1.0.
 
 ## [0.38.1] - 2026-10-11
 

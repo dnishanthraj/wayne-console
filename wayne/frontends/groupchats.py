@@ -547,16 +547,11 @@ class GroupChats:
                 await self.broadcast({"type": "group_message", "group": group.id, "message": line})
                 if comms:
                     # Onto a case's comms: Alfred and Barbara drop what they're doing; anyone else is asked in.
-                    group.update_meta(lambda m, cid=cid: m.update({"kept_out": [k for k in m.get("kept_out") or []
-                                                                               if k != cid]}))
                     self._called_onto_comms(group, cid)
                 self._read_later(group, cid)
         for cid in remove:
             contact = self.directory.get(cid)
             if contact and len(group.members) > 1 and group.remove_member(cid, by_bruce=True):
-                if comms:
-                    # Taken off comms by him: not put back on it when they're next at their screens.
-                    group.update_meta(lambda m, cid=cid: m.update({"kept_out": sorted(set(m.get("kept_out") or []) | {cid})}))
                 await self._drop_member(group, cid)
                 line = group.system(f"You removed {contact.name}",
                                     said=f"{self._bruce()} removed {contact.name}")

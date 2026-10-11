@@ -174,22 +174,33 @@ def assign(report, contact_id, by="him", travel=0):
 
 
 def leave(case_id, contact_id):
-    """They've moved on to something else: off this case — and the case gone with them if they were all it had."""
+    """
+    They've moved on to something else: off this case — and the case gone with them if they were all it had. The
+    lead gone, whoever's next leads it, on their own terms: whose word put them on it, how far they had to come —
+    the lead Bruce had sent kept a case Jason was left working alone on his board — and how it runs now with
+    fewer hands (outcomes.course; when it's due stays put, so the bar never runs backwards).
+    """
     with _lock:
         case = _get(case_id)
-        if case is None:
-            return
+        if case is None or case["status"] == "closed":
+            return                                      # a closed case's team is the record of who worked it
         members = team(case)
         if contact_id not in members:
             return
         rest = [m for m in members if m != contact_id]
-        if not rest and case["status"] != "closed":
+        if not rest:
             _board().drop(case_id)
-        else:
-            case["team"] = rest
-            (case.get("members") or {}).pop(contact_id, None)
-            case["assignee"] = rest[0] if rest else case.get("assignee")
-            _put(case)
+            return
+        case["team"] = rest
+        crew = case.setdefault("members", {})
+        crew.pop(contact_id, None)
+        if case.get("assignee") == contact_id:
+            lead = crew.get(rest[0]) or {}
+            case.update({"assignee": rest[0], "by": lead.get("by", case.get("by")),
+                         "travel": lead.get("travel", case.get("travel"))})
+        from . import outcomes
+        case["course"] = outcomes.course(case, rest)[0]
+        _put(case)
 
 
 def advance(now=None, arrived=None):

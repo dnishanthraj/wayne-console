@@ -319,7 +319,11 @@ def export(root):
     """
     The database written out as the JSON files an older console reads, under
     `root` (which must not be the live data directory while the console runs).
-    Returns the paths written.
+    Returns the paths written. Only what those files ever held: what came after
+    the database — his diary (engagements), the bonds between them, tastes, who
+    knows the secret, the papers' view of him, the city's ambience — was never
+    in a file an older console reads, and stays in the database (and its daily
+    backups) alone.
     """
     from ..engine import diary
     from . import db as database

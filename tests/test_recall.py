@@ -218,3 +218,26 @@ def test_what_they_did_with_someone_comes_through_the_links(book, clock):
     events.add("diary.doing", "at home — homework", at=_ts(4, 20, now), actor="robin", audience=["robin"])
     block = recall.block(book.get("robin"), "What did you and Dick get up to on Monday night?")
     assert "with Dick" in block and "Gotham Gazette" in block and "homework" not in block
+
+
+# --- what's deleted is gone from what's found ---------------------------------------------
+
+def test_what_is_deleted_is_gone_from_what_is_found(monkeypatch):
+    from wayne.store import index, threads, upkeep
+    kept = events.add("diary.robin", "Tim fixed the zeppelin's engine in the cave", actor="robin")
+    gone = events.add("diary.robin", "Tim lost the zeppelin keys at the docks", actor="robin")
+    found = index.of()
+    assert {ref for _kind, ref, _fit in found.search(["zeppelin"])} == {kept, gone}
+    events.drop("id = ?", (gone,))
+    assert {ref for _kind, ref, _fit in found.search(["zeppelin"])} == {kept}              # forgotten with its row
+    chat = threads.Thread("g:zep")
+    for i in range(4):
+        chat.add({"id": f"m{i}", "from": "robin", "text": f"zeppelin plan {i}", "at": time.time() + i}, cap=2)
+    hits = [ref for kind, ref, _fit in found.search(["plan"]) if kind == index.MESSAGE]
+    assert len(hits) == 2                                                                  # the trimmed ones went too
+    chat.clear()
+    assert not [ref for kind, ref, _fit in found.search(["plan"]) if kind == index.MESSAGE]
+    events.add("diary.robin", "an old zeppelin note", at=time.time() - 40 * DAY, actor="robin")
+    monkeypatch.setattr(upkeep, "BACKUPS", 0)
+    upkeep.run()
+    assert index.of() is not found and len(index.of().search(["zeppelin"])) == 1           # rebuilt from what's left

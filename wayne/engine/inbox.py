@@ -205,12 +205,23 @@ def reply(message_id, body, now=None):
     return mine
 
 
+# How much news waits to be written about, at most — the oldest goes first when there's more.
+QUEUE = 41
+
+
 def queue(event):
-    """Something happened that'll bring mail: a case ended, someone broke out. Written when the model's free."""
+    """
+    Something happened that'll bring mail: a case ended, someone broke out. Written when the model's free. Only so
+    much waits: the oldest news goes first — never a reply he's owed, which a night of busy cases used to push out.
+    """
     with _lock:
         waiting = store.space("mail_events")
         waiting.put(uuid.uuid4().hex[:12], {**event, "at": time.time()})
-        waiting.trim(41)
+        items = waiting.items()
+        over = len(items) - QUEUE
+        if over > 0:
+            spare = [key for key, e in items if e.get("kind") != "reply"]
+            waiting.drop(*spare[:over])
 
 
 def suggest(message_id, model, options, now=None):

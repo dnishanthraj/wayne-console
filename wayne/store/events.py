@@ -28,11 +28,26 @@ from . import seal as sealing
 PRIVATE, WATCHERS, PUBLIC = "private", "watchers", "public"
 
 _hooks = []              # called with each event added — the search index keeps up this way
+_drop_hooks = []         # called with the ids of events deleted, so it forgets them too
 
 
 def on_add(hook):
     if hook not in _hooks:
         _hooks.append(hook)
+
+
+def on_drop(hook):
+    """`hook(db, ids)` after events are deleted."""
+    if hook not in _drop_hooks:
+        _drop_hooks.append(hook)
+
+
+def _dropped(store, ids):
+    for hook in list(_drop_hooks) if ids else ():
+        try:
+            hook(store, ids)
+        except Exception:
+            pass
 
 
 def add(kind, text, at=None, actor="", data=None, links=(), audience=(), scope=PRIVATE, secret=False):
@@ -152,14 +167,21 @@ def audience(event_ids):
 
 def forget_audience(contact_id, kind):
     """They no longer know any of these (a reset of what they've heard); events nobody knows any more go too."""
-    with database.get().tx() as c:
+    store = database.get()
+    with store.tx() as c:
         c.execute("DELETE FROM event_audience WHERE contact_id = ? AND event_id IN (SELECT id FROM events WHERE kind = ?)",
                   (contact_id, kind))
-        c.execute("DELETE FROM events WHERE kind = ? AND scope = ? AND id NOT IN (SELECT event_id FROM event_audience)",
-                  (kind, PRIVATE))
+        unknown = "kind = ? AND scope = ? AND id NOT IN (SELECT event_id FROM event_audience)"
+        gone = [r[0] for r in c.execute(f"SELECT id FROM events WHERE {unknown}", (kind, PRIVATE))]
+        c.execute(f"DELETE FROM events WHERE {unknown}", (kind, PRIVATE))
+    _dropped(store, gone)
 
 
 def drop(where, params=()):
     """Delete events matching a condition on `events` (links and audience go with them). Returns how many."""
-    with database.get().tx() as c:
-        return c.execute(f"DELETE FROM events WHERE {where}", params).rowcount
+    store = database.get()
+    with store.tx() as c:
+        gone = [r[0] for r in c.execute(f"SELECT id FROM events WHERE {where}", params)]
+        c.execute(f"DELETE FROM events WHERE {where}", params)
+    _dropped(store, gone)
+    return len(gone)

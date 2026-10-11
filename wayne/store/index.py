@@ -58,6 +58,11 @@ class Index:
             elif self._building:
                 self._pending.append((kind, ref, text, owner, at))
 
+    def forget(self, kind, refs):
+        """Rows deleted at their source: gone from what's found, too — not left to crowd out the ones still there."""
+        for ref in refs:
+            self.put(kind, ref, "")
+
     def build(self, store):
         """
         Everything there is, read once — sealed rows opened here, never written
@@ -159,6 +164,17 @@ def warm():
     of()
 
 
+def stale(store=None):
+    """
+    After a sweep that deleted more than it's worth naming row by row (the daily upkeep): built again from what's
+    left, the next time it's asked.
+    """
+    store = store or database.get()
+    found = store.extras.pop("index", None)
+    if found is not None:
+        found.close()
+
+
 # --- keeping up ------------------------------------------------------------------------
 
 def _on_event(store, event):
@@ -180,9 +196,23 @@ def _on_message(store, rid, thread, message):
         found.put(MESSAGE, rid, _message_words(message.get("from", ""), message), thread, message.get("at", 0.0))
 
 
+def _on_events_dropped(store, ids):
+    found = store.extras.get("index")
+    if found is not None:
+        found.forget(EVENT, ids)
+
+
+def _on_messages_dropped(store, rids, thread):
+    found = store.extras.get("index")
+    if found is not None and thread.startswith("g:"):
+        found.forget(MESSAGE, rids)
+
+
 events.on_add(_on_event)
+events.on_drop(_on_events_dropped)
 transcript.on_change(_on_said)
 threads.on_add(_on_message)
+threads.on_drop(_on_messages_dropped)
 
 
 # --- what a question is looking for -----------------------------------------------------

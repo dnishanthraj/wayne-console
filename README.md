@@ -5,7 +5,7 @@
 **Gotham, running on your Mac.**
 Call Alfred. Text Dick. Get left on read by Jason. Watch the city move on a live holographic map, and work the cases off the police scanner.
 
-![version](https://img.shields.io/badge/version-0.12.0-4fa8e0?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.0-4fa8e0?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-0b1520?style=flat-square&logo=apple)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-0b1520?style=flat-square&logo=python&logoColor=white)
 ![model](https://img.shields.io/badge/LLM-local%20via%20Ollama-0b1520?style=flat-square)
@@ -15,7 +15,7 @@ Call Alfred. Text Dick. Get left on read by Jason. Watch the city move on a live
 
 </div>
 
-You're Bruce Wayne. The console is your phone: nine people who each have their own voice, memory, schedule and opinions of you, and a city that carries on whether or not you're watching. Everything except the voices runs on your machine: the model thinks locally through [Ollama](https://ollama.com), and [ElevenLabs](https://elevenlabs.io) does the speaking.
+You're Bruce Wayne. The console is your phone: ten people who each have their own voice, memory, schedule and opinions of you, and a city that carries on whether or not you're watching. Everything except the voices runs on your machine: the model thinks locally through [Ollama](https://ollama.com), and [ElevenLabs](https://elevenlabs.io) does the speaking.
 
 > [!NOTE]
 > This is a hobby project and an ongoing experiment in making characters feel like people rather than chatbots. Nothing they say is scripted: their days, texts, moods, the dispatches on the scanner and how a case ends are all generated, inside rules that keep them consistent.
@@ -66,12 +66,12 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 ### 📞 Calls
 - **Hold <kbd>Space</kbd> to talk**, or type; the mic button mutes you, and they know you've gone quiet. Talk over them and they stop.
 - **Speech starts in about half a second.** The turn is read ahead while you're still talking, sentences are voiced as the model writes them, and the words appear in time with the voice.
-- **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. Stage directions are performed, never shown.
-- **Their world, all the time.** A hundred kinds of place and 170 sounds: a horn beside them, a siren going past, a train far off, the crowd under a busy street, rain on the windows, the bag in a boxing gym, a games night at Dick's. They hear it too, so "what was that?" gets an answer, and on a group call everyone hears what came down Dick's phone. Each person's ring moves with their room. ([The full list](docs/soundscape.md).)
+- **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. They talk the way people talk on the phone, unpolished and short, each in their own register, and how much feeling is in it depends on what's happening. Stage directions are performed, never shown.
+- **Their world, in the background.** A hundred kinds of place and 170 sounds, kept low and occasional so they never talk over anyone: a horn beside them, a siren going past, a train far off, the crowd under a busy street, rain on the windows, the bag in a boxing gym, a games night at Dick's. They hear it too, so "what was that?" gets an answer, and on a group call everyone hears what came down Dick's phone. Each person's ring moves with their room. ([The full list](docs/soundscape.md).)
 - **Relationships that move.** Warmth and trust shift slowly, hurts fade, and each of them remembers what happened, in their own words: you woke Dick three mornings running, nobody came when Tim's case went bad, you went yourself. They bring it up, answer slower, ghost, go dark on the map or warm up, each by their nature. Alfred never leaves. The Codex shows where you stand, in words.
 - **Life interrupts.** Someone at the door and they mute for a minute, then come back with what it was. Someone walks in on the call and you hear them in the background; someone with company steps away to talk to you alone.
 - **A ring that means something.** It covers the model warming up; sleeping ones ring out, and they call you back. Whether they pick up depends on what they're doing, the way it would for anyone. Alfred in the garden answers. Dick on his way to a case answers, and at the scene maybe, about the case. Mid-fight or mid-training, nobody does.
-- **Group calls**, you plus four, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time. **One phone per room**: ring Dick while Tim's with him and Tim's on his speaker, on Dick's seat, and goes when Dick does.
+- **Group calls**, you plus seven, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time. **One phone per room**: ring Dick while Tim's with him and Tim's on his speaker, on Dick's seat, and goes when Dick does.
 
 </td><td width="50%" valign="top">
 
@@ -83,6 +83,7 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Group chats** that live without you. They answer each other, go quiet when everyone's asleep, chase a question nobody's read, and take a private aside to your DMs.
 - **@tags that ping.** `@Tim`, `@everyone`, and `@Bruce` lights up *your* screen with its own tone and badge.
 - **Emoji and reactions.** A picker in the composer, reactions from a hover button. Reacting is a habit of theirs, not a reflex: Alfred almost never, Cass more than she writes, and a 👍 can be the whole answer.
+- **Texting like people text.** Caps when they're yelling, "HAHAHA", "bro", each in their own slang (Jason gets a lot out of Dick's name). The odd typo, fixed with a `*` or just left; "sorry, I meant Thursday" when they mix something up. Either of you can **edit** a sent message (the pencil on hover), and it shows *Edited*.
 
 </td></tr>
 <tr><td valign="top">
@@ -105,7 +106,7 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Hearsay.** What one of them hears may reach another, with who said it.
 - **Secrets that stay secret.** Every fact about you is tagged with who knows it, so Lucius never learns who's under the Batwing mask. Jim sees the city the way GCPD does (the scanner, which masks were on which scene, the cases closed) and never a face.
 - **Jim calls.** A major call on the scanner or a breakout with nobody on it, and he may ring you first.
-- **The Codex** (<kbd>C</kbd>): everyone in Bruce's world and every rogue as a file — vital details, a biography you can rewrite (a contact's is the directory's own), where each rogue is now (loose, in custody, Arkham, Blackgate), how they work, their weakness and your contingency — and every place on the map. Drop a picture on a face to give it one.
+- **The Codex** (<kbd>C</kbd>): everyone in Bruce's world and every rogue as a file — vital details, a biography in Bruce's own words that you can rewrite (yours is his mission, in his voice), where each rogue is now (loose, in custody, Arkham, Blackgate), how they work, their weakness and your contingency — and every place on the map. Drop a picture on a face to give it one.
 
 </td></tr>
 <tr><td valign="top">
@@ -117,6 +118,7 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **They go to one another.** Ask Tim to help Dick, however you put it, and it's his to take, question or turn down; if he goes, he's on Dick's case with him or at his side.
 - **Their night, on record.** Each keeps a diary the console writes as it happens: set off, got there, who they were with and who left for where, the cases and how they ended. Ask what they were just doing and they know, and so does whoever was with them.
 - **Committed on scene.** In the middle of a case, nobody (you included) walks off it; on the way, you can change your mind.
+- **Cases run their own course.** How long one takes depends on who's on it: a team well on top of it finishes early, one that's losing it can lose it fast, and a close one drags. Send help and the odds and the clock move with it.
 
 </td><td valign="top">
 
@@ -124,6 +126,26 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Mail** (<kbd>E</kbd>), in markdown, filed into Inbox, Secure, Spam and Archive. The Batcomputer's **night report** at six, assembled from the night's cases, injuries, rogues and patrols; **the briefing** at seven; **the market's close** on trading days, with Wayne Enterprises and Gotham's other listed companies moving on the city's news.
 - **Letters that follow the night**: Gordon on the secure line after a capture, a thank-you after a rescue, the insurer after a chase, Arkham after an escape. The office keeps office hours, and the spam is Gotham's.
 - **Comms on a case**: you open them (alone on a case, Alfred might just text); they know who's on scene and who's still on the way, and close themselves once it's over and quiet. Mute any chat or anyone's calls; archive any group.
+
+</td></tr>
+</table>
+
+<table>
+<tr><td width="50%" valign="top">
+
+### 📅 Your diary
+- **Invitations by mail**: the Mayor's gala, a fitting, a board briefing. Accept or decline, and it's in your diary (<kbd>D</kbd>), as Bruce Wayne or as Batman. Alfred and Lucius can put things in it too.
+- **Never at a case's cost.** In the middle of one, you don't walk out for a gala. You go when it's over, late and straight from the scene, and the diary says so.
+- **Calling off.** Whoever expected you is told, and reacts in their own way: asks why, lets it go, or remembers it next time. A family dinner goes ahead without you; a talk you'd called with Jason and Randy falls through. Relationships are a slow burn, and so are the dents.
+- **One truth.** Move an evening in the diary and the family's plan moves with it; remove one and it's called off first. Letters in Mail show what became of their evening, and your day keeps running while nobody's at the console.
+
+</td><td width="50%" valign="top">
+
+### 🧰 What they can do
+- **Show, not tell.** Ask "where's that?" or "what's tomorrow look like?" and they put it in front of you: a place on the map, a Codex file, the case, a day of your diary, the page they found, the share price. On a call it floats beside the line; in a text it's a message of its own.
+- **Alfred keeps your diary.** "Remind me to call Lucius in twenty minutes" goes in, and comes up at the time. Lucius keeps the company's days, and Barbara will set you a reminder.
+- **Where they looked it up.** A search shows its sources in the tray, each one a link.
+- **Hey Alfred.** Turn on hands-free in Settings and say "Hey" and a name to ring them; whatever you say after the name is your first line. It's heard on your Mac and nothing's kept.
 
 </td></tr>
 </table>
@@ -217,6 +239,12 @@ Tick them off as you go.
 - [ ] Ask Jim if he ever wonders who you are.
 - [ ] Ring Alfred while he's in the garden and ask what that noise was.
 - [ ] Call Dick on a games night and listen to the room.
+- [ ] Accept the Mayor's gala, take a case that runs long, then read your diary.
+- [ ] Call off dinner with Alfred, Barbara and Tim, and see who still goes and what they say.
+- [ ] Ask Alfred to remind you of something in ten minutes.
+- [ ] Ask Barbara to show you where the call came from.
+- [ ] Turn on hands-free in Settings and say "Hey Dick".
+- [ ] Edit a text after you've sent it, and watch what they make of it.
 
 ## 🚀 Setup
 
@@ -301,10 +329,13 @@ If you try a reasoning model (qwen3, deepseek-r1, gpt-oss), set `"think": false`
 | <kbd>Esc</kbd> | Stop playback · close the map · close a picker |
 | <kbd>M</kbd> | Open the map |
 | <kbd>C</kbd> | Open the Codex |
+| <kbd>D</kbd> | Open your diary |
 | <kbd>E</kbd> | Open your mail |
-| <kbd>/</kbd> | Search the map |
+| <kbd>/</kbd> | Search the map, or the Codex |
+| <kbd>?</kbd> | The shortcuts card |
 | <kbd>@</kbd> | Tag someone (in a group, `@everyone` too) |
 | Double-click a message | React |
+| Hover your message, ✎ | Edit it |
 | Right-click the map | Drop a pin |
 
 ## 🔧 How it works
@@ -336,6 +367,10 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 | [`incidents.py`](wayne/engine/incidents.py) · [`cases.py`](wayne/engine/cases.py) | The scanner (the same moment always gives the same reports, so the map, the patrols and the people on comms agree): calls that turn, move and get cut off, and the cases taken from it. |
 | [`outcomes.py`](wayne/engine/outcomes.py) · [`arcs.py`](wayne/engine/arcs.py) | The odds (GCPD's baseline as a floor), how a case ends, graded lives first, and the rogues who get away and come back worse. |
 | [`inbox.py`](wayne/engine/inbox.py) · [`markets.py`](wayne/engine/markets.py) · [`gazette.py`](wayne/engine/gazette.py) | His mail (the night report, the briefing, the market's close, the letters a night leaves) and the morning's papers. |
+| [`engagements.py`](wayne/engine/engagements.py) · [`plans.py`](wayne/engine/plans.py) · [`invites.py`](wayne/engine/invites.py) | Your diary, the family's plans and the invitations that fill them: one record, so a plan moved or called off moves everywhere, and an evening kept or missed is settled whether or not anyone's watching. |
+| [`bonds.py`](wayne/engine/bonds.py) | How each of them stands with you and with one another: warmth and trust that move slowly, and what they remember of why. |
+| [`show.py`](wayne/engine/show.py) | What a contact can put in front of you (a place, a file, a day of your diary, the share price) and the diary-keeping only Alfred and Lucius are trusted with. |
+| [`prompting.py`](wayne/engine/prompting.py) | How each turn is put together for the model: the persona and what they know, cached; what's happening now; and a measure that keeps every prompt inside the model's window, trimming the least needed first. |
 | [`groupchat.py`](wayne/engine/groupchat.py) · [`party.py`](wayne/engine/party.py) | Who answers in a group and when it goes quiet; who speaks next on a group call. |
 | [`culture.py`](wayne/engine/culture.py) · [`grapevine.py`](wayne/engine/grapevine.py) | What they've been watching and following; what one heard from another. |
 | [`guards.py`](wayne/engine/guards.py) | The failures that break the illusion, caught in code: echoing you, repeating themselves, a forbidden form of address, a monologue. |
@@ -352,6 +387,7 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 - **Memory knows when.** Facts are dated and the conversation timestamped, so "it's been a while" means something.
 - **Careful around Jim.** On a call with him, the others hear a note that he's there and what he doesn't know, and a slip that gets through anyway ("Bruce", "Dad", someone's real name, "Babs") is caught and changed to the mask before it's said aloud or posted.
 - **They remember last week.** "What did I tell you about the Kord deal?" or "what were you up to on Tuesday night?" is looked up in what was said and what happened: a few lines of their own memory, never more than they'd know. Hearsay only counts once it reaches them, the group chat only as far as they've read, and nothing about the masks reaches Selina.
+- **Inside the model's window, always.** The model reads 8,192 tokens and a persona is half of that, so every prompt is measured as it's built and trimmed least-needed first: old history, then background, never the persona.
 - **If the voice fails**, the link degrades and they carry on in text. No stack traces.
 
 </details>
@@ -366,20 +402,21 @@ wayne-console/
 │   ├── contacts/profiles/*.json # the cast
 │   ├── operators/bruce.json     # who you play, and who knows what about you
 │   ├── engine/                  # session, presence, diary, initiative, party, groupchat,
-│   │                            # places, patrols, travel, batman, jet, incidents, cases,
-│   │                            # outcomes, arcs, inbox, markets, gazette, culture,
-│   │                            # grapevine, guards, prompting, search, world
+│   │                            # engagements, plans, invites, bonds, show, places,
+│   │                            # patrols, travel, batman, jet, incidents, cases, outcomes,
+│   │                            # arcs, inbox, markets, gazette, culture, grapevine,
+│   │                            # guards, prompting, search, world
 │   ├── memory/                  # history, texts, groups, vault
 │   ├── store/                   # the database: spaces, threads, transcript, events,
 │   │                            # sealing, the import of old files, the index, recall
-│   ├── audio/                   # Whisper in, ElevenLabs out
+│   ├── audio/                   # Whisper in, ElevenLabs out, the room around them
 │   └── frontends/               # web (FastAPI + WebSocket), groupchats, cli
 ├── web/                         # the console: no build step, no node
 │   ├── js/                      # app, gothammap, audio, mic, tones, visualizer…
 │   ├── map/                     # built city, buildings, trees, terrain tiles, fonts
 │   └── vendor/maplibre/         # MapLibre GL (BSD-3)
 ├── scripts/                     # build_map, evaluate, bench_model, make_app, reset_world,
-│                                # migrate_to_db, export_db_to_json
+│                                # soundscape, voice_lines, migrate_to_db, export_db_to_json
 ├── eval/                        # rubric and scenarios
 └── tests/
 ```
@@ -424,7 +461,7 @@ Every scenario runs through the real engine from an empty history, with nothing 
 ## 🛠️ Development
 
 ```bash
-venv/bin/python -m pytest -q          # the suite
+venv/bin/python -m pytest -q          # the suite (775 tests)
 venv/bin/python -m ruff check .       # lint
 
 # Rebuild Gotham after editing wayne/engine/gotham.json:

@@ -2589,7 +2589,11 @@ body { background:
 .dx-host input { accent-color: var(--primary); margin: 0; }
 .dx-save { color: var(--primary); border-color: var(--primary-dim); }
 @container stage (max-width: 760px) { .dx-body { grid-template-columns: 1fr; } .dx-days { flex-direction: row; overflow-x: auto;
-  border-right: 0; border-bottom: 1px solid var(--hairline); } }
+  border-right: 0; border-bottom: 1px solid var(--hairline); }
+  /* A strip of days, each on one line with its count a step away — not wrapped into three, the count jammed on. */
+  .dx-dayname { flex: 0 0 auto; gap: 8px; white-space: nowrap; padding: 10px 14px; border-left: 0;
+    border-bottom: 2px solid transparent; }
+  .dx-dayname.is-on { border-bottom-color: var(--primary); } }
 
 /* --- what they show him (see app.js cardNode) -------------------------------------------------------------- */
 /* On the stage, out of the way: a tray in the corner above the compose bar, never pushing the ring or the line. */

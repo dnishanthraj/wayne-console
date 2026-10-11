@@ -262,6 +262,15 @@ def let_go(t=None):
         return True
 
 
+def riding(contact_id, t=None):
+    """
+    Whether one of them still has a seat: aboard now, or waiting on a pickup still to come. Let go of mid-lift —
+    he changed course, or stopped — and the rest of the flight went, with them on it (see Console._lifts_tick).
+    """
+    t = t or time.time()
+    return any(contact_id in (leg.get("riders") or ()) and leg["end"] > t for leg in _load().get("legs") or [])
+
+
 def summon(who, a, t=None):
     """
     He calls it to him: it flies itself there and waits overhead for his next

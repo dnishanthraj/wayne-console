@@ -198,6 +198,11 @@ def where(rogue, now=None):
             news.append(("recaptured", state))
     if news or (kept is None and state["status"] != rogue["status"]):
         with _lock:
+            now_kept = store.space("rogue_status").get(rogue["name"])
+            if now_kept != kept:
+                # Moved on by someone else while this was working it out — a capture, or the same days read on
+                # another thread: theirs stands, and the city hears each breakout once, not twice.
+                return dict(now_kept) if now_kept else state
             if kept is not None:
                 # Each change as it happened, for the record; a rogue seen for the first time has no story yet.
                 for what, then in news[:-1]:

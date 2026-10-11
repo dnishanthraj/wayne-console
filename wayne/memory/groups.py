@@ -195,6 +195,7 @@ class Group:
             if contact_id in meta.get("members", []):
                 return False
             meta.setdefault("members", []).append(contact_id)
+            (meta.get("removed") or {}).pop(contact_id, None)      # back in: whoever took them out, it's lifted
             said = self.thread.where("kind IS NOT 'system'", limit=backlog + 1, newest=True)
             seen_to = said[-backlog - 1]["at"] if backlog and len(said) > backlog else (0 if backlog else time.time())
             meta.setdefault("reads", {})[contact_id] = seen_to
@@ -211,7 +212,8 @@ class Group:
                 return False
             meta["members"].remove(contact_id)
             if by_bruce:
-                # Kept out: nobody else gets to add them straight back.
+                # Kept out: nobody else gets to add them straight back — and a case's comms doesn't put them back on
+                # when they're next on the case or at their screens, until he adds them himself.
                 meta.setdefault("removed", {})[contact_id] = time.time()
             self._save_meta(meta)
         return True

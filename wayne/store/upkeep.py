@@ -47,6 +47,8 @@ def run(now=None):
         backup(store, now)
     store.set_meta("upkeep_at", now)
     if any(gone.values()):
+        from . import index
+        index.stale(store)              # what went is gone from what's found, too: built afresh when next asked
         _log.info("upkeep: %s", ", ".join(f"{n} {what}" for what, n in gone.items() if n))
     return gone
 

@@ -1982,6 +1982,7 @@ class Console(GroupChats):
         # comms down with it every pulse.
         await self._step("diary", asyncio.to_thread(self._observe_all, now))
         await self._step("upkeep", asyncio.to_thread(_daily_upkeep))
+        await self._step("lifts", self._lifts_tick(now))
         # On a call, the model is the call's: nothing that writes with it starts until he hangs up — day plans,
         # the papers, the mail, someone texting first, the group chats talking among themselves. They catch up
         # after. (A first reply took seventeen seconds behind a day plan.)
@@ -2163,6 +2164,7 @@ class Console(GroupChats):
             name, label = presence.of(target).whereabouts()[0], target.name
         if mine:
             cases.leave(mine["id"], contact.id)              # off the last one: Bruce asked for them elsewhere
+            await self._off_comms(mine["id"], contact.id)
         here = whereabouts.position() or there
         trip = await asyncio.to_thread(travel.fastest, contact.id, here, there, name, None, False)
         minutes = max(1, int((trip["end"] - time.time()) / 60))
@@ -2213,6 +2215,7 @@ class Console(GroupChats):
                 log.info("%s stays on %s: in the middle of it", contact_id, current["id"])
                 return None                             # in the thick of one: it's finished first
             cases.leave(current["id"], contact_id)      # off the last one, on to this
+            await self._off_comms(current["id"], contact_id)
         # From exactly where they are, the fastest way they have in the suit — the roofs,
         # the bike, Randy flying, the Batwing if it's near — and the map shows them on
         # their way. A getaway is cut off where they can get ahead of it, not chased.
@@ -2291,6 +2294,7 @@ class Console(GroupChats):
             return None
         there = ((case.get("members") or {}).get(contact_id) or {}).get("status") == "on scene"
         cases.leave(report_id, contact_id)
+        await self._off_comms(report_id, contact_id)
         if contact_id == "bruce":
             batman.halt()
             await self.broadcast({"type": "bruce", "bruce": batman.state()})
@@ -2380,6 +2384,52 @@ class Console(GroupChats):
         await self.broadcast({"type": "bruce", "bruce": batman.state()})
         await self.broadcast({"type": "cases"})
         return batman.state()
+
+    async def _lifts_tick(self, now):
+        """
+        A lift he went back on — changed course mid-flight, or stopped where he was: whoever was waiting for it, or
+        aboard and set down where it came down, makes their own way from there — to their case, or wherever they
+        were going — and may well have something to say about it. Without this they flew on alone along the old
+        route, with no jet under them.
+        """
+        from ..engine import cases, jet
+        for cid in cases.FIELD:
+            contact = self.directory.get(cid)
+            if contact is None:
+                continue
+            whereabouts = presence.of(contact)
+            activity = whereabouts.get("activity") or {}
+            if activity.get("owner") != "lift" or activity.get("until", 0) <= now or jet.riding(cid, now):
+                continue
+            going = activity.get("where") or ""
+            trip = whereabouts.get("trip") or {}
+            if trip.get("to") != going or not (trip.get("by") or "").startswith("on the Batwing") \
+                    or trip.get("end", 0) <= now:
+                continue                                # set down where they were going: the lift's done
+            here = travel.position(trip, now)           # where they were waiting — or where it set them down
+            case = cases.active(cid)
+            goal = (case["x"], case["y"]) if case else tuple(activity.get("xy") or trip["pts"][-1])
+            name = case["place"] if case else going
+            onward = await asyncio.to_thread(travel.fastest, cid, here, goal, name, None, bool(case))
+            if case:
+                minutes = max(0.5, (onward["end"] - now) / 60)
+                whereabouts.set_activity(f"on the way to the {case['kind'].lower()} at {case['place']}",
+                                         presence.BUSY, max(90, int(minutes) + 60), where=case["place"],
+                                         owner="case")
+                cases.retime(case["id"], cid, minutes)
+            else:
+                whereabouts.clear_activity()
+            whereabouts.set_trip(name, {**onward, "left": now})
+            log.info("%s left to make their own way to %s: the lift was called off", cid, name)
+            await self._presence_changed(contact)
+            await self.broadcast({"type": "cases"})
+            if cid not in self._members() and random.random() < 0.5:
+                aboard = trip.get("start", now) <= now
+                about = ("he was giving you a lift in the Batwing and went off somewhere else "
+                         + ("mid-flight — it set you down short and you're making your own way" if aboard
+                            else "before it got to you — you're making your own way")
+                         + f" to {name}. Say something about it, your way, or let it go")
+                self._spawn(self._later(random.uniform(20, 90), self._send_unprompted(contact, about, "impulse")))
 
     @staticmethod
     def _heading_for(report, here, who):
@@ -2753,8 +2803,12 @@ class Console(GroupChats):
             found.system(f"Comms open: {case['kind'].lower()} at {case['place']}")
             await self.broadcast({"type": "group_created", "group": self.group_payload(found)})
             return found
-        kept_out = set((found.meta() or {}).get("kept_out") or ())
-        joining = crew + [s for s in self._SCREENS if s not in kept_out and self._at_their_screens(s)]
+        # Whoever he took off it stays off — on the case or at their screens — until he adds them back himself
+        # ("kept_out" is the same, from before the group kept it).
+        meta = found.meta() or {}
+        kept_out = set(meta.get("removed") or {}) | set(meta.get("kept_out") or ())
+        joining = [m for m in crew if m not in kept_out] + [s for s in self._SCREENS
+                                                             if s not in kept_out and self._at_their_screens(s)]
         live = getattr(self.call, "comms", None) if self.call else None
         changed = False
         for member in joining:
@@ -2768,6 +2822,23 @@ class Console(GroupChats):
         if changed:
             await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
         return found
+
+    async def _off_comms(self, case_id, contact_id):
+        """
+        Off a case, off its channel: the rest keep talking without them. Alfred and Barbara at their screens stay —
+        watching is what they were there for — and so does anyone on the line with him right now, until it's over.
+        """
+        found = next((g for g in group_store.all_groups() if (g.meta() or {}).get("case") == case_id
+                      and not (g.meta() or {}).get("archived")), None)
+        if (found is None or contact_id not in found.members or len(found.members) < 2
+                or contact_id in self._members() or self._at_their_screens(contact_id)):
+            return
+        if found.remove_member(contact_id):
+            await self._drop_member(found, contact_id)
+            contact = self.directory.get(contact_id)
+            line = found.system(f"{contact.name if contact else contact_id} went off comms")
+            await self.broadcast({"type": "group_message", "group": found.id, "message": line})
+            await self.broadcast({"type": "group_updated", "group": self.group_payload(found)})
 
     async def open_comms(self, report_id):
         """

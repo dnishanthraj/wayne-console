@@ -84,3 +84,14 @@ def test_a_few_ways_to_answer_each_what_it_does_and_never_sent_for_him(clock, mo
     assert "Batman" in asked[-1] and "Bruce Wayne" not in asked[-1]
     spam = inbox.deliver("x", "WIN", "click", folder="spam", kind="spam")
     assert inbox.suggest(spam["id"], "m", {}) == []
+
+
+def test_a_reply_he_is_owed_outlasts_a_night_of_news(clock):
+    lucius = inbox.deliver("lucius", "Applied Sciences budget", "Bruce, the numbers are in.", kind="company")
+    inbox.reply(lucius["id"], "Approve it.")
+    for i in range(inbox.QUEUE + 10):
+        inbox.queue({"kind": "case", "id": f"c{i}", "due": clock()})
+    from wayne import store
+    waiting = store.space("mail_events").list()
+    assert len(waiting) == inbox.QUEUE and any(e["kind"] == "reply" for e in waiting)
+    assert not any(e.get("id") == "c0" for e in waiting)                    # the oldest news went instead
