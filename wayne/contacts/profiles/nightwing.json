@@ -36,7 +36,7 @@
       ],
       "from": "19:00",
       "to": "21:00",
-      "where": "Home, Blüdhaven",
+      "where": "Dick's apartment",
       "with": [
         "Wally"
       ],
@@ -53,6 +53,41 @@
       "every": 2,
       "phase": 0,
       "chance": 0.8
+    },
+    {
+      "doing": "movie night at yours — whoever's free, on your couch",
+      "days": [
+        5
+      ],
+      "from": "19:30",
+      "to": "22:30",
+      "where": "Dick's apartment",
+      "every": 3,
+      "phase": 0,
+      "chance": 0.6,
+      "together": "dicks-movie-night",
+      "with": [
+        "robin",
+        "batgirl",
+        "orphan"
+      ]
+    },
+    {
+      "doing": "games night at Tim's houseboat",
+      "days": [
+        4
+      ],
+      "from": "19:00",
+      "to": "22:00",
+      "where": "Tim's houseboat",
+      "every": 2,
+      "phase": 1,
+      "chance": 0.55,
+      "together": "tims-games-night",
+      "with": [
+        "robin",
+        "orphan"
+      ]
     }
   ],
   "circle": [
@@ -311,7 +346,7 @@
     "resurface_after": 3,
     "takes_orders": 0.95, "case_updates": 0.55, "asks_for_help": 0.55
   },
-  "home": "Home, Blüdhaven",
+  "home": "Dick's apartment",
   "home_sound": "dog_home",
   "interests": {
     "pastimes": [

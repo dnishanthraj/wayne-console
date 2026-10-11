@@ -407,6 +407,10 @@ class Presence:
         kept = plans_made.block(self.contact, t, self._lead)
         if kept:
             return kept
+        # Then what they keep with each other — Sunday lunch at Jim's, movie night at Dick's: on for all of them.
+        joint = week.together_block(self.contact, t)
+        if joint:
+            return joint
         local = time.localtime(t)
         hour = local.tm_hour + local.tm_min / 60
         made = self._state.get("planned_at") or {}
@@ -605,7 +609,29 @@ class Presence:
         # while Tim had twenty minutes of driving left.
         if self._travelling(place, t):
             return place, []
-        return place, [p.contact.id for p in group if p is not self and not p._travelling(place, t)]
+        company = [p.contact.id for p in group if p is not self and not p._travelling(place, t)]
+        return place, company + [cid for cid in self._kept_together(place, t) if cid not in company]
+
+    def _kept_together(self, place, t):
+        """
+        Those keeping a shared evening with them right here — Sunday lunch at Jim's, movie night at Dick's —
+        even someone not on the family's app: Jim's with Barbara at his place because they both are.
+        """
+        joint = week.together_block(self.contact, t)
+        if not joint:
+            return []
+        from ..contacts import directory
+        book, out = directory(), []
+        for cid in joint["with"]:
+            other = book.get(cid)
+            if other is None:
+                continue
+            theirs = of(other)
+            mine = week.together_block(other, t)
+            if mine and mine["together"] == joint["together"] and theirs._own_place(t) == place \
+                    and not theirs._travelling(place, t):
+                out.append(cid)
+        return out
 
     def _travelling(self, place, t):
         """On their way to `place` at t, as the journey was last worked out."""
@@ -738,7 +764,11 @@ class Presence:
             return where
         there, mine = places.resolve(found.group(1)) if found.group(1) else None, places.resolve(home)
         if there and mine and there["area"] != mine["area"]:
-            return found.group(1)
+            # Someone else's home over there: theirs, by name — Dick's apartment, not the middle of Blüdhaven.
+            from ..contacts import directory
+            theirs = next((c.home for c in directory() if c.id != self.contact.id and getattr(c, "home", "")
+                           and (places.resolve(c.home) or {}).get("area") == there["area"]), None)
+            return theirs or found.group(1)
         return home
 
     def trail(self, hours=2.0, step=300, t=None):
@@ -1196,7 +1226,7 @@ class Presence:
 
     def _whose_home(self, where):
         """The contact whose home `where` is, if it's someone else's — 'Home, Blüdhaven' in Tim's day is Dick's."""
-        if not where or where == (getattr(self.contact, "home", "") or "") or not re.match(r"(?i)\s*home\b", where):
+        if not where or where == (getattr(self.contact, "home", "") or ""):
             return None
         from ..contacts import directory
         return next((c for c in directory() if c.id != self.contact.id and (getattr(c, "home", "") or "") == where), None)
@@ -1204,8 +1234,8 @@ class Presence:
     def label(self, where):
         """Where they are as the page shows it: someone else's home by whose it is — 'Dick's place, Blüdhaven'."""
         other = self._whose_home(where)
-        if other is None:
-            return where or ""
+        if other is None or not re.match(r"(?i)\s*home\b", where):
+            return where or ""          # a home with a name says whose it is: "Dick's apartment"
         rest = where.split(",", 1)[1].strip() if "," in where else ""
         return f"{other.name}'s place" + (f", {rest}" if rest else "")
 
@@ -1215,9 +1245,14 @@ class Presence:
             return ""
         other = self._whose_home(where)
         if other is not None:
+            if not re.match(r"(?i)\s*home\b", where):
+                return f"{other.name}'s place ({where})"
             rest = where.split(",", 1)[1].strip() if "," in where else ""
             return f"{other.name}'s place" + (f" in {rest}" if rest else "")
         home = getattr(self.contact, "home", "") or ""
+        if where == home and not re.match(r"(?i)\s*home\b", where):
+            area = (places.resolve(home) or {}).get("area", "")
+            return f"home — {home}" + (f", {area}" if area and area not in home else "")
         if where == home or re.match(r"(?i)\s*home\b", where):
             rest = where.split(",", 1)[1].strip() if "," in where else (where if where != "Home" else "")
             return f"home ({rest})" if rest and rest.lower() != "home" else "home"

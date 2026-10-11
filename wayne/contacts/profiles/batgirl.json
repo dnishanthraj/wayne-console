@@ -57,6 +57,40 @@
       "every": 2,
       "phase": 0,
       "chance": 0.35
+    },
+    {
+      "doing": "Sunday lunch with Dad at his place in Burnley",
+      "days": [
+        6
+      ],
+      "from": "13:00",
+      "to": "15:30",
+      "where": "Jim's apartment",
+      "every": 2,
+      "phase": 1,
+      "chance": 0.75,
+      "together": "gordon-sunday-lunch",
+      "with": [
+        "gordon"
+      ]
+    },
+    {
+      "doing": "movie night at Dick's",
+      "days": [
+        5
+      ],
+      "from": "19:30",
+      "to": "22:30",
+      "where": "Dick's apartment",
+      "every": 3,
+      "phase": 0,
+      "chance": 0.6,
+      "together": "dicks-movie-night",
+      "with": [
+        "nightwing",
+        "robin",
+        "orphan"
+      ]
     }
   ],
   "circle": [

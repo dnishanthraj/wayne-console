@@ -51,6 +51,41 @@
       "every": 2,
       "phase": 0,
       "chance": 0.85
+    },
+    {
+      "doing": "movie night at Dick's — you mostly watch them",
+      "days": [
+        5
+      ],
+      "from": "19:30",
+      "to": "22:30",
+      "where": "Dick's apartment",
+      "every": 3,
+      "phase": 0,
+      "chance": 0.6,
+      "together": "dicks-movie-night",
+      "with": [
+        "nightwing",
+        "robin",
+        "batgirl"
+      ]
+    },
+    {
+      "doing": "games night at Tim's — you win",
+      "days": [
+        4
+      ],
+      "from": "19:00",
+      "to": "22:00",
+      "where": "Tim's houseboat",
+      "every": 2,
+      "phase": 1,
+      "chance": 0.55,
+      "together": "tims-games-night",
+      "with": [
+        "robin",
+        "nightwing"
+      ]
     }
   ],
   "circle": [
@@ -330,7 +365,7 @@
     "takes_orders": 0.95, "case_updates": 0.35, "asks_for_help": 0.25
   },
   "silence": "Silence doesn't bother you — you might just say his name.",
-  "home": "Home, Burnside",
+  "home": "Cass's loft",
   "interests": {
     "pastimes": [
       "ballet — the cheap seats, then trying the steps on rooftops after",

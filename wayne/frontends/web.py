@@ -3125,7 +3125,18 @@ class Console(GroupChats):
                     whereabouts.seen_at(report["place"], scene.get("how", "on scene"), now)
                     await self._presence_changed(contact)
                     continue
-            where, _ = whereabouts.whereabouts(now)
+            where, company = whereabouts.whereabouts(now)
+            # With someone on the family's app — Barbara at his for Sunday lunch — he's where her dot is.
+            beside = next((self.directory.get(c) for c in company if self.directory.get(c) is not None
+                           and getattr(self.directory.get(c), "shares_location", True)
+                           and getattr(self.directory.get(c), "family_app", True)), None)
+            if beside is not None and where:
+                seen = whereabouts.get("seen") or {}
+                if seen.get("where") != (places.resolve(where) or {}).get("name") or now - seen.get("at", 0) > 600:
+                    whereabouts.seen_at(where, f"with {beside.name} — her dot's there" if beside.pronoun == "she"
+                                        else f"with {beside.name} — their dot's there", now)
+                    await self._presence_changed(contact)
+                continue
             home = (getattr(contact, "home", "") or "").lower()
             if not where or where.lower() == home or where.lower().startswith("home"):
                 continue
@@ -3553,6 +3564,8 @@ def _contact_payload(contact):
         "mask": contact.mask,
         "family_app": contact.family_app,
         "knows": wayne_identity.level(contact.id),
+        # Where they live, by its place on the map: his to find ("Jim" finds Jim's apartment), nobody else's.
+        "home": contact.home,
     }
 
 

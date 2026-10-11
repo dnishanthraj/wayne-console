@@ -778,8 +778,17 @@
                     'text-size': 11, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-optional': true,
                     'text-max-width': 9 },
           paint: { 'text-color': '#b9d3e6', 'text-halo-color': C.void, 'text-halo-width': 1.6 } },
+        // Their homes: his to see, from further out than any other spot, never crowded off the map.
+        { id: 'home', type: 'symbol', source: 'city', minzoom: 12.6,
+          filter: ['all', is('place'), ['==', ['get', 'k'], 'spot'], ['==', ['get', 'i'], 'home']],
+          layout: { 'icon-image': 'gm-home', 'icon-size': z([12.6, 0.55, 15, 0.8, 17, 1.0]),
+                    'icon-allow-overlap': true, 'icon-ignore-placement': true,
+                    'text-field': ['step', ['zoom'], '', 14.2, ['get', 'n']], 'text-font': ['Noto Sans Italic'],
+                    'text-size': 10.5, 'text-offset': [0, 1.35], 'text-anchor': 'top', 'text-optional': true,
+                    'text-max-width': 9 },
+          paint: { 'text-color': '#d8c9a0', 'text-halo-color': C.void, 'text-halo-width': 1.6 } },
         { id: 'spot', type: 'symbol', source: 'city', minzoom: 14.2,
-          filter: ['all', is('place'), ['==', ['get', 'k'], 'spot']],
+          filter: ['all', is('place'), ['==', ['get', 'k'], 'spot'], ['!=', ['get', 'i'], 'home']],
           layout: { 'icon-image': ['concat', 'gm-', ['get', 'i']], 'icon-size': z([14.2, 0.5, 16, 0.75, 18, 0.95]),
                     'icon-allow-overlap': false, 'icon-padding': 2,
                     'text-field': ['step', ['zoom'], '', 15.4, ['get', 'n']], 'text-font': ['Noto Sans Italic'],
@@ -838,7 +847,7 @@
   /* --- hovering: the console's own tooltip, never the map's ----------------- */
 
   var HOVERABLE = ['incident', 'incident-done', 'airship', 'batwing', 'plane', 'chopper', 'heli', 'train-car', 'ship', 'boat', 'tug', 'sail', 'patrol', 'metro',
-                   'landmark', 'spot', 'venue', 'station', 'railstation', 'parked', 'district-label', 'quarter-label', 'road-label',
+                   'landmark', 'home', 'spot', 'venue', 'station', 'railstation', 'parked', 'district-label', 'quarter-label', 'road-label',
                    'primary', 'highway', 'avenue', 'secondary', 'subway', 'ferry', 'shipping', 'pitch', 'golf', 'lot', 'park', 'water',
                    'marsh', 'trail-stop', 'district'];
 
@@ -902,7 +911,7 @@
       map.getCanvas().style.cursor = dropping ? 'var(--cursor-target)' : (top.properties.l === 'place' || top.properties.m ? 'var(--cursor-pointer)' : '');
     }
     map.getCanvas().addEventListener('mouseleave', function () { hover.hidden = true; });
-    ['landmark', 'spot', 'district-label', 'quarter-label'].forEach(function (layer) {
+    ['landmark', 'home', 'spot', 'district-label', 'quarter-label'].forEach(function (layer) {
       map.on('click', layer, function (e) {
         if (dropping) return;
         var f = e.features[0];
@@ -2236,14 +2245,20 @@
     input.addEventListener('input', function () {
       var q = input.value.trim().toLowerCase();
       if (!q) return close();
-      var contacts = opts.contacts(), found = [];
+      var contacts = opts.contacts(), found = [], homes = {};
       Object.keys(contacts).forEach(function (id) {
         var c = contacts[id];
         if (c.presence && c.presence.spot && (c.name + ' ' + c.full_name).toLowerCase().indexOf(q) !== -1) {
           found.push({ name: c.full_name, kind: c.presence.where || 'Person', person: id });
         }
+        // Their name finds where they live too: "Barbara" finds the Clocktower.
+        if (c.home && (c.name + ' ' + c.full_name).toLowerCase().indexOf(q) !== -1) homes[c.home] = c.name;
       });
       (gazetteer.places || []).forEach(function (p) {
+        if (homes[p.name]) {
+          found.push({ name: p.name, kind: homes[p.name] + '\u2019s home', x: p.x, y: p.y });
+          return;
+        }
         if ((p.name + ' ' + (p.match || []).join(' ')).toLowerCase().indexOf(q) !== -1) {
           found.push({ name: p.name, kind: p.kind === 'district' ? 'District' : p.area, x: p.x, y: p.y,
                        district: p.kind === 'district' });
@@ -2289,7 +2304,7 @@
   /* --- layers, 3D, the frame ---------------------------------------------------- */
 
   var LAYER_GROUPS = {
-    places: ['landmark', 'quarter-label', 'spot'],
+    places: ['landmark', 'quarter-label', 'home', 'spot'],
     streets: ['street', 'avenue', 'road-label'],
     buildings: ['buildings', 'footprint', 'trees', 'trunks'],
     transit: ['subway', 'subway-casing', 'subway-label', 'station', 'station-label', 'ferry', 'shipping', 'train-car', 'metro', 'boat', 'ship', 'tug',
@@ -2608,7 +2623,7 @@
       map.on('click', function (e) {
         if (dropping) { dropPin(e.lngLat); return; }
         // A click on nothing in particular puts down whatever was picked up.
-        var hit = map.queryRenderedFeatures(e.point, { layers: ['landmark', 'spot', 'district-label', 'quarter-label', 'incident']
+        var hit = map.queryRenderedFeatures(e.point, { layers: ['landmark', 'home', 'spot', 'district-label', 'quarter-label', 'incident']
           .filter(function (id) { return map.getLayer(id); }) });
         if (hit.length) return;
         // A floating card goes; a call docked in the side panel stays till he goes back to the list

@@ -22,7 +22,7 @@
       ],
       "from": "19:00",
       "to": "21:30",
-      "where": "Home, Upper East Side",
+      "where": "The Fox house",
       "with": [
         "Tanya"
       ]
@@ -56,7 +56,7 @@
       ],
       "from": "13:00",
       "to": "17:00",
-      "where": "Home, Upper East Side"
+      "where": "The Fox house"
     }
   ],
   "circle": [
@@ -379,7 +379,7 @@
     "checks_in": 0.3,
     "resurface_after": 8
   },
-  "home": "Home, Upper East Side",
+  "home": "The Fox house",
   "interests": {
     "pastimes": [
       "building things for no reason on a Sunday — a clock, an old valve radio",

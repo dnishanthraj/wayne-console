@@ -244,24 +244,29 @@
       "where": "GCPD Central"
     },
     {
-      "doing": "Sunday lunch with Barbara at the clocktower",
-      "days": [
-        6
-      ],
-      "from": "13:00",
-      "to": "15:00",
-      "where": "The Clocktower",
-      "every": 2,
-      "chance": 0.6
-    },
-    {
       "doing": "a ballgame on the radio and the crossword, at home",
       "days": [
         6
       ],
       "from": "15:30",
       "to": "19:00",
-      "where": "Home, Burnley"
+      "where": "Jim's apartment"
+    },
+    {
+      "doing": "Sunday lunch with Barbara at your place",
+      "days": [
+        6
+      ],
+      "from": "13:00",
+      "to": "15:30",
+      "where": "Jim's apartment",
+      "every": 2,
+      "phase": 1,
+      "chance": 0.75,
+      "together": "gordon-sunday-lunch",
+      "with": [
+        "batgirl"
+      ]
     }
   ],
   "circle": [
@@ -343,7 +348,7 @@
     "checks_in": 0.25,
     "resurface_after": 10
   },
-  "home": "Home, Burnley",
+  "home": "Jim's apartment",
   "gets_about": "drive",
   "interests": {
     "pastimes": [

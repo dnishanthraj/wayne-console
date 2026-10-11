@@ -58,6 +58,41 @@
       "every": 2,
       "phase": 0,
       "chance": 0.75
+    },
+    {
+      "doing": "movie night at Dick's",
+      "days": [
+        5
+      ],
+      "from": "19:30",
+      "to": "22:30",
+      "where": "Dick's apartment",
+      "every": 3,
+      "phase": 0,
+      "chance": 0.6,
+      "together": "dicks-movie-night",
+      "with": [
+        "nightwing",
+        "batgirl",
+        "orphan"
+      ]
+    },
+    {
+      "doing": "games night on the houseboat — you host, you lose",
+      "days": [
+        4
+      ],
+      "from": "19:00",
+      "to": "22:00",
+      "where": "Tim's houseboat",
+      "every": 2,
+      "phase": 1,
+      "chance": 0.55,
+      "together": "tims-games-night",
+      "with": [
+        "nightwing",
+        "orphan"
+      ]
     }
   ],
   "circle": [
@@ -313,7 +348,7 @@
     "resurface_after": 5,
     "takes_orders": 0.95, "case_updates": 0.75, "asks_for_help": 0.6
   },
-  "home": "Houseboat, Gotham Marina",
+  "home": "Tim's houseboat",
   "home_sound": "houseboat",
   "interests": {
     "pastimes": [

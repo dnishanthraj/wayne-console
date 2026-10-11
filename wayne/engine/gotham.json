@@ -6881,6 +6881,84 @@
    "note": "The view's of my tower. I've never asked whether that's on purpose."
   },
   {
+   "name": "Dick's apartment",
+   "x": 117.6,
+   "y": -8.6,
+   "area": "Blüdhaven",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "dick's apartment",
+    "dick's place",
+    "dick's flat"
+   ],
+   "bio": "A third-floor walk-up in Blüdhaven over a bakery: a heavy bag in the corner, a couch Haley thinks is hers, and a fire escape he uses more than the door.",
+   "note": "He took the place because the roof connects to four others. He says it was the bakery."
+  },
+  {
+   "name": "Tim's houseboat",
+   "x": 16.6,
+   "y": 98.8,
+   "area": "Gotham Marina",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "tim's houseboat",
+    "the houseboat",
+    "tim's place",
+    "tim's boat"
+   ],
+   "bio": "An old houseboat at the end of a pier in Gotham Marina: three monitors, a hammock, and more server than galley.",
+   "note": "He says the water stops anyone sneaking up on him. Alfred says it's damp."
+  },
+  {
+   "name": "Cass's loft",
+   "x": 107.2,
+   "y": 65.1,
+   "area": "Burnside",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "cass's loft",
+    "cass's place",
+    "cassandra's place"
+   ],
+   "bio": "A loft over a shuttered dance studio in Burnside: a mat, a mirror, a mattress, and a window she leaves by.",
+   "note": "She found it herself. There's nothing in it she couldn't leave in a minute."
+  },
+  {
+   "name": "The Fox house",
+   "x": 63.4,
+   "y": 71.3,
+   "area": "Upper East Side",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "the fox house",
+    "lucius's house",
+    "lucius's place",
+    "the foxes'"
+   ],
+   "bio": "The Foxes' brownstone on the Upper East Side: Tanya's books, Luke's old trophies, and a basement workshop nobody else goes in.",
+   "note": "Half of what I wear started on the bench in that basement."
+  },
+  {
+   "name": "Jim's apartment",
+   "x": 51.2,
+   "y": 42.9,
+   "area": "Burnley",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "jim's apartment",
+    "jim's place",
+    "gordon's apartment",
+    "gordon's place"
+   ],
+   "bio": "A two-bedroom in Burnley: a recliner, the scanner on the kitchen counter, and Barbara's photographs on every wall.",
+   "note": "Jim's. Not a place for the cowl — he's never asked me there, and I've never gone."
+  },
+  {
    "name": "Hangar 9",
    "x": -3.02,
    "y": 123.45,

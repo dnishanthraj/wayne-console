@@ -147,6 +147,8 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 
 Press <kbd>M</kbd>. Gotham is drawn from [`wayne/engine/gotham.json`](wayne/engine/gotham.json) by [`scripts/build_map.py`](scripts/build_map.py) and rendered with [MapLibre GL](https://maplibre.org) in the console's own palette, as a hologram of the city you can tilt into 3D.
 
+Everyone's home is on it, yours to find and nobody else's: the Manor, the Clocktower, Dick's apartment in Blüdhaven, Tim's houseboat, Cass's loft, Jason's safehouse, Randy's walk-up, the Fox house, Jim's apartment, Selina's penthouse. Search a name to find where they live. On a Sunday Barbara might be at her father's for lunch; some Saturdays the family is on Dick's couch for a film.
+
 <div align="center">
 <img src="docs/img/city.jpg" alt="The whole of Gotham from above: the island, its districts and bridges, Blackgate Isle, Arkham Island in its channel, Burnside and the mainland" width="100%">
 </div>

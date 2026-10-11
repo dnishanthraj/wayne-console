@@ -5,6 +5,33 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-11
+
+### Added
+
+- **Everyone's home, on the map.** Dick's apartment in Blüdhaven, Tim's
+  houseboat at the marina, Cass's loft in Burnside, the Fox house on the
+  Upper East Side, and Jim's apartment in Burnley join the Manor, the
+  Clocktower, Randy's apartment, Jason's safehouse and Selina's penthouse.
+  Each is a marker of its own (a house, from further out than any other spot,
+  never crowded off the map), with a story, and none is a place the scanner,
+  the patrols or the city's crimes know about. Searching a person finds their
+  home ("Barbara" finds the Clocktower). Their markers sit at their homes, not
+  in the middle of the district.
+- **Evenings they keep together.** Sunday lunch at Jim's with Barbara every
+  other week, movie night at Dick's every third Saturday (Tim, Barbara and Cass
+  on his couch), and games night on Tim's houseboat every other Friday. A
+  shared evening is on for all of them or none, outranks the day's plan, and
+  puts them in each other's company. On the map they're all there. Call one
+  and you hear the rest in the room, with the film or the game behind them.
+  Jim isn't on the family's app, but when Barbara's with him, he's where her
+  dot is.
+
+### Changed
+
+- "Home" in someone's day means their own place, and "home, Blüdhaven" in
+  Tim's means Dick's apartment, not the middle of Blüdhaven.
+
 ## [0.14.0] - 2026-10-11
 
 ### Added
