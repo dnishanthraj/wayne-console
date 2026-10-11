@@ -29,10 +29,11 @@ from .. import operator
 from . import culture, grapevine, model, places, presence, world
 
 
-def afterthought(session, exchanges, by="text"):
+def afterthought(session, exchanges, by="text", present=()):
     """
     Read an exchange; set what they're doing and what they mean to do. Runs in
     the background — it costs a second of the model and nobody is waiting.
+    `present`: who else was on the call — word for them needn't be passed on.
     """
     contact = session.contact
     exchanges = [m for m in exchanges[-8:] if m.get("content") and not m.get("marker")]
@@ -78,7 +79,15 @@ def afterthought(session, exchanges, by="text"):
         + f"6. Between {contact.name} and {operator.name(contact.id)}, in the newest exchange: did anything happen that "
           f"would stay with {contact.name} — kindness or cruelty, a promise kept or broken, being there for them or not, "
           f"an apology, a fight, being lied to{', flirting that landed or fell flat' if romance else ''}? Most "
-          f"exchanges change nothing: then all zeros and no memory. Judge as {contact.name} would, by their nature.\n\n"
+          f"exchanges change nothing: then all zeros and no memory. Judge as {contact.name} would, by their nature.\n"
+        + f"7. In the newest exchange, did {operator.name(contact.id)} ask {contact.name} to pass something on to someone "
+          f"else — tell them something, ask them something, or get them to text or call him — and did {contact.name} "
+          f"agree, or say they would? If {contact.name} refused, said they couldn't, or nobody asked, the answer is none.\n"
+        + (f"8. In the newest exchange, did {operator.name(contact.id)} tell {contact.name} something about himself that "
+           f"{contact.name} would likely mention to someone close — news, a plan, something that happened to him? Not "
+           "small talk, not anything they were asked to pass on, nothing he asked to keep quiet. Most exchanges: null.\n"
+           if by == "text" else "")
+        + "\n"
         "Reply with JSON only, in this shape:\n"
         '{"doing": "a few words, e.g. checking the docks" or null, '
         '"where": "the place it puts them, as it would show on a map (e.g. Gotham Docks); home if it\'s something '
@@ -97,20 +106,44 @@ def afterthought(session, exchanges, by="text"):
         'eased an old hurt)' + (', "romance": -3 to 3' if romance else '') + ', "remember": "the moment in one '
         'line, as they would remember it, from their side — e.g. he snapped at you about Randy — or null if nothing '
         'happened"}, "about_others": [{"who": "first name of someone else this was about", "warmth": -2 to 2, '
-        '"why": "a few words"}] or []'
+        '"why": "a few words"}] or [], '
+        '"pass_on": [{"to": "the first name of who it\'s for", "message": "what to tell or ask them, in a few words, '
+        'about him without his name — e.g. he wants you to text him when you\'re free", "wants": "text" or "call" if '
+        'he wants them to get in touch with him, else null}] or []'
+        + (f', "news": "one short line beginning with \'{operator.name(contact.id)}\'" or null' if by == "text" else '')
         + (', "case_closed": "how it ended, in a few words" or null' if case else '') + '}')
     try:
         reply = model.ask(contact.model, [{"role": "user", "content": instruction}],
-                          {**contact.options, "temperature": 0, "num_predict": 200},
+                          {**contact.options, "temperature": 0, "num_predict": 260},
                           think=model.thinking(contact), fmt="json", purpose=f"{contact.id}'s afterthought")
         found = json.loads(reply)
     except Exception:
         return None
-    apply(session, found)
+    apply(session, found, present=present, by=by, exchanges=exchanges)
     return found
 
 
 _NOTHING = presence.NOTHING
+
+# Said to keep it quiet: nothing from that conversation travels (see grapevine.note_call).
+_HUSH = re.compile(r"\b(don'?t tell|keep (it|this) (quiet|between us)|between (us|you and me)|nobody (can|must) know|"
+                   r"secret)\b", re.I)
+
+
+def _word_travels(session, found, present, by, exchanges):
+    """
+    What goes on from here: word he asked them to pass on, which they will (grapevine.relay); and by text,
+    news of him they'd mention to someone close, as news from a call does (grapevine.note_call).
+    """
+    if found.get("pass_on"):
+        grapevine.relay(session.contact, found.get("pass_on"), present=present)
+    news = found.get("news")
+    if by != "text" or not isinstance(news, str) or news.strip().lower() in ("", "null", "none"):
+        return
+    if any(_HUSH.search(m.get("content") or "") for m in exchanges if m.get("role") == "user"):
+        return
+    from ..contacts import directory
+    grapevine.note_said(session.contact, news, list(directory()), present=present)
 
 
 def _felt(session, found):
@@ -146,7 +179,7 @@ def _felt(session, found):
                         weight=int(abs(w)))
 
 
-def apply(session, found):
+def apply(session, found, present=(), by="text", exchanges=()):
     """Record what the afterthought found."""
     if not isinstance(found, dict):
         return
@@ -154,6 +187,10 @@ def apply(session, found):
         _felt(session, found)
     except Exception:
         pass        # a bond that couldn't be read never stops the rest being noted
+    try:
+        _word_travels(session, found, present, by, exchanges)
+    except Exception:
+        pass
     state = presence.of(session.contact)
     # A case, a lift, going to one of them: what they say in passing doesn't overwrite it. On scene and
     # texting "ten more minutes", Dick was "handling it" for ten minutes and then back on his routine

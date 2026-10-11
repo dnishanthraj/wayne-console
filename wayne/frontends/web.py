@@ -618,8 +618,9 @@ class Console(GroupChats):
             await self.broadcast({"type": "picked_up", "speaker": contact_id})
             self._call_attempts.pop(contact_id, None)
             presence.of(contact).touch()
-            # Talking now: any plan to get back to him about a missed call is moot.
+            # Talking now: any plan to get back to him about a missed call is moot — or because Dick said to.
             presence.of(contact).drop("callback")
+            presence.of(contact).drop_reached("relayed")
             await self._presence_changed(contact)
             # Whoever's with them is on the line too — in the room, on their speaker.
             self._spawn(self._bring_the_room(contact))
@@ -662,7 +663,7 @@ class Console(GroupChats):
             else:
                 note = (f"you're with {host.name} — Bruce rang {host.name}, who's put him on speaker; "
                         "you're not on a line of your own, you're in the room")
-            await self.add(cid, ensure=True, willing=True, remark=False, note=note)
+            await self.add(cid, ensure=True, willing=True, remark=False, note=note, overheard=not arriving)
             if arriving and self.call and host.id in self._members():
                 await self._react(f"{other.name} has just walked in — here, where you are, in person, while you're "
                                   "on the phone to him.", who=host.id)
@@ -829,7 +830,7 @@ class Console(GroupChats):
             diary.write(member.contact.id, "call", f"on the phone with Bruce{', ' + ' and '.join(others) + ' on too' if others else ''}"
                         f" ({time.strftime('%H:%M', time.localtime(began))}–{time.strftime('%H:%M')})")
         if any(m["role"] == "user" for m in said):
-            self._spawn(self._afterthought(member, said, "call"))
+            self._spawn(self._afterthought(member, said, "call", present))
 
     def _spawn(self, coroutine):
         """
@@ -888,10 +889,11 @@ class Console(GroupChats):
                 self.sessions[cid].he_muted = on
                 self.sessions[cid].muted_since = time.time() if on else None
 
-    async def add(self, contact_id, ensure=False, note="", willing=False, by_him=False, remark=True):
+    async def add(self, contact_id, ensure=False, note="", willing=False, by_him=False, remark=True,
+                  overheard=False):
         """
-        Patch another contact into the call. They ring, pick up already knowing
-        who is on the line and the last few things said, and greet the call.
+        Patch another contact into the call. They ring, pick up knowing who is on the line (and, `overheard`
+        — in the room from the start — the last few things said), and greet the call.
         """
         contact = self.directory.get(contact_id)
         if (contact is None or not self.call or contact_id in self._members() or self._ringing_out
@@ -915,12 +917,12 @@ class Console(GroupChats):
         self.call.invited.add(contact_id)
         self._adding.add(contact_id)
         try:
-            return await self._ring_in(contact, call, ensure, note, willing, by_him, remark)
+            return await self._ring_in(contact, call, ensure, note, willing, by_him, remark, overheard)
         finally:
             self._adding.discard(contact_id)
             self._dropped_adds.discard(contact_id)
 
-    async def _ring_in(self, contact, call, ensure, note, willing, by_him, remark):
+    async def _ring_in(self, contact, call, ensure, note, willing, by_him, remark, overheard=False):
         """The ring itself, for add(): every step checks it's still that call, and still wanted."""
         contact_id = contact.id
 
@@ -961,7 +963,7 @@ class Console(GroupChats):
             await self._while_it_rings(contact)
         async with self.turn_lock:
             newcomer = self.session_for(contact_id)
-            if gone() or not self.call.join(newcomer):
+            if gone() or not self.call.join(newcomer, overheard=overheard):
                 # The call's gone, he stopped the ring, or the line filled: their seat goes.
                 if self.call is call:
                     await self.broadcast(events.party(self._members(), removed=contact_id))
@@ -976,6 +978,7 @@ class Console(GroupChats):
         # told who's on the line now, whatever else it was told meanwhile.
         await self.broadcast({"type": "picked_up", "speaker": contact_id})
         await self.broadcast(events.party(self._members()))
+        presence.of(contact).drop_reached("relayed")      # on the line with him: whatever was passed on, said here
         if self.call is call:
             call.event(f"{contact.name} is on the call now")
         if getattr(newcomer, "_hanging_up", False):
@@ -990,6 +993,36 @@ class Console(GroupChats):
             joined = (f"{contact.name} has just dialled back into the call" if "dialled back" in note else
                       f"{contact.name} has just joined the call")
             await self._react(joined + ".", but=contact_id)
+
+    def caught(self, contact_id, lines):
+        """
+        Someone just patched in hears the call from the moment they picked up: whatever was still being said as
+        they did — the rest of a sentence, the ones queued after it — as the page was playing it. Nothing
+        before (see Call.join).
+        """
+        newcomer = self.sessions.get(contact_id)
+        if not self.call or newcomer is None or newcomer not in self.call.members:
+            return
+        on = set(self._members())
+        caught = []
+        for line in (lines if isinstance(lines, list) else [])[:6]:
+            speaker = (line or {}).get("speaker") if isinstance(line, dict) else None
+            text = str((line or {}).get("text") or "").strip()[:400] if isinstance(line, dict) else ""
+            if speaker not in on or speaker == contact_id or not text:
+                continue
+            needs = wayne_identity.guards([contact_id])
+            if needs and wayne_identity.level(speaker) != wayne_identity.level(contact_id):
+                # Said before they were on — unguarded: Jim catching "…Master Bruce" is Jim told. Mended where
+                # it can be; where a name or the work they mustn't hear is still in it, they caught nothing.
+                text = wayne_identity.scrub(text, speaker, [contact_id])
+                if (any(re.search(rf"\b{re.escape(n)}\b", text, re.I)
+                        for n in wayne_identity.guard_vocatives(speaker, [contact_id]))
+                        or ("work" in needs and grapevine._crosses_secret(text, contact_id))):
+                    continue
+            caught.append(f"(as you picked up) {self.call.heard_as(speaker, text, newcomer)}")
+        if caught:
+            at = min(getattr(newcomer, "_picked_up_at", 0), len(newcomer.heard))
+            newcomer.heard[at:at] = caught
 
     async def drop(self, contact_id):
         """Let one contact off the call. They say goodbye; the call goes on."""
@@ -1500,6 +1533,7 @@ class Console(GroupChats):
             if reply:
                 await self._deliver(contact, reply, loop.time(), reply_to=_quoting(thread, batch, turn["quote"]))
                 whereabouts.drop("callback")     # back in touch; no need to ring him back
+                whereabouts.drop_reached("relayed")     # nor to text him because Dick said to: they're talking
             else:
                 await self.broadcast({"type": "text_idle", "speaker": contact.id})
             if group_task:
@@ -1620,15 +1654,16 @@ class Console(GroupChats):
         else:
             await asyncio.sleep(total)
 
-    async def _afterthought(self, session, exchanges, by):
+    async def _afterthought(self, session, exchanges, by, present=()):
         """What the exchange set in motion — see wayne.engine.initiative."""
         await self._call_first()          # someone who's left a call that goes on: read once it's over
         try:
-            found = await asyncio.to_thread(initiative.afterthought, session, exchanges, by)
+            found = await asyncio.to_thread(initiative.afterthought, session, exchanges, by, tuple(present))
             if found:
                 # What, never the words: the log sits beside encrypted memory.
-                log.info("%s afterthought: doing=%s contact=%s", session.contact.id,
-                         bool(found.get("doing")), bool(found.get("contact")))
+                log.info("%s afterthought: doing=%s contact=%s passing on=%d", session.contact.id,
+                         bool(found.get("doing")), bool(found.get("contact")),
+                         len(found.get("pass_on") or []) if isinstance(found.get("pass_on"), list) else 0)
                 if found.get("pickup") is True:
                     # "Stay there, I'll come and get you": he does, in the Batwing.
                     lifted = await self.give_lift(session.contact.id)
@@ -2962,6 +2997,11 @@ class Console(GroupChats):
             whereabouts.postpone(intent["id"], 600, count=False)
             return
         callback = intent["origin"] == "callback"
+        if (intent["origin"] == "relayed" and whereabouts.now()["status"] == presence.BUSY
+                and intent.get("tries", 0) < 6):
+            # "When he's free": word passed on is got round to between things, not in the middle of them.
+            whereabouts.postpone(intent["id"], 900)
+            return
         if intent["action"] == "call":
             if not (self.current_id or self._incoming or self._connecting):
                 whereabouts.done(intent["id"])
@@ -2972,7 +3012,8 @@ class Console(GroupChats):
                 whereabouts.postpone(intent["id"], 300)   # he's on another call
                 return
         whereabouts.done(intent["id"])
-        why = "callback" if callback else "worry" if intent.get("origin") == "worry" else "promise"
+        why = ("callback" if callback else "worry" if intent.get("origin") == "worry"
+               else "relayed" if intent.get("origin") == "relayed" else "promise")
         await self._send_unprompted(contact, intent["about"], why)
 
     def _quiet(self, now):
@@ -3470,13 +3511,17 @@ class Console(GroupChats):
                 name = re.escape(n)
                 # On a call, "call Tim", "add Tim", "get Tim on", "bring Tim in",
                 # "loop Tim in", "conference in Tim" — all ring him in. Not "did Tim
-                # call?" or "Tim called".
-                if (re.search(rf"(?i)\b(call|ring|phone|get|grab|bring|add|patch|loop|pull|conference)\b(?:\s+in)?"
-                              rf"[^.?!]{{0,18}}\b{name}\b", text)
+                # call?" or "Tim called" — and not "let me call Tim" or "I'll ring Tim later":
+                # that's him doing it himself, when he's ready, not asking them to.
+                ask = re.search(rf"(?i)\b(call|ring|phone|get|grab|bring|add|patch|loop|pull|conference)\b(?:\s+in)?"
+                                rf"[^.?!]{{0,18}}\b{name}\b", text)
+                if (ask and not _his_own_doing(text[:ask.start()])
                         and not re.search(rf"(?i)\b(did|has|have|was)\s+{name}\s+(call|ring|phone)|\b{name}\s+"
                                           rf"(called|rang|phoned)\b", text)):
                     return contact.id
-                if re.search(rf"(?i)\b{name}\b[^.?!]{{0,24}}\b(on|onto|into|in on)\s+(the |this )?(line|call)\b", text):
+                on = re.search(rf"(?i)\b{name}\b[^.?!]{{0,24}}\b(on|onto|into|in on)\s+(the |this )?(line|call)\b",
+                               text)
+                if on and not _his_own_doing(text[:on.start()]):
                     return contact.id
         return None
 
@@ -3498,6 +3543,23 @@ console = Console()
 
 # The reactions a phone offers at a tap, sent alone as a text when asked to react.
 _TAPBACKS = {"👍", "👍🏻", "👍🏼", "👍🏽", "👍🏾", "👍🏿", "❤️", "😂", "‼️", "❓", "👎"}
+
+
+_HIS_OWN = re.compile(
+    r"(?i)\b(let me|lemme|let'?s|let us|i'?ll|i will|i'?m|i am|i'?d|i (?:need|have|want|wanna|gotta|got|ought|should|"
+    r"could|can|might|may|must|guess|think|reckon|better)|we'?ll|we will|we'?re|we (?:need|have|should|could|can|might|"
+    r"must))\b")
+
+
+def _his_own_doing(before):
+    """
+    Whether what comes before "call Tim" makes it his own plan — "let me call Tim", "I'll ring Tim after this",
+    "we should get Tim on" — rather than asking whoever's on the line to: "Alfred, call Tim", "can you get Tim
+    on", "I need you to patch Tim in".
+    """
+    clause = re.split(r"[.?!;,:—–]", before)[-1]
+    own = _HIS_OWN.search(clause)
+    return bool(own) and not re.search(r"(?i)\byou\b", clause[own.end():])
 
 
 def _quoting(thread, batch, said):
@@ -4512,6 +4574,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not console.voice_busy and getattr(console, "_last_said", None):
                     console._remember_heard(*console._last_said)     # the reply was written; he heard part of it
                     console._last_said = None
+            elif kind == "caught":
+                console.caught(payload.get("speaker", ""), payload.get("lines"))
             elif kind == "nudge":
                 console._spawn(console.nudge())
             elif kind == "signoff":

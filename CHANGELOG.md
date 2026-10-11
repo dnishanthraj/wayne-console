@@ -5,6 +5,43 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-11
+
+### Added
+
+- **Word passed on.** Ask someone to pass something on ("tell Tim to text me
+  when he's free", "ask Barbara if she's free Saturday") and, if they say
+  they will, they do, when they next get to their phone. Tim then knows who
+  told him, and if you wanted him in touch he texts or rings you when he's
+  free ("Dick said you wanted me to text you?"), more slowly or not at all
+  if he's sore with you. Anyone on the call already heard it for
+  themselves. Nothing gives a mask away: word for Jim only comes from a mask
+  and never names you, and nothing of the work reaches Selina.
+- **News from texts travels too.** Something you tell someone by text that
+  they'd mention to the people close to them can reach those people in their
+  own time ("Dick told me you…"), as news from calls already did. Nothing
+  travels from a conversation where you asked to keep it quiet.
+- **Live in the call overlay.** The Live switch is on the small call card
+  over the map, Codex and mail too, kept in step with the one on the call.
+
+### Fixed
+
+- **"Let me call Dick" is yours to do.** Saying you'll call someone ("let me
+  call Dick", "I'll ring Tim after this", "let's get Barbara on") no longer
+  has whoever you're talking to ring them in. Asking them still does
+  ("Alfred, get Dick on the line", "can you patch Tim in").
+- **Someone added to a call hears it from when they pick up.** They no
+  longer hear the lines from before (so no "I heard my name" as they pick
+  up). If someone's mid-sentence as they answer, they hear the rest of that
+  sentence. Anyone who was in the room on the speaker the whole time still
+  heard it all.
+- **No room sound while it rings.** Someone's background (traffic, the cafe,
+  rain) starts when they pick up, not while their phone is still ringing.
+- **The call over the map is as quick as the call on its own.** The map's
+  effects shared the GPU with the model writing replies and with Whisper
+  listening. On a call they now update a couple of times a second instead
+  of ten, and hold still while you talk and while a reply is being written.
+
 ## [0.18.0] - 2026-10-11
 
 ### Added

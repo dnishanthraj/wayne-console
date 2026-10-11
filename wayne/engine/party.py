@@ -78,7 +78,14 @@ class Call:
 
     # --- membership ------------------------------------------------------
 
-    def join(self, session):
+    def join(self, session, overheard=False):
+        """
+        Someone on the line. What they hear starts when they pick up: nothing said before reaches them — not
+        "let me get Dick on" said before Dick's phone even rang — unless they were in the room hearing it
+        (`overheard`: on the host's speaker from the start), and even then not if they're outside the secret.
+        What a phone shows as they join — who didn't pick up, who's on — they know. The rest of a sentence
+        still being spoken as they pick up reaches them from the page (see Console.caught).
+        """
         if session in self.members or len(self.members) >= MAX_CONTACTS:
             return False
         if not self.transcript and self.members:
@@ -90,11 +97,11 @@ class Call:
                 self.transcript.append(("me" if message["role"] == "user" else first.contact.id, message["content"]))
         self.members.append(session)
         session.mark_call_start()
-        # The last few lines before they joined, marked as such: enough to
-        # pick up the thread, not a recording of the evening — and none at all
-        # for someone outside the secret, who'd have heard nothing of it anyway.
-        before = [] if identity.outside(session.contact.id) else self.transcript[-6:]
+        recent = self.transcript[-6:]
+        before = recent if overheard and not identity.outside(session.contact.id) else \
+            [(who, line) for who, line in recent if who is None]
         session.heard = [f"(before you joined) {self.heard_as(who, line, session)}" for who, line in before]
+        session._picked_up_at = len(session.heard)
         self._attach()
         return True
 
@@ -153,7 +160,8 @@ class Call:
                 "talking to. Anything earlier in your memory is from previous calls; "
                 "this call is about what's being said now. If you have to go, say a quick "
                 "goodbye and end with [hang up] — you'll drop off and the call goes on. If he "
-                "asks you to get someone on the line, or someone truly needs to be here, end "
+                "asks you to get someone on the line — asks you: \"let me call Tim\" is him doing it himself, "
+                "when he's ready — or someone truly needs to be here, end "
                 "with [add: their first name] and you'll ring them in.")
         secret = identity.guard_note(session.contact.id, self._ids(session))
         if secret:

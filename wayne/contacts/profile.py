@@ -400,6 +400,10 @@ class Directory:
             if said in (contact.name.lower(), contact.full_name.lower(), contact.id,
                         contact.full_name.split()[0].lower()):
                 return contact
+        # Then what they're called besides: "Red Hood", "Babs".
+        for contact in self._contacts.values():
+            if said in {n.lower() for n in (getattr(contact, "mask", ""), *getattr(contact, "nicknames", ())) if n}:
+                return contact
         return None
 
     def ids(self):

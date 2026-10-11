@@ -1534,7 +1534,7 @@ class ContactSession:
     def _background(self):
         """What they've heard secondhand, and what's been said in their group chats."""
         from ..contacts import directory
-        parts = [grapevine.block(self.contact.id),
+        parts = [grapevine.relayed_block(self.contact.id), grapevine.block(self.contact.id),
                  groupchat.block(self.contact.id, directory(), prompt=getattr(self, "_said", None))]
         return "\n\n".join(p for p in parts if p)
 
@@ -1914,6 +1914,10 @@ class ContactSession:
             ask = (f"He rang you earlier and you didn't pick up — {about}. You're free now. "
                    "Get back to him by text. Say why you couldn't answer if you want to, or don't; "
                    "if it was nothing in particular, it was nothing in particular.")
+        elif why == "relayed":
+            ask = (f"{about}. Get in touch with him about it the way you would — you might say who told you, you "
+                   "might not; if there was a question in it, answer it. If you'd honestly let it sit, reply with "
+                   "exactly SKIP.")
         elif why == "promise":
             ask = (f"You said you'd get back to him about {about} — whatever you were doing for "
                    "it is done now. Text him. "
@@ -1939,7 +1943,7 @@ class ContactSession:
         text = "\n".join(lines)
         if re.fullmatch(r"\W*skip\W*", text, re.I) or (
                 why in ("second_thought", "chase", "worry", "case_taken", "case_closed", "tapback", "case_declined",
-                        "case_pulled", "case_watch", "case_arrived", "case_trouble", "case_hurt")
+                        "case_pulled", "case_watch", "case_arrived", "case_trouble", "case_hurt", "relayed")
                 and re.match(r"\W*skip\b", text, re.I)):
             return ""
         if text:

@@ -19,6 +19,8 @@
   var queue = [];
   var current = null;
   var playing = false;
+  // The sentence playing now — what, whose, and when it began — for remaining().
+  var currentItem = null;
   // Bumped by stop(). A clip still loading when he was cut off belongs to the
   // old generation and must never start once it lands.
   var generation = 0;
@@ -97,6 +99,7 @@
     if (!queue.length) {
       playing = false;
       current = null;
+      currentItem = null;
       if (handlers.onIdle) handlers.onIdle();
       return;
     }
@@ -117,9 +120,10 @@
         source.connect(distant[item.speaker] ? roomChain() : analyser);
         source.onended = function () {
           lastLine[item.speaker || ''] = Date.now();
-          if (current === source) { current = null; next(); }
+          if (current === source) { current = null; currentItem = null; next(); }
         };
         current = source;
+        currentItem = { text: item.text, speaker: item.speaker, at: ctx.currentTime, duration: decoded.duration };
         if (handlers.onSentenceStart) {
           handlers.onSentenceStart(item.text, item.key, decoded.duration * 1000, item.words,
                                    item.speaker);
@@ -140,6 +144,7 @@
       current = null;
       try { source.onended = null; source.stop(); } catch (e) { /* already ended */ }
     }
+    currentItem = null;
     playing = false;
     if (handlers.onIdle) handlers.onIdle();
   }
@@ -328,7 +333,22 @@
     retire(entry);
   }
 
+  /* What's still to be heard: the sentence playing now, from how far into it we are (0–1), and every one
+     queued behind it — what someone picking up mid-call actually hears of it. */
+  function remaining() {
+    var left = [];
+    if (currentItem && ctx) {
+      var into = currentItem.duration ? (ctx.currentTime - currentItem.at) / currentItem.duration : 0;
+      left.push({ speaker: currentItem.speaker, text: currentItem.text, from: Math.max(0, Math.min(0.98, into)) });
+    }
+    queue.forEach(function (item) {
+      if (item.generation === generation) left.push({ speaker: item.speaker, text: item.text, from: 0 });
+    });
+    return left;
+  }
+
   global.ConsoleAudio = {
+    remaining: remaining,
     setDistant: setDistant,
     context: context,
     resume: resume,

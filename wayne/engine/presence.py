@@ -1384,11 +1384,11 @@ class Presence:
 
         # --- intentions ----------------------------------------------------------
 
-    def intend(self, action, about, due, origin="promise"):
-        """Something they mean to do: text him, or call him, at `due`."""
+    def intend(self, action, about, due, origin="promise", **extra):
+        """Something they mean to do: text him, or call him, at `due` — and anything else worth keeping with it."""
         with self._lock:
-            intent = {"id": uuid.uuid4().hex[:10], "action": "call" if action == "call" else "text",
-                      "about": about.strip()[:240], "due": due, "origin": origin}
+            intent = {**extra, "id": uuid.uuid4().hex[:10], "action": "call" if action == "call" else "text",
+                      "about": about.strip()[:300], "due": due, "origin": origin}
             # One plan per purpose: a newer promise replaces an older one of the same kind.
             self._state["intents"] = [i for i in self._state["intents"]
                                       if i["origin"] != origin][-4:] + [intent]
@@ -1418,6 +1418,18 @@ class Presence:
         """Forget every intention of one kind — a callback, once they've talked."""
         with self._lock:
             kept = [i for i in self._state["intents"] if i["origin"] != origin]
+            if len(kept) != len(self._state["intents"]):
+                self._state["intents"] = kept
+                self.save()
+
+    def drop_reached(self, origin, t=None):
+        """
+        Forget the intentions of one kind they'd already have acted on by talking to him: word passed on to them
+        (`arrives`) before they spoke — they'll have said it then. One that hasn't reached them yet stays.
+        """
+        t = t or time.time()
+        with self._lock:
+            kept = [i for i in self._state["intents"] if i["origin"] != origin or i.get("arrives", 0) > t]
             if len(kept) != len(self._state["intents"]):
                 self._state["intents"] = kept
                 self.save()

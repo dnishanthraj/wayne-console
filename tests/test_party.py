@@ -88,15 +88,19 @@ def test_lines_for_someone_else_are_dropped():
     assert call.own_words(alfred, "Alfred: Quite right.") == "Quite right."
 
 
-def test_a_late_joiner_hears_what_was_said_before():
+def test_a_late_joiner_hears_the_call_from_when_they_pick_up():
     alfred = FakeMember("alfred", "Alfred", "Alfred Pennyworth")
     alfred.history.messages = [{"role": "user", "content": "The car's wrecked."},
                                {"role": "assistant", "content": "Again?"}]
     call = _call(alfred)
     lucius = FakeMember("lucius", "Lucius", "Lucius Fox")
     call.join(lucius)
-    assert lucius.heard == ["(before you joined) Him: The car's wrecked.",
-                            "(before you joined) Alfred Pennyworth: Again?"]
+    assert lucius.heard == []                                   # what was said before his phone rang isn't his
+    assert ("me", "The car's wrecked.") in call.transcript      # though it was said on this call
+    dick = FakeMember("nightwing", "Dick", "Dick Grayson")
+    call.join(dick, overheard=True)                             # in the room the whole time: he heard it
+    assert dick.heard[:2] == ["(before you joined) Him: The car's wrecked.",
+                              "(before you joined) Alfred Pennyworth: Again?"]
 
 
 def test_one_contact_alone_is_an_ordinary_call():

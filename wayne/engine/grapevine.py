@@ -166,6 +166,23 @@ def note_call(session, contacts, start_index, present=()):
     threading.Thread(target=run, daemon=True).start()
 
 
+def note_said(source, item, contacts, present=()):
+    """
+    One thing he told `source` by text that they'd likely mention to someone close (read by the afterthought,
+    see wayne.engine.initiative): on its way, as news from a call is — by closeness, in their own time.
+    """
+    him = operator.name(source.id)
+    item = " ".join(str(item or "").split())[:200]
+    if not item.startswith(him):
+        return
+    reaching = [(other.id, time.time() + random.uniform(*_DELAY)) for other in contacts
+                if other.id != source.id and other.id not in present
+                and not _crosses_secret(item, other.id)
+                and random.random() < closeness(source.id, other.id) * 0.6]
+    with _lock:
+        _pass_on(source.full_name, item, reaching, source.id)
+
+
 def spread(source, text, to, delay=_DELAY):
     """Something big travels: `source` (a name) tells each of `to` (contact ids), in their own time."""
     with _lock:
@@ -174,3 +191,116 @@ def spread(source, text, to, delay=_DELAY):
 
 def clear(contact_id):
     events.forget_audience(contact_id, "hearsay")
+    events.forget_audience(contact_id, "relayed")
+
+
+# --- word passed on for him ----------------------------------------------------------------------------------
+# "Tell Tim to text me when he's free": Dick says he will, and does, when he gets round to it — and Tim, told,
+# gets in touch ("Dick said you wanted me to text you?"), or doesn't, as he would. Read from the conversation
+# by the afterthought (see wayne.engine.initiative), only when it was asked and agreed to.
+
+_GETTING_ROUND = (3 * 60, 45 * 60)      # once they're looking at their phone, how long before they pass it on
+_RELAY_FRESH_DAYS = 3
+
+
+def seen_at(contact, t, rng=random):
+    """When someone would see a message sent at `t`: as soon as they'd look — or once they're up, if they're not."""
+    from . import presence
+    whereabouts = presence.of(contact)
+    for _ in range(36):                          # half-hours: a night's sleep and then some
+        delay = presence.read_delay(contact, whereabouts.now(t), rng)
+        if delay is not None:
+            return t + delay
+        t += 1800
+    return None
+
+
+def _carries(source, target, message):
+    """
+    Whether word from him can go this way without giving anyone away (see wayne.identity). To someone who
+    knows only the masks it comes from a mask, with no name in it — Batgirl telling Jim that Batman wants a
+    word, never Alfred; to someone outside the rest of it, nothing of the work.
+    """
+    from .. import identity
+    known = identity.level(target.id)
+    if known == "masks":
+        if not getattr(source, "mask", ""):
+            return False
+        names = set(identity.guard_vocatives(source.id, [target.id])) | {operator.name(), operator.full_name()}
+        return not any(re.search(rf"\b{re.escape(n)}\b", message, re.I) for n in names if n)
+    if known in ("his", "none"):
+        return not _crosses_secret(message, target.id)
+    return True
+
+
+def relay(source, asks, present=(), now=None, rng=random):
+    """
+    He asked `source` (a contact) to pass something on, and they said they would: each of `asks` —
+    {"to": a first name, "message": what to tell them, "wants": "text" | "call" | None} — reaches its person in
+    `source`'s own time, as word from them. When he wants that person to get in touch, they mean to (an
+    intention, origin "relayed"; see presence.intend), from when they've heard. Someone who was on the call
+    heard it for themselves. Returns [(target id, when it reaches them)].
+    """
+    from .. import identity
+    from ..contacts import directory
+    from . import bonds, presence
+    now = now or time.time()
+    book = directory()
+    sent = []
+    for ask in (asks if isinstance(asks, list) else [])[:2]:
+        if not isinstance(ask, dict):
+            continue
+        target = book.find(str(ask.get("to") or "").strip()) if str(ask.get("to") or "").strip() else None
+        message = " ".join(str(ask.get("message") or "").split())[:200].strip(" .")
+        wants = ask.get("wants") if ask.get("wants") in ("text", "call") else None
+        if (target is None or target.id == source.id or target.id in present or not message
+                or message.lower() in ("null", "none", "nothing") or not _carries(source, target, message)):
+            continue
+        told = seen_at(source, now, rng)
+        if told is None:
+            continue
+        told += rng.uniform(*_GETTING_ROUND)
+        reaches = seen_at(target, told, rng)
+        if reaches is None:
+            continue
+        sender = identity.label(source.id, target.id)          # Batgirl, to Jim; Barbara, to Dick
+        him = operator.name(target.id)                           # Batman, to Jim
+        line = f"{him} asked {sender} to pass on: {message}"
+        events.add("relayed", line, actor=sender, links=[("contact", source.id), ("contact", target.id)],
+                   audience=[(target.id, reaches, f"{sender} told you")], secret=False,
+                   data={"wants": wants, "from": source.id})
+        sent.append((target.id, reaches))
+        if wants is None:
+            continue
+        # Told, they mean to — in their own time, and more slowly the less they want to: Randy sits on it.
+        mood = bonds.effects(target, reaches)
+        if rng.random() > max(0.35, min(0.97, 0.6 + 0.35 * mood["reach"])):
+            continue
+        due = reaches + rng.uniform(2, 25) * 60 + max(0.0, mood["quiet"] - 1) * rng.uniform(10, 50) * 60
+        about = f"{sender} told you {him} wants you to {wants} him — the message: \"{message}\""
+        presence.of(target).intend(wants, about, due, origin="relayed", arrives=reaches)
+    return sent
+
+
+def relayed(contact_id, now=None):
+    """Word passed on to them from him that's reached them, newest first: [{from, text, at, wants}]."""
+    now = now or time.time()
+    found = [{"from": e["actor"], "text": e["text"], "at": e["known_at"]}
+             for e in events.known_to(contact_id, "relayed", limit=6)]
+    return sorted([r for r in found if r["at"] <= now and now - r["at"] < _RELAY_FRESH_DAYS * 86400],
+                  key=lambda r: -r["at"])[:2]
+
+
+def relayed_block(contact_id):
+    """For their awareness: what's been passed on to them from him — theirs to act on, and to say who told them."""
+    items = relayed(contact_id)
+    if not items:
+        return ""
+    now = time.time()
+
+    def ago(t):
+        minutes = (now - t) / 60
+        return ("just now" if minutes < 20 else "earlier today" if minutes < 12 * 60 else "yesterday"
+                if minutes < 36 * 60 else f"{int(minutes // 1440)} days ago")
+    return ("Passed on to you, from him — you know this; do what you'd do about it, and you may say who told you:\n"
+            + "\n".join(f"- {r['from']} told you {ago(r['at'])}: {r['text']}" for r in items))

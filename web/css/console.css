@@ -1991,6 +1991,10 @@ input[type="text"], input[type="search"], input[type="password"], input:not([typ
 .gm-call__tools button svg { width: 100%; height: 100%; display: block; }
 .gm-call__tools button:hover { color: var(--primary); border-color: var(--primary-dim); }
 .gm-call__talk.is-on { color: #02050a; background: var(--primary); border-color: var(--primary); }
+/* The Live switch, as on the call: a word, not a glyph — lit green when it's his choice. */
+.gm-call__tools .gm-call__live { width: auto; padding: 0 10px; border-radius: 17px; font-family: var(--mono);
+  font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint); }
+.gm-call__tools .gm-call__live.is-on { color: var(--good); border-color: color-mix(in srgb, var(--good) 55%, transparent); }
 .gm-call__end { border-color: rgba(224, 87, 79, 0.45) !important; }
 /* His own line: a live dot while he talks, then what he said. */
 .gm-call__me { grid-area: me; display: flex; align-items: center; gap: 8px; margin: 2px 0 0; font-size: 12px; color: var(--text-dim);

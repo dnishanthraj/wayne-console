@@ -3126,6 +3126,7 @@
         // it's someone this page is ringing or has on the line. A pick-up from
         // a line he's since left behind is nothing to do with this call.
         if (event.speaker !== state.ringingId && event.speaker !== state.connectedId && !onCall(event.speaker)) break;
+        if (state.ringingId === event.speaker && state.party.length > 1) tellCaught(event.speaker);
         answered(event.speaker);
         if (state.ringingId === event.speaker) { state.ringingId = null; ConsoleTones.stopRinging(); }
         renderSeats();
@@ -3259,10 +3260,18 @@
   function setLivePref(on) {
     try { localStorage.setItem('wayne-live-mic', on ? '1' : '0'); } catch (e) { /* the choice just isn't kept */ }
   }
+  // The call's own switch and the overlay's, one choice: lit when it's his preference, ringed while the mic's live.
   function paintLive() {
     var on = state.mode === 'ambient';
-    el['live-mic'].setAttribute('aria-pressed', on ? 'true' : 'false');
-    el['live-mic'].classList.toggle('is-on', livePref());
+    document.querySelectorAll('.live-toggle').forEach(function (b) {
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.classList.toggle('is-on', livePref());
+    });
+  }
+  function toggleLive() {
+    setLivePref(!livePref());
+    if (state.connectedId) setMode(livePref() ? 'ambient' : 'ptt');
+    paintLive();
   }
   function applyMicPreference() {
     if (!state.connectedId || state.muted) return;
@@ -3376,6 +3385,7 @@
     root.querySelector('.gm-call__end').addEventListener('click', function () { if (state.connectedId) hangUp(); });
     root.querySelector('.gm-call__back').addEventListener('click', function () { GothamMap.close(); });
     callbar.talk.addEventListener('click', function (e) { e.preventDefault(); toggleMute(); });
+    root.querySelector('.gm-call__live').addEventListener('click', function (e) { e.preventDefault(); toggleLive(); });
     dragCallbar(root);
     return callbar;
   }
@@ -3621,8 +3631,22 @@
     });
   }
 
+  /* Someone patched in hears the call from the moment they pick up — if a voice is mid-sentence, the rest of
+     it, and whatever's queued behind it up to their own hello. The server hands them that and nothing before. */
+  function tellCaught(id) {
+    var lines = [];
+    var left = ConsoleAudio.remaining();
+    for (var i = 0; i < left.length && left[i].speaker !== id; i++) {
+      var words = (left[i].text || '').split(/\s+/).filter(Boolean);
+      var from = Math.min(Math.max(0, words.length - 1), Math.floor(words.length * left[i].from));
+      if (left[i].speaker && words.length) lines.push({ speaker: left[i].speaker, text: (from > 0 ? '\u2026' : '') + words.slice(from).join(' ') });
+    }
+    if (lines.length) send({ type: 'caught', speaker: id, lines: lines });
+  }
+
   /* The rooms behind the voices on the line: for each of them, where they are
-     right now — asked again every minute and a half, since they move. */
+     right now — asked again every minute and a half, since they move. Not while
+     their phone's still ringing: their room comes on the line when they do. */
   var bedTimer = null;
   function syncBeds() {
     clearTimeout(bedTimer);
@@ -3630,7 +3654,9 @@
     var live = state.connectedId && state.ringingId !== state.connectedId;
     // One phone per room: someone on another's speaker is in that room, not one of their own.
     var on = live ? (state.party.length ? state.party.slice() : [state.connectedId])
-      .filter(function (id) { return !roomHost(id); }) : [];
+      .filter(function (id) {
+        return !roomHost(id) && id !== state.ringingId && state.groupRinging.indexOf(id) === -1;
+      }) : [];
     ConsoleAudio.beds().forEach(function (id) { if (on.indexOf(id) === -1) ConsoleAudio.unbed(id); });
     var behind = on.length > 1;
     on.forEach(function (id) {
@@ -3682,11 +3708,7 @@
     });
     ConsoleMic.on('onUtterance', submitAudio);
     ConsoleMic.on('onPartial', captionPartial);
-    el['live-mic'].addEventListener('click', function () {
-      setLivePref(!livePref());
-      if (state.connectedId) setMode(livePref() ? 'ambient' : 'ptt');
-      paintLive();
-    });
+    el['live-mic'].addEventListener('click', toggleLive);
     paintLive();
     // Hands-free: he's started speaking — listen, and read ahead while he does.
     ConsoleMic.on('onSpeechStart', function () {
@@ -3857,6 +3879,8 @@
       root: $('map-view'),
       data: state.map,
       contacts: function () { return state.contacts; },
+      // On a call, the map keeps the GPU for the voice: see gothammap's animate().
+      onCall: function () { return !!state.connectedId; },
       bruce: function () { return state.bruce || null; },
       // Sending himself: a place by name, or a report (which makes it his case).
       go: function (target) {

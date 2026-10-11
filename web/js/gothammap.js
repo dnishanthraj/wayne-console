@@ -2037,12 +2037,19 @@
   // Each tick restyles the map, and in 3D a restyle re-drapes everything over
   // the terrain — so while the camera moves, the effects hold still and the
   // pan stays smooth, and nothing is restyled that isn't being drawn.
+  // On a call the GPU is the voice's as much as the map's: the model writing a reply and Whisper hearing his
+  // share it with every restyle here, and the call over the map came out slower than the call on its own.
+  // So on a call the effects tick a few times a second, not ten; and while he's talking or a reply's being
+  // made they hold still altogether — the people on the map still move.
+  var CALL_TICK = 420, HELD = /^(listening|transcribing|thinking)$/;
   var moving = false;
   function animate(now) {
     if (root.hidden || document.hidden || !ready) { frame = null; return; }
     frame = requestAnimationFrame(animate);
-    if (moving || now - last < 90) return;
+    var calling = !!(opts.onCall && opts.onCall());
+    if (moving || now - last < (calling ? CALL_TICK : 90)) return;
     last = now;
+    if (calling && HELD.test(document.documentElement.dataset.state || '')) { moveTravellers(); return; }
     var t = now / 700, zoom = map.getZoom();
     // Each group of lights catches it briefly, then not, in its own rhythm.
     SPARKLE.forEach(function (k) {
