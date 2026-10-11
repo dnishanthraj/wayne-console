@@ -66,7 +66,11 @@ _DISTANCE = {
     "pass": {"gain": (0.9, 1.3), "pan": 0.9, "lp": None},
 }
 _SAID_FROM = {"near": "right by you", "mid": "close by", "far": "in the distance", "pass": "going past"}
-MIN_GAP = 2.5            # seconds between two sounds in one place: never a pile-up
+# The room behind a call, not a soundtrack: the catalogue's rates were each sound's own, so a street with six of
+# them had something going off every few seconds, and the same horn twice a minute.
+SPARSE = 3.0             # sounds at a third of the catalogue's rate
+MIN_GAP = 9.0            # seconds between two sounds in one place: never a pile-up
+REPEAT_GAP = 75.0        # the same sound again no sooner than this
 HORIZON = 150            # how far ahead a plan is laid out; the page asks again every minute and a half
 
 # Out in the weather: what's laid over a place, and what it sounds like from inside one with windows.
@@ -162,6 +166,7 @@ _CASE_KIND = [(r"shoot|gunfight|gunman|gunmen|firefight|sniper|shots fired", "gu
               (r"\bfire\b|arson|blaze", "fire_scene")]
 
 _locks, _failed = {}, {}
+errors = {}             # the last thing ElevenLabs said when a clip couldn't be made, by name
 _guard = threading.Lock()
 _plans = {}
 _plans_lock = threading.Lock()
@@ -312,17 +317,23 @@ def _lay_out(scene, start, end, rng, state, sky=None):
     for sound, every, distances in rows:
         if sound not in CATALOGUE_SOUNDS:
             continue
-        t = start + rng.expovariate(1.0 / every)
+        t = start + rng.expovariate(1.0 / (every * SPARSE))
         while t < end:
             if windows is None or any(a <= t < b for a, b in windows):
-                found.append(_cue(sound, t, rng.choice(distances.split(",")), rng))
-            t += rng.expovariate(1.0 / every)
-    found.sort(key=lambda c: c["at"])
+                found.append((t, sound, distances.split(",")))
+            t += rng.expovariate(1.0 / (every * SPARSE))
+    found.sort(key=lambda f: f[0])
     spaced, last = [], state.get("last", start - MIN_GAP)
-    for cue in found:
-        if cue["at"] - last >= MIN_GAP:
-            spaced.append(cue)
-            last = cue["at"]
+    heard = state.setdefault("heard", {})            # sound -> when it last went off
+    turns = state.setdefault("turns", {})            # sound -> how many times, for the distances to take turns
+    for at, sound, distances in found:
+        if at - last < MIN_GAP or at - heard.get(sound, -1e9) < REPEAT_GAP:
+            continue
+        # Each distance in its turn — beside them, close by, far off, going past — so every take gets heard.
+        distance = distances[turns.get(sound, 0) % len(distances)]
+        turns[sound] = turns.get(sound, 0) + 1
+        spaced.append(_cue(sound, at, distance, rng))
+        heard[sound] = last = at
     state["last"] = last
     return spaced
 
@@ -464,12 +475,14 @@ def spent(t=None):
     return int(store.space("ambience").get(_spent_key(t)) or 0)
 
 
-def clip(name):
+def clip(name, capped=True):
     """
     The clip for a loop or a sound — made the first time it's wanted and kept:
     a path, or None — no key, switched off, an unknown name, the month's
     allowance used up, or ElevenLabs saying no (asked again only after a while).
-    Blocking: run off the event loop.
+    `capped`: held to the month's allowance — all but a render he's asked for
+    himself (scripts/soundscape.py --all), which is still counted. Blocking:
+    run off the event loop.
     """
     what = _what(name)
     if what is None or not available():
@@ -485,10 +498,14 @@ def clip(name):
             return target
         if time.time() - _failed.get(name, 0) < 600:
             return None
-        if not _allowance(seconds):
+        if capped and not _allowance(seconds):
             _failed[name] = time.time()
             log.info("ambience %s not made: this month's sound allowance (WAYNE_SFX_CREDITS) is spent", name)
             return None
+        if not capped:
+            from .. import store
+            space = store.space("ambience")
+            space.put(_spent_key(), int(space.get(_spent_key()) or 0) + int(seconds * CREDITS_PER_SECOND))
         try:
             response = requests.post(
                 "https://api.elevenlabs.io/v1/sound-generation",
@@ -503,6 +520,7 @@ def clip(name):
                 raise RuntimeError(f"{response.status_code}: {response.text[:160]}")
         except Exception as exc:
             _failed[name] = time.time()
+            errors[name] = str(exc)[:300]
             log.warning("ambience %s couldn't be made: %s", name, str(exc)[:200])
             return None
         target.parent.mkdir(parents=True, exist_ok=True)

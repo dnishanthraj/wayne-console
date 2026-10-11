@@ -95,3 +95,20 @@ def test_the_places_coming_up_are_made_ahead_within_the_days_allowance(monkeypat
     assert ambience.warm(family) == []                                        # switched off
     monkeypatch.setattr(config, "SFX_WARM_PER_DAY", 1)
     assert ambience.warm(family) == []                                        # nothing fits today's allowance
+
+
+def test_the_room_is_occasional_and_never_the_same_sound_twice_running():
+    import random
+
+    from wayne.audio import ambience
+    state = {}
+    cues = ambience._lay_out("street_day", 0, 1200, random.Random(3), state, sky="clear")
+    assert cues and len(cues) / 20 < 3                                       # a few a minute at most, on a street
+    for a, b in zip(cues, cues[1:]):
+        assert b["at"] - a["at"] >= ambience.MIN_GAP
+    seen = {}
+    for cue in cues:
+        assert cue["at"] - seen.get(cue["sound"], -1e9) >= ambience.REPEAT_GAP
+        seen[cue["sound"]] = cue["at"]
+    more = ambience._lay_out("street_day", 1200, 2400, random.Random(4), state, sky="clear")
+    assert not more or more[0]["at"] - cues[-1]["at"] >= ambience.MIN_GAP      # carried on, not piled up

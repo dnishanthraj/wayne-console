@@ -160,7 +160,8 @@
      room at all. Straight to the speakers, never into the voice's analyser. */
   var beds = {};
   // Under the voice, not beside it: the room was loud enough that a horn behind Dick read as part of the call.
-  var BED_IDLE = 0.045, BED_TALKING = 0.075, BED_BEHIND = 0.03;   // × how loud the place is
+  // Never louder for their talking: the voice is what the call is for.
+  var BED_IDLE = 0.045, BED_TALKING = 0.045, BED_BEHIND = 0.03;   // × how loud the place is
   var lastLine = {};
 
   var buffers = {};
@@ -230,7 +231,8 @@
         node.connect(pan);
         node = pan;
       }
-      var peak = (cue.gain || 1) * 1.0;            // as loud as the room it's in, never above it
+      // As loud as the room it's in, never above it — and under someone speaking, half that.
+      var peak = (cue.gain || 1) * (playing ? 0.5 : 1.0);
       if (cue.sweep) {
         // Coming, here, gone.
         g.gain.setValueAtTime(peak * 0.35, now);

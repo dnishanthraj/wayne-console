@@ -5,6 +5,26 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.35.4] - 2026-10-11
+
+### Changed
+
+- **The room is ambient again.** Each sound of a place went off at its own
+  catalogue rate, only 2.5 seconds apart, so a street with six of them had
+  something every few seconds and the same horn twice a minute. Now sounds
+  come at a third of the rate, at least 9 seconds apart, and never the same
+  sound twice within 75 seconds. A street runs about two a minute, a café
+  under one, home a few in ten minutes. Each sound takes its turn at every
+  distance (beside them, close by, far off, going past), so all the takes
+  get heard.
+- **The voice is the call.** The room no longer gets louder while they
+  talk, and a sound that lands while someone's speaking plays at half
+  volume.
+- `scripts/soundscape.py --all` makes every sound not made yet, most-used
+  places first. Asked for by you, it can go past the month's allowance (and
+  is still counted), and it stops at the first credit or quota refusal,
+  because the voices draw on the same ElevenLabs credits.
+
 ## [0.35.3] - 2026-10-11
 
 ### Fixed

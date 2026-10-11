@@ -1,3 +1,3 @@
 """WayneTech console — a local, voice-driven interface to a directory of contacts."""
 
-__version__ = "0.35.3"
+__version__ = "0.35.4"

@@ -4,6 +4,7 @@ The room sounds: what the catalogue holds, what's been made, and making the rest
     venv/bin/python scripts/soundscape.py            # how much is made, and this month's allowance
     venv/bin/python scripts/soundscape.py --missing  # what isn't made yet
     venv/bin/python scripts/soundscape.py --render street_day car rooftop   # make these places, and their sounds
+    venv/bin/python scripts/soundscape.py --all      # make everything not made yet, most-used places first
     venv/bin/python scripts/soundscape.py --doc      # rewrite docs/soundscape.md from the catalogue
 
 Everything is made by itself the first time a call needs it (see wayne/audio/ambience.py), within the month's
@@ -66,11 +67,51 @@ def _doc():
     print(f"Wrote {out.relative_to(ROOT)}.")
 
 
+# What ElevenLabs says when the account can't pay for more: stop there — the voices draw on the same credits.
+_OUT_OF_CREDIT = ("quota", "credit", "402", "payment", "billing", "subscription", "insufficient")
+
+
+def _render_all(missing):
+    """Everything not made yet: the places the family spends most of a week in first, then the rest."""
+    import time
+    if not ambience.available():
+        print("No ElevenLabs key, or WAYNE_AMBIENCE=0: nothing can be made.")
+        return 1
+    from wayne.contacts import directory
+    order = []
+    for place in ambience.upcoming(list(directory()), hours=24 * 7) + list(ambience.CATALOGUE_SCENES):
+        order += ambience._wanted(place)
+    order += [name for name, _ in missing]
+    todo = [name for name in dict.fromkeys(order) if not ambience.path(name).exists() and ambience._what(name)]
+    print(f"Making {len(todo)} clips, most-used places first.", flush=True)
+    made, failed = 0, 0
+    for i, name in enumerate(todo, 1):
+        began = time.time()
+        if ambience.clip(name, capped=False):
+            made += 1
+            print(f"  [{i}/{len(todo)}] {name} ({time.time() - began:.1f}s)", flush=True)
+            continue
+        failed += 1
+        said = ambience.errors.get(name, "").lower()
+        print(f"  [{i}/{len(todo)}] {name}: not made — {said[:120]}", flush=True)
+        if any(word in said for word in _OUT_OF_CREDIT):
+            print("Stopped: ElevenLabs refused for credit or quota — the voices share those credits.", flush=True)
+            break
+        if failed >= 5 and made == 0:
+            print("Stopped: nothing is being made.", flush=True)
+            break
+    print(f"Done: {made} made, {failed} not. This month counted: {ambience.spent():,} credits.", flush=True)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--missing", action="store_true", help="list what isn't made yet")
     parser.add_argument("--render", nargs="*", metavar="PLACE", help="make these places and their sounds now")
     parser.add_argument("--doc", action="store_true", help="rewrite docs/soundscape.md")
+    parser.add_argument("--all", action="store_true",
+                        help="make everything not made yet, most-used places first; past the month's allowance "
+                             "(asked for), still counted; stops at the first quota or billing refusal")
     args = parser.parse_args()
     if args.doc:
         return _doc()
@@ -83,6 +124,8 @@ def main():
     if args.missing:
         for name, seconds in missing:
             print(f"  {name} ({seconds}s)")
+    if args.all:
+        return _render_all(missing)
     if args.render is not None:
         if not ambience.available():
             print("No ElevenLabs key, or WAYNE_AMBIENCE=0: nothing can be made.")
