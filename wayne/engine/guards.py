@@ -282,10 +282,13 @@ def echoes(text, recently_spoken, threshold=0.62):
 
 # Words that signal this is not a conversation to be managed — it is a thing
 # that needs doing, now. Ranked roughly by force.
+# "What are you doing right now?" isn't urgent; "get here now" is. A "now" counts when it's an order.
 URGENCY_MARKERS = [
-    r"\burgent\b", r"\bright now\b", r"\bimmediately\b", r"\bemergency\b",
-    r"\bhurry\b", r"\bquickly\b", r"\bi need (it|this|that) now\b",
-    r"\bno time\b", r"\bcan'?t wait\b", r"\bnow\b[.!]*$",
+    r"\burgent(ly)?\b", r"\bimmediately\b", r"\bemergency\b", r"\bhurry\b", r"\basap\b", r"^\W*quickly\b",
+    r"\bi need (it|this|that|you|them|him|her)\b[^.?!]{0,12}\b(right )?now\b",
+    r"\bno time\b", r"\bcan'?t wait\b",
+    r"\b(get|come|go|send|move|run|call|tell|find|do it)\b[^.?!]{0,24}\b(right )?now\b",
+    r"(?:^|[.!?]\s*)now[.!]*$",          # "Find it. Now."
 ]
 
 

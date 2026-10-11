@@ -247,7 +247,11 @@ def spoken_length(contact, prompt, rng=random):
     _, hint, cap = _SPOKEN[level]
     # The cap is a backstop against a monologue, with a sentence of slack — at
     # the exact length it cut answers in half: "Though if we're being serious..."
-    cap = (cap + 1) if cap else contact.max_reply_sentences
+    # Ordinary turns stay inside the profile's own ceiling (Alfred's three, plus the slack); a turn
+    # that's earned "longer" goes past it. It fell back to the ceiling itself, so for Alfred "say it
+    # properly" was cut tighter than "three or four sentences" — on exactly the turns that mattered.
+    ceiling = max(contact.max_reply_sentences or 3, 2)
+    cap = min(cap + 1, ceiling + 1) if cap else max(ceiling, 4) + 3
     return f"Length this time: {hint}, unless it truly needs otherwise.", cap
 
 

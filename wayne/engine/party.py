@@ -60,6 +60,9 @@ class Call:
         # answer — so nobody greets a newcomer twice.
         self.aside_answered = False
         self._last_operator_line = ""     # his latest line — who he named in it gets answered first
+        # Whether that line is still being answered: a pause filled or a chime afterwards isn't an answer to
+        # it, and was told "he's just spoken to you by name", so they answered him all over again.
+        self._operator_line_open = False
         # When someone on the line last put something to him: the call waits a
         # moment for his answer before carrying on without him.
         self.asked_him_at = 0.0
@@ -148,13 +151,17 @@ class Call:
             note += (f" {' and '.join(room)} {'is' if len(room) == 1 else 'are'} right there with you — the same room, "
                      "not just the same line: you hear each other directly, see what each other sees, and whatever "
                      "happens where you are happens to you both.")
-        if follow_up:
-            note += (" He didn't ask you directly; you're coming in because of what was "
-                     "just said to you or about you. Answer that, briefly.")
-        elif session in self.addressed(self._last_operator_line):
+        asked = self._operator_line_open and session in self.addressed(self._last_operator_line)
+        if asked and len(self.addressed(self._last_operator_line)) > 1:
+            # "Everyone, quick status": each of them was asked — the second wasn't told "he didn't ask you".
+            note += (" He asked all of you: answer him yourself, your part of it — not what the others already said.")
+        elif asked:
             # Asked "Dick, where are you exactly?", Dick answered Tim's joke about cereal.
             note += (" He's just spoken to you by name: answer what he said to you first — anything "
                      "for the others after, if at all.")
+        elif follow_up:
+            note += (" He didn't ask you directly; you're coming in because of what was "
+                     "just said to you or about you. Answer that, briefly.")
         return note
 
     def in_the_room(self, session):
@@ -228,6 +235,7 @@ class Call:
         over = next((m for m in self.members if m.contact.id == talked_over), None) if interrupted else None
         speakers = self.addressed(prompt) or [over or self.last_speaker or self.members[0]]
         self._last_operator_line = prompt
+        self._operator_line_open = True
         operator_line = f"{self.operator}: {prompt}"
         self.transcript.append(operator_line)
         # Everyone not answering first hears the line now; the first speaker
@@ -262,6 +270,7 @@ class Call:
                     if other is not member and other not in spoken:
                         queue.append((other, True))
                         break
+        self._operator_line_open = False
         # Then the room: nobody asked them, but they heard it. One may jump in
         # — agree, argue, rib someone — and whoever they name answers back.
         # Likelier the more of them there are, less likely each time.
@@ -524,6 +533,6 @@ class Call:
             if event["type"] == "reply_end":
                 text = event["text"]
             yield event
-        if not text and heard_all and hasattr(member.history, "record_exchange"):
-            member.history.record_exchange(heard_all, "Mm.")     # heard, said nothing
+        if not text and heard_all and hasattr(member.history, "record_heard"):
+            member.history.record_heard(heard_all)               # heard, said nothing
         return text

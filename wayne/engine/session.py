@@ -252,8 +252,14 @@ def _plain_words(text):
     return re.findall(r"[a-z']+", delivery.clean(text or "").lower())
 
 
+# "Don't forget your mask tonight, Tim" is a reminder about their own night, not a fact to file — it was
+# written down as "your mask tonight, Tim" and answered with "noted" instead of a reply.
+_THEIR_OWN = re.compile(r"^(?:don'?t forget|remember to)\b[^.!?]{0,14}\b(?:your|you|you're|yourself|ya)\b")
+
+
 def _is_instruction(lowered):
-    return not lowered.rstrip().endswith("?") and not _REMINISCING.match(lowered)
+    return (not lowered.rstrip().endswith("?") and not _REMINISCING.match(lowered)
+            and not _THEIR_OWN.match(lowered))
 
 # Sentence-final punctuation followed by whitespace, which is enough of a
 # boundary for speech without waiting on a full parse.
@@ -1071,9 +1077,9 @@ class ContactSession:
 
         if guards.is_urgent(prompt):
             notes.append(
-                "He has said this is urgent. Treat it as urgent: do the thing he "
-                "asked for in this reply — look it up if that is what it takes — "
-                "rather than counselling him about pace or asking what else is on. "
+                "He has said this is urgent. Treat it as urgent: do the thing he asked for in this reply"
+                + (" — look it up if that is what it takes —" if self.contact.can_search and self._can_look() else "")
+                + " rather than counselling him about pace or asking what else is on. "
                 "If you genuinely cannot, say why in one line."
             )
 
@@ -2466,7 +2472,7 @@ class ContactSession:
         heard, or "what did you make of what Lucius said?" draws a blank.
         """
         if self.heard:
-            self.history.record_exchange("\n".join(capped(self.heard)), "Mm.")
+            self.history.record_heard("\n".join(capped(self.heard)))
             self.heard = []
 
     _LOUD = re.compile(r"\b(club|bar|party|gala|concert|stadium|arena|game|crowd|subway|train|traffic|construction|"
@@ -2752,7 +2758,8 @@ class ContactSession:
                     "You had nothing written down that matches it."))
             return True
 
-        if lowered.startswith(_MEMORIZE_PREFIXES) and _is_instruction(lowered):
+        # Not on a group call: there, "remember that" is said to the room, and whoever answers isn't a notebook.
+        if lowered.startswith(_MEMORIZE_PREFIXES) and _is_instruction(lowered) and not (self.call and self.call.is_group):
             self.vault.memorize(prompt)
             yield from self._acknowledge(
                 prompt, "You have just written this down so you will remember it: "

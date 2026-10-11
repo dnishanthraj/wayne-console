@@ -165,7 +165,7 @@ def observe(whereabouts, t=None):
         """'working the robbery at Ralli's' — and where, unless that already says it."""
         place = spoken(where)
         if not place or place.split(" (")[0].split(",")[0].lower() in doing.lower():
-            return doing or place or "about"
+            return doing or place or ""          # nothing to say is nothing written (it wrote "about")
         return f"{doing} — {place}" if doing else place
 
     if not last:

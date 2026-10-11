@@ -63,7 +63,7 @@ def test_opening_the_thread_shows_them_hes_read_it(tmp_path):
 # --- presence ------------------------------------------------------------------
 
 def test_what_the_conversation_set_outranks_being_online_and_the_routine():
-    contact = _contact(routine=({"from": 0, "to": 24, "doing": "asleep", "status": "offline"},))
+    contact = _contact(routine=({"from": 0, "to": 24, "drift": 0, "doing": "asleep", "status": "offline"},))
     state = presence.of(contact)
     assert state.now()["status"] == presence.OFFLINE and state.now()["doing"] == "asleep"
     state.touch()
@@ -77,14 +77,14 @@ def test_what_the_conversation_set_outranks_being_online_and_the_routine():
 
 
 def test_engagement_wears_off_into_the_routine():
-    contact = _contact(routine=({"from": 0, "to": 24, "doing": "on patrol", "status": "busy"},))
+    contact = _contact(routine=({"from": 0, "to": 24, "drift": 0, "doing": "on patrol", "status": "busy"},))
     state = presence.of(contact)
     state.touch(time.time() - presence.ENGAGED_FOR - 1)
     assert state.now()["status"] == presence.BUSY
 
 
 def test_a_routine_block_is_decided_once_per_day_not_per_refresh():
-    contact = _contact(routine=({"from": 0, "to": 24, "doing": "on patrol", "status": "busy",
+    contact = _contact(routine=({"from": 0, "to": 24, "drift": 0, "doing": "on patrol", "status": "busy",
                                  "chance": 0.5},))
     state = presence.of(contact)
     t = time.mktime((2026, 10, 9, 12, 0, 0, 0, 0, -1))
@@ -242,7 +242,7 @@ def test_texts_in_a_row_are_read_and_answered_together(tmp_path, monkeypatch):
 
 
 def test_a_text_to_someone_asleep_waits_until_they_can_see_it(tmp_path, monkeypatch):
-    contact = _contact(routine=({"from": 0, "to": 24, "doing": "asleep", "status": "offline"},))
+    contact = _contact(routine=({"from": 0, "to": 24, "drift": 0, "doing": "asleep", "status": "offline"},))
     console, events = _console(tmp_path, monkeypatch, contact)
 
     async def write(c, body):
@@ -422,7 +422,7 @@ def test_autocorrect_swaps_in_a_real_wrong_word():
 
 def test_a_phone_buzzing_awake_answers_rather_than_crashing(tmp_path, monkeypatch):
     """The third text to someone asleep may wake them — and that path raised, so nobody answered."""
-    contact = _contact(routine=({"from": 0, "to": 24, "doing": "asleep", "status": "offline"},),
+    contact = _contact(routine=({"from": 0, "to": 24, "drift": 0, "doing": "asleep", "status": "offline"},),
                        texting_pace={"phone": 0.0, "online_read": [0.05, 0.05], "wpm": 10000, "wake": 1.0})
     console, events = _console(tmp_path, monkeypatch, contact)
 
@@ -494,7 +494,7 @@ def test_a_reply_held_for_later_still_arrives(tmp_path, monkeypatch):
 def test_where_they_are_is_told_even_mid_conversation(monkeypatch):
     from wayne import contacts
     alfred = _contact(id="alfred", name="Alfred", full_name="Alfred Pennyworth", home="Wayne Manor",
-                      routine=({"from": 0, "to": 24, "doing": "in the garden", "status": "idle", "where": "Wayne Manor"},))
+                      routine=({"from": 0, "to": 24, "drift": 0, "doing": "in the garden", "status": "idle", "where": "Wayne Manor"},))
     monkeypatch.setattr(contacts, "directory", lambda: SimpleNamespace(get=lambda cid: None, __iter__=lambda self: iter([])))
     monkeypatch.setattr(presence, "together", lambda p, t=None: (p, [p]))
     state = presence.of(alfred)

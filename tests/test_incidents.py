@@ -35,14 +35,16 @@ def test_a_call_goes_reported_responding_contained_resolved():
         ["reported", "units responding", "backup requested", "contained", "resolved"]
 
 
-def test_only_someone_out_can_be_the_suspect_and_only_for_their_kind_of_crime():
+def test_only_someone_out_can_be_the_suspect_and_only_for_their_kind_of_crime(clock):
     rogues = {g["name"]: g for g in incidents.rogues()}
+    states = incidents._rogue_states()
     reports = [r for r in _reports(range(0, 24, 2)) if r.get("suspect") and r["suspect"] != incidents.CATWOMAN]
     assert reports
     for r in reports:                                  # (Selina's jobs are hers, on her nights — see test_chases)
         rogue = rogues[r["suspect"]]
         came_in_as = (r.get("was") or [r["kind"]])[0]          # what it was before it turned
-        assert rogue["status"] == "at large" and came_in_as in rogue["kinds"]
+        # Out when it came in — not now: GCPD picking someone up since shouldn't make last week's report wrong.
+        assert incidents._loose_at(states[rogue["name"]], r["at"]) and came_in_as in rogue["kinds"]
 
 
 def test_the_locked_up_are_somewhere_and_the_loose_are_nowhere():
@@ -53,7 +55,7 @@ def test_the_locked_up_are_somewhere_and_the_loose_are_nowhere():
             assert g["held"] in ("Arkham Asylum", "Blackgate Penitentiary")
 
 
-def test_the_worst_of_it_comes_after_dark():
+def test_the_worst_of_it_comes_after_dark(clock):
     night, day = _reports([23, 1, 2]), _reports([10, 12, 14])
     assert len(night) > len(day)
 
@@ -113,7 +115,7 @@ def test_the_toll_is_the_same_every_time_and_the_dead_are_known_by_the_time_it_i
     assert incidents.toll_text({"dead": 0, "hurt": 0}) == ""
 
 
-def test_a_monsters_signature_crime_needs_the_monster_out(monkeypatch):
+def test_a_monsters_signature_crime_needs_the_monster_out(monkeypatch, clock):
     from wayne.engine import codex
     monkeypatch.setattr(codex, "where", lambda rogue, now=None: {"status": "locked up", "held": "Arkham Asylum",
                                                                   "since": 0, "how": ""})

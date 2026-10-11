@@ -218,3 +218,42 @@ def test_mail_isnt_lost_when_the_model_fails_to_write_it(monkeypatch):
     assert inbox._take_event() is not None              # kept for another go
     inbox.write_one("m", {})
     assert inbox._take_event() is None                  # tried twice: let go
+
+
+def test_saying_more_is_never_cut_tighter_than_saying_a_little():
+    import random as _random
+
+    from wayne.contacts import directory
+    from wayne.engine import prompting
+    alfred = directory().get("alfred")
+    caps = {}
+    for seed in range(200):
+        hint, cap = prompting.spoken_length(alfred, "My father would have known what to do. I don't. I really don't "
+                                            "know anymore, Alfred, and it's been weighing on me for weeks now.",
+                                            rng=_random.Random(seed))
+        caps[hint] = cap
+    long_cap = [c for h, c in caps.items() if "longer" in h]
+    assert long_cap and min(long_cap) > max(c for h, c in caps.items() if "longer" not in h)
+
+
+@pytest.mark.parametrize("line,urgent", [("Hey, what are you doing right now?", False), ("Where are you now?", False),
+                                         ("Get here now.", True), ("Find it. Now.", True), ("This is urgent.", True)])
+def test_urgent_is_an_order_not_the_word_now(line, urgent):
+    assert guards.is_urgent(line) is urgent
+
+
+def test_a_reminder_about_their_own_night_isnt_filed_as_a_fact():
+    from wayne.engine.session import _is_instruction
+    assert not _is_instruction("don't forget your mask tonight, tim")
+    assert _is_instruction("remember that i'm allergic to shellfish")
+
+
+def test_a_silence_is_remembered_as_heard_never_as_mm():
+    from wayne.memory import History
+    history = History("robin")
+    history.record_exchange("Bruce: You there?", "Here.")
+    history.record_heard("Dick: Tim's being quiet.")
+    history.record_exchange("Bruce: Tim?", "Still here.")
+    shown = history.for_model()
+    assert not any(m["content"] in ("Mm.", "…") for m in shown if m["role"] == "assistant")
+    assert any("Tim's being quiet" in m["content"] and "Tim?" in m["content"] for m in shown if m["role"] == "user")

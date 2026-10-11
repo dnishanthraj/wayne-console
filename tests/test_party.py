@@ -130,8 +130,11 @@ def test_named_by_him_they_answer_him_first():
     dick, tim = FakeMember("nightwing", "Dick", "Dick Grayson"), FakeMember("robin", "Tim", "Tim Drake")
     call = _call(dick, tim)
     _run(call, "Dick, where are you exactly?")
+    call._operator_line_open = True                 # as it stands while his line is being answered
     assert "answer what he said to you first" in call.note_for(dick)
     assert "answer what he said to you first" not in call.note_for(tim)
+    call._operator_line_open = False                # a pause filled afterwards isn't an answer to it
+    assert "answer what he said to you first" not in call.note_for(dick)
 
 
 def test_what_happens_on_the_call_is_heard_by_all_and_by_whoever_joins():

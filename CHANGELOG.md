@@ -99,6 +99,18 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
   strength and sit out the next call; a fire with nobody behind it has no
   "whoever did it" to get away; one failing step no longer stops the pulse,
   and the map's calls are worked out off the event loop.
+- Conversation: "say it properly" is never cut tighter than "a line or two";
+  "what are you doing right now?" isn't treated as urgent (and nobody who
+  can't search is told to look it up); "don't forget your mask, Tim" is a
+  reminder, not a fact to file; on a group call "Everyone, …" doesn't tell
+  the second to answer that he wasn't asked, and a pause filled afterwards
+  isn't an answer to his last line; a silence is remembered as what they
+  heard, never as "Mm." (which the model had learned as a tic).
+- Tests run in a world of their own: a temporary data directory before
+  anything imports the engine, every cache emptied between tests, and a frozen
+  clock for tests about the world — the suite had been due to go red by
+  itself from mid-October, and wrote into the real data. The evaluation runs
+  on a copy of the data and a quiet city, and never keeps a plan.
 - Mail and your position update without a call up; message tabs survive a
   reload; Escape closes Mail and the Codex; Space presses a button you've
   tabbed to; the call card stays over Mail and lifts the person card clear;

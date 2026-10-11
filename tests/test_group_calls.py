@@ -264,7 +264,7 @@ def test_one_of_them_asking_is_likely_but_not_owed():
 # --- where they are --------------------------------------------------------------
 
 
-def test_where_they_are_comes_from_their_plan_or_home(private_data, monkeypatch):
+def test_where_they_are_comes_from_their_plan_or_home(private_data, monkeypatch, clock):
     from wayne.engine import initiative
     tim = SimpleNamespace(id="robin", name="Tim", full_name="Tim Drake", routine=(), shares_status=True,
                           shares_location=True, home="Wayne Manor", texting_pace={}, model="m",
@@ -298,7 +298,7 @@ def _free(contact_id):
 
 def _morning():
     """Just after midnight today: a plan made then has held all day — one made now only holds from now."""
-    lt = time.localtime()
+    lt = time.localtime(time.time())            # time.time, so a frozen clock (conftest's `clock`) holds here too
     return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 30, 0, 0, -1))
 
 
@@ -416,11 +416,12 @@ def test_the_map_traces_where_a_patrol_has_been(private_data, monkeypatch):
     assert places.resolve("the docks")["name"] == "Gotham Docks"     # Gotham's, without Blüdhaven named
 
 
-def test_the_scanner_never_calls_from_inside_blackgate():
+def test_the_scanner_never_calls_from_inside_blackgate(clock):
     import time as _time
 
     from wayne.engine import incidents
-    reports = [r for t in range(0, 48 * 3600, 3 * 3600) for r in incidents.at(_time.time() - t)]
+    reports = [r for t in range(0, 48 * 3600, 3 * 3600) for r in incidents.at(_time.time() - t)
+               if r["kind"] != "Breakout"]          # a breakout's called in from the walls it got over
     assert reports
     assert not any(r["place"] in ("Blackgate Penitentiary", "Arkham Asylum", "Statue of Justice") for r in reports)
 

@@ -129,7 +129,7 @@ class History:
             for m in self.messages
         ]
         if budget is None or budget <= 0 or not messages:
-            return messages
+            return _without_silences(messages, self.messages)
 
         # Keep the window where it was if everything since still fits, so the
         # prefix the model has already read stays byte-identical.
@@ -146,7 +146,7 @@ class History:
                 start = next((i for i in range(len(messages) - 1, -1, -1)
                               if messages[i]["role"] == "user"), len(messages) - 1)
         self._window_start = self.messages[start].get("at") if start < len(messages) else None
-        return messages[start:]
+        return _without_silences(messages[start:], self.messages[start:])
 
     def _held_start(self, messages, budget):
         """The current window's opening index, if the window can stay put."""
@@ -271,6 +271,19 @@ class History:
                 self.messages[-1]["via"] = self.messages[-2]["via"] = via
             self.save()
 
+    def record_heard(self, heard, via=None):
+        """
+        What they heard on a call and let pass without a word: kept, with nothing put in their mouth. Saved
+        as "Mm." it was their reply in five places, and the model learned "Mm." from it.
+        """
+        with self._lock:
+            self.append("user", heard)
+            self.append("assistant", "…")
+            self.messages[-1]["quiet"] = True
+            if via:
+                self.messages[-1]["via"] = self.messages[-2]["via"] = via
+            self.save()
+
     def amend_last_reply(self, text):
         """What they said turned out to belong somewhere else: the record says so."""
         with self._lock:
@@ -310,3 +323,19 @@ class History:
             if self.path.exists():
                 self.path.unlink()
             self.messages = []
+
+
+def _without_silences(messages, kept):
+    """
+    The transcript with the lines they let pass folded into what came next: a quiet turn is what they heard,
+    with no reply of theirs — so no "Mm." to learn from, and no two of his turns side by side.
+    """
+    out = []
+    for shown, stored in zip(messages, kept, strict=False):
+        if stored.get("quiet") and shown["role"] == "assistant":
+            continue
+        if out and shown["role"] == "user" and out[-1]["role"] == "user":
+            out[-1] = {**out[-1], "content": out[-1]["content"] + "\n" + shown["content"]}
+        else:
+            out.append(dict(shown))
+    return out

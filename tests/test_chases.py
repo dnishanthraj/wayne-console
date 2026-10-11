@@ -64,7 +64,7 @@ def _report(kind, rid="t-run-1", at=None, place=("Ralli's Family Restaurant", "O
             "toll": {"dead": 0, "hurt": 0}, "crew": 2}
 
 
-def test_a_getaway_nobody_stops_is_gone_and_one_they_stop_stays_stopped():
+def test_a_getaway_nobody_stops_is_gone_and_one_they_stop_stays_stopped(clock):
     report = _report("Vehicle pursuit")
     moving = incidents._as_it_stands(report, time.time(), {})
     assert moving["moving"] and moving["route"]["by"] == "by car"

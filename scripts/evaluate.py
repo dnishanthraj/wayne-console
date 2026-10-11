@@ -53,6 +53,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+
+def _scratch_world():
+    """
+    A copy of the data to run in, unless one's given: what they follow and the morning's papers are kept, and
+    nothing the run does (a plan read out of "dinner on Sunday?", a diary line, a log) lands in the real thing.
+    """
+    import os
+    import shutil
+    import tempfile
+    if os.environ.get("WAYNE_DATA_DIR"):
+        return
+    real = ROOT / "data"
+    scratch = Path(tempfile.mkdtemp(prefix="wayne-eval-")) / "data"
+    if real.exists():
+        shutil.copytree(real, scratch, ignore=shutil.ignore_patterns("_backup-*", "ambience", "console.log"))
+    else:
+        scratch.mkdir(parents=True)
+    os.environ["WAYNE_DATA_DIR"] = str(scratch)
+
+
+_scratch_world()
+
 import ollama  # noqa: E402
 
 from wayne import delivery  # noqa: E402
@@ -65,7 +87,9 @@ from wayne.engine import (  # noqa: E402
     grapevine,
     groupchat,
     guards,
+    incidents,
     initiative,
+    plans,
     presence,
 )
 from wayne.memory import History, Story, Vault  # noqa: E402
@@ -207,6 +231,13 @@ def _quiet_memory():
     # Nor whatever case is on the live board, or wherever they really are.
     cases.brief = lambda contact_id, now=None: ""
     cases.active = lambda contact_id: None
+    # The live scanner and board beside a stubbed "nobody's anywhere" were incoherent, and moved with the
+    # hour the run happened at: a scenario is judged on a quiet city unless it says otherwise.
+    cases.board = lambda now=None: []
+    incidents.at = lambda t=None: []
+    # A plan said in a scenario ("dinner on Sunday — you in?") is read as one and kept: not here.
+    plans.read_once = lambda *a, **k: None
+    plans.add = lambda plan, made_in="": {**plan, "id": "eval", "answers": {}}
     Vault.memorize = lambda self, text: None
     Vault.forget = lambda self, needle: [needle]
     Vault.as_block = lambda self, prompt="": ""
