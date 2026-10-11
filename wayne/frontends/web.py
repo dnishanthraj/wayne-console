@@ -5409,8 +5409,11 @@ async def transcribe(request: Request):
     """Raw little-endian float32 PCM at stt.SAMPLE_RATE, captured in the page."""
     body = await request.body()
     began = time.monotonic()
-    partial = bool(request.query_params.get("partial"))
+    partial = bool(request.query_params.get("partial") or request.query_params.get("wake"))
     hint = _speech_hint()
+    if request.query_params.get("wake"):
+        # Listening for "Hey Alfred" with no call on: their names are what it's listening for. Never logged.
+        hint = ", ".join(["Hey"] + [c.name for c in console.directory])[:200]
     if partial:
         if _HEARING["waiting"] or stt.busy():
             return JSONResponse({"text": "", "confidence": 1.0, "skipped": True})

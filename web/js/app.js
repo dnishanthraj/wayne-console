@@ -3207,6 +3207,8 @@
     state.comms = null;
     state.joiningComms = null;
     clearShown();
+    state.wakeRest = '';
+    setTimeout(syncWake, 1500);           // the call's over: listening for a name again, if that's on
     state.connectedId = null;
     state.ringingId = null;
     state.party = [];
@@ -3307,6 +3309,12 @@
         break;
 
       case 'reply_end':
+        if (!event.interim && state.wakeRest && state.connectedId) {
+          // "Hey Alfred, where's Dick?": once he's picked up and said hello, the rest is the first thing said.
+          var first = state.wakeRest;
+          state.wakeRest = '';
+          setTimeout(function () { if (state.connectedId) send({ type: 'prompt', text: first, spoken: true }); }, 400);
+        }
         // If he asked for a moment, he means it: nothing is expected of you
         // until he comes back of his own accord.
         clearTimeout(state.resumeTimer);
@@ -3450,6 +3458,7 @@
         syncBeds();
         renderCallbar();
         applyMicPreference();
+        paintWake();
         break;
 
       case 'call_ending':
@@ -3633,6 +3642,7 @@
     var on = typeof force === 'boolean' ? force : !state.muted;
     if (on === !!state.muted) { paintMute(); return; }
     state.muted = on;
+    if (!state.connectedId) syncWake();     // muted with no call on: not listening for a name either
     if (state.mode === 'ambient' || state.ambientWasOn) {
       // Hands-free stops listening while muted, and picks up again after.
       if (on) { state.ambientWasOn = state.mode === 'ambient'; if (state.ambientWasOn) setMode('ptt'); }
@@ -4340,6 +4350,60 @@
     if (window.GothamMap) { GothamMap.refreshPeople(); GothamMap.refreshCases(); }
   }
 
+  /* --- "Hey Alfred" ----------------------------------------------------------
+     With no call on and the setting on, the mic listens — the same detector as live mic, nothing sent
+     anywhere but this machine's own Whisper — for "Hey" and one of their names, and rings them. What he said
+     after the name is his first line once they pick up. */
+  function wakePref() { try { return localStorage.getItem('wayne.wake') === '1'; } catch (e) { return false; } }
+  function setWakePref(on) { try { localStorage.setItem('wayne.wake', on ? '1' : '0'); } catch (e) { /* private window */ } }
+
+  function syncWake() {
+    var want = wakePref() && !state.connectedId && !state.ringingId && !state.muted
+               && document.documentElement.dataset.phase === 'live';
+    if (want && ConsoleMic.mode !== 'wake') {
+      ConsoleMic.setMode('wake').catch(function () { setWakePref(false); paintWake(); });
+    } else if (!want && ConsoleMic.mode === 'wake') {
+      ConsoleMic.setMode('ptt');
+    }
+    paintWake();
+  }
+  function paintWake() {
+    var on = wakePref() && !state.connectedId && !state.ringingId && document.documentElement.dataset.phase === 'live';
+    $('wake-on').hidden = !on;
+    $('wake-on').classList.toggle('is-muted', on && !!state.muted);
+    var box = $('settings-wake');
+    if (box) box.checked = wakePref();
+  }
+
+  // "Hey Babs" is Barbara; "hey Jim", "hey commissioner" is Gordon — their names as he'd say them.
+  var CALLED = { babs: 'batgirl', barb: 'batgirl', barbara: 'batgirl', jim: 'gordon', gordon: 'gordon',
+                 commissioner: 'gordon', cass: 'orphan', cassie: 'orphan', timmy: 'robin', lucius: 'lucius',
+                 alfie: 'alfred', selina: 'catwoman', jay: 'redhood' };
+  function calledBy(word) {
+    word = (word || '').toLowerCase();
+    if (CALLED[word] && state.contacts[CALLED[word]]) return CALLED[word];
+    return state.order.filter(function (id) {
+      var c = state.contacts[id] || {};
+      return (c.name || '').toLowerCase() === word || ((c.full_name || '').split(' ')[0] || '').toLowerCase() === word;
+    })[0] || null;
+  }
+
+  function onWake(pcm) {
+    if (state.connectedId || state.ringingId || ConsoleMic.mode !== 'wake') return;
+    fetch('/api/transcribe?wake=1', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' },
+                                      body: pcm.buffer })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var heard = (d.text || '').trim();
+        var m = /^\W*(?:hey|hi|ok|okay|yo)\b[\s,.!]*([a-z']+)[\s,.!]*(.*)$/i.exec(heard);
+        if (!m || state.connectedId || state.ringingId) return;
+        var id = calledBy(m[1]);
+        if (!id) return;
+        state.wakeRest = (m[2] || '').replace(/[.!]+$/, '').trim();
+        placeCall(id);
+      }).catch(function () {});
+  }
+
   /* Settings: restart the console, or start Gotham over (backed up first). Either way the console restarts
      itself, and the page waits for it to come back, then loads afresh. */
   function wireSettings() {
@@ -4350,6 +4414,9 @@
       box.hidden = false;
     });
     $('settings-close').addEventListener('click', function () { box.hidden = true; });
+    $('settings-wake').addEventListener('change', function () { setWakePref(this.checked); syncWake(); });
+    $('wake-on').addEventListener('click', function () { setWakePref(false); syncWake(); });
+    ConsoleMic.on('onWake', onWake);
     box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); box.hidden = true; } });
     confirm.addEventListener('input', function () { go.disabled = confirm.value.trim().toUpperCase() !== 'RESET'; });
     $('settings-restart').addEventListener('click', function () {
@@ -4525,6 +4592,7 @@
     ConsoleBoot.start({
       contactCount: state.order.length,
       onAuthenticated: function () {
+        setTimeout(syncWake, 1500);
         ConsoleSystem.say('unlock');
         ConsoleSystem.keep('link_lost');
         el.input.focus();

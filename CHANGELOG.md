@@ -5,6 +5,22 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-11
+
+### Added
+
+- **"Hey Alfred".** A new setting, *Hands-free: say "Hey" and a name*. With
+  no call on, the mic listens for "Hey Alfred", "Hey Dick", "Hey Babs", "Okay
+  Jim" (the names as you'd say them) and rings that person. Anything you
+  said after the name ("Hey Alfred, where's Dick?") becomes your first line
+  once he's picked up and said hello. It uses the same speech detector as
+  live mic and this machine's own Whisper, and only short phrases are
+  transcribed. A phrase that only mentions a name partway through ("they
+  said hey Alfred") never rings anyone, and nothing heard is logged or kept.
+  A green "Hey…" pill by the clock shows while it's listening; click it to
+  stop. It pauses during calls and while you're muted, and picks up again
+  after.
+
 ## [0.36.0] - 2026-10-11
 
 ### Added

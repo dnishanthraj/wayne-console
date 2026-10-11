@@ -35,6 +35,7 @@
   var SILENCE_HANGOVER_MS = 1100;  // silence before an utterance is considered over
   var MIN_SPEECH_MS = 320;         // shorter than this is a cough, not a sentence
   var MAX_UTTERANCE_MS = 30000;
+  var WAKE_MAX_MS = 4500;          // "Hey Alfred, where's Dick?" fits; a conversation across the room doesn't
 
   // The noise floor tracks the room asymmetrically: it drops to a quieter
   // floor readily, but rises very slowly. A symmetric tracker fast enough to
@@ -110,6 +111,7 @@
     onSpeechEnd: null,
     onBargeIn: null,
     onPartial: null,      // (Float32Array pcm so far) — for a live caption while he's still talking
+    onWake: null,         // (Float32Array pcm) — a short phrase heard while listening for a name, no call on
     onError: null
   };
 
@@ -274,7 +276,7 @@
       return;
     }
 
-    if (handlers.onLevel) handlers.onLevel(Math.min(level * 5, 1));
+    if (handlers.onLevel && state.mode !== 'wake') handlers.onLevel(Math.min(level * 5, 1));
 
     ambientFrame(frame, state.envelope, frameMs);
   }
@@ -340,7 +342,12 @@
     state.speechMs += frameMs;
     state.silenceMs = voiced ? 0 : state.silenceMs + frameMs;
     state.sinceCaptionMs += frameMs;
-    if (handlers.onPartial && state.sinceCaptionMs >= CAPTION_EVERY_MS && voiced) {
+    if (state.mode === 'wake' && state.speechMs >= WAKE_MAX_MS) {
+      // Listening for a name, not a speech: a long stretch of talk in the room is somebody else's conversation.
+      resetAmbient();
+      return;
+    }
+    if (state.mode !== 'wake' && handlers.onPartial && state.sinceCaptionMs >= CAPTION_EVERY_MS && voiced) {
       state.sinceCaptionMs = 0;
       handlers.onPartial(resample(merge(state.chunks), rate()));
     }
@@ -358,7 +365,9 @@
     resetAmbient();
     if (handlers.onSpeechEnd) handlers.onSpeechEnd();
     if (spoke < MIN_SPEECH_MS || !chunks.length) return;
-    if (handlers.onUtterance) handlers.onUtterance(resample(merge(chunks), rate()));
+    var pcm = resample(merge(chunks), rate());
+    if (state.mode === 'wake') { if (handlers.onWake) handlers.onWake(pcm); return; }
+    if (handlers.onUtterance) handlers.onUtterance(pcm);
   }
 
   /* --- public API -------------------------------------------------------- */
@@ -366,7 +375,8 @@
   function setMode(mode) {
     if (state.mode === mode) return Promise.resolve();
     state.mode = mode;
-    if (mode === 'ambient') return open().then(resetAmbient);
+    // 'wake': no call on, listening only for "Hey" and a name (see app.js) — the same detector as live mic.
+    if (mode === 'ambient' || mode === 'wake') return open().then(resetAmbient);
     resetAmbient();
     if (!state.held) close();
     return Promise.resolve();
