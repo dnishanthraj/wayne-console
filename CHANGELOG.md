@@ -5,6 +5,26 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-10-11
+
+### Fixed
+
+- **"Wait, what?" only when something actually throws them.** After 0.35.0,
+  Dick met an ordinary bad day at work with "Wait—what?". The reaction-first
+  habit is now kept for real surprises, never for ordinary news.
+- **Their status reads like an app people use.** "My status line" turned up
+  on a call. The status they've set is now described as their status on the
+  family app, which is how they'd say it ("didn't you see my status?").
+
+### Notes
+
+- Measured after 0.35.0: on a one-to-one call, Dick's first sentence is
+  ready in 3.8 seconds (median, 5.7 at worst) through the real engine,
+  before the read-ahead a live call adds. Running two replies at once
+  (`OLLAMA_NUM_PARALLEL=2`) isn't worth it on a 24 GB machine: the model
+  already uses 14.9 GB, and a second slot's memory would push it past what
+  the GPU can hold, slowing every call.
+
 ## [0.35.0] - 2026-10-11
 
 ### Changed

@@ -1217,7 +1217,7 @@ class Presence:
         names = [book.get(c).name for c in company if book.get(c)]
         # The line they set, which he can see — "didn't you read my status?"
         status = self.line(t)
-        said = f' Your status line, which he can see, says "{status}".' if status else ""
+        said = f' Your status on the family app, which he can see, says "{status}".' if status else ""
         place = self._spoken_place(where)
         on_the_way = [] if trip else arriving
         if trip:

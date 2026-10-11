@@ -255,5 +255,5 @@ def test_in_a_group_chat_they_know_what_their_own_status_says(monkeypatch):
     family = group_store.create("Family", ["nightwing", "robin"])
     session.group_post(family, [{"id": "a", "from": "robin", "text": "what's with the status", "at": _time.time()}],
                        must=True)
-    assert 'Your status line, which everyone here can see, says "coffee & chaos ☕"' in seen["prompt"]
+    assert 'Your status on the family app, which everyone here can see, says "coffee & chaos ☕"' in seen["prompt"]
     assert "coffee & chaos" in presence.of(dick).note()                 # and on a call or a text
