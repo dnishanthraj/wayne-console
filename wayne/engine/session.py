@@ -1568,6 +1568,16 @@ class ContactSession:
         lately = culture.note(self.contact, " ".join(m["text"] for m in unread[-4:]) if unread else (opening or ""))
         if lately:
             context.append(lately)
+        # Where they stand with him and the others in the chat — what's still on their mind is theirs to bring up
+        # here as anywhere; only what happened.
+        from . import bonds
+        standing = bonds.note(self.contact)
+        if standing:
+            context.append(standing)
+        company = bonds.between(self.contact, [book.get(m) for m in group.members
+                                               if m != self.contact.id and book.get(m) is not None])
+        if company:
+            context.append(company)
         # Asked about something out in the world — a film, a match — they have
         # what it is, quietly, to have their own take on; and a plan to go out
         # finds real places, not ones made up on the spot.
@@ -2126,6 +2136,15 @@ class ContactSession:
             awareness.append(self.call.note_for(self, follow_up))
         elif via is None and self._said_this_call() >= 2 and head is None:
             awareness.append(CLOSING_DIRECTIVE)
+        # Where they stand with him, and with whoever else is on the call: the colour on everything they say.
+        from . import bonds
+        standing = bonds.note(self.contact)
+        if standing:
+            awareness.append(standing)
+        if self.call:
+            company = bonds.between(self.contact, [m.contact for m in self.call.members if m is not self])
+            if company:
+                awareness.append(company)
         if via is None and not from_contact and not texting:
             # What's audible on the line — the room around them and what's just happened in it, and on a group
             # call what's come down the others' phones — so a horn behind them is a horn they heard.
@@ -2779,6 +2798,12 @@ class ContactSession:
             note = "Where you are, you'd keep your voice down: [whispers] or [hushed]."
         else:
             note = ""
+        from . import bonds
+        feeling = bonds.effects(self.contact)["cues"]
+        if feeling and not stage:
+            cues = ", ".join(f"[{c}]" for c in feeling)
+            note += (f" How you feel about him right now can be in your voice: {cues} — once, where it's real, "
+                     "as you'd sound, not louder than you are.")
         home = getattr(self.contact, "home", "") or ""
         out_and_about = where and home.lower() not in where and "home" not in where
         if delivery.sounds_supported() and out_and_about and random.random() < 0.3:

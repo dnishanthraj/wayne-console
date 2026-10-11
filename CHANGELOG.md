@@ -5,6 +5,45 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-11
+
+### Added
+
+- **Relationships that move.** Each of them has a bond with you, and with
+  each other: warmth and trust, which change slowly; a fresh hurt, which
+  fades over days; and, where it applies, romance (you and Selina, Dick and
+  Barbara). Where each starts, how fast they warm and cool, how long a grudge
+  lasts and how a hurt comes out is theirs. Alfred stays loyal whatever you
+  do, and his grudges last an afternoon. Jason and Randy cool fast, warm
+  slowly and ghost. Barbara argues. Dick calls it out and makes up. Tim goes
+  quiet and dark. Cass forgives without saying so. A day can only move a
+  bond so far, and with time it drifts back toward where they started.
+- **They remember what happened.** After a conversation the background pass
+  judges whether anything stayed with them: a kindness, a snap, a promise
+  broken, flirting that landed. Most conversations change nothing. The
+  console notices things for itself too: waking someone three mornings
+  running, coming yourself when a case went bad, or nobody coming when it
+  did. Each becomes a memory in their own words, which they bring up on
+  calls, in texts and in group chats. Big things last; small ones fade.
+  Nothing is made up: only what's recorded happened.
+- **It changes how they act.** Sore, or cooler than usual, they let it ring,
+  leave you on read, ghost or text first less, each by their nature. When
+  Tim's properly sore his location goes dark, and once Jason trusts you
+  enough his comes on. Their voice can carry it (cold, angry, quiet;
+  softer, with Selina) without becoming someone else.
+- **Rooms take sides.** Call Dick while Tim's there and won't talk to you:
+  half the time Tim stays out of it and Dick knows (he can cover for him or
+  not); half the time Tim's in the room, and you may hear him say he's not
+  there.
+- **The GCPD keeps its own count.** Cases won raise the department's view of
+  the masks; cases lost and chases through the streets lower it. Jim knows
+  where his department stands, and his letters on the secure line carry it:
+  quiet thanks, the pressure he's under, or, if it gets bad, the Mayor's
+  task force and orders to bring the masks in.
+- **Between you, on their card.** The Codex shows where you stand in words
+  (warm, a bit put out; devoted; strained; seeing each other, on and off)
+  and what's on their mind, never a score.
+
 ## [0.15.0] - 2026-10-11
 
 ### Added

@@ -374,5 +374,29 @@
       "baseball",
       "crime and courts news"
     ]
+  },
+  "bond": {
+    "toward_him": {
+      "warmth": 45,
+      "trust": 75
+    },
+    "floor": {
+      "warmth": -20,
+      "trust": 0
+    },
+    "warms": 0.6,
+    "cools": 0.8,
+    "grudge_days": 4,
+    "toward": {
+      "batgirl": {
+        "warmth": 95,
+        "trust": 80
+      }
+    },
+    "when_hurt": "go cold and procedural, and tell him plainly what he cost your department",
+    "cues_when_hurt": [
+      "frustrated",
+      "angry"
+    ]
   }
 }

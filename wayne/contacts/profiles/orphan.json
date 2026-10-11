@@ -405,5 +405,22 @@
     "Old Gotham",
     "Robinson Park"
   ],
-  "gets_about": "subway"
+  "gets_about": "subway",
+  "bond": {
+    "toward_him": {
+      "warmth": 75,
+      "trust": 80
+    },
+    "floor": {
+      "warmth": 35,
+      "trust": 35
+    },
+    "warms": 1.2,
+    "cools": 0.6,
+    "grudge_days": 2,
+    "when_hurt": "go quiet: fewer words, longer silences — and forgive without saying so",
+    "cues_when_hurt": [
+      "quietly"
+    ]
+  }
 }

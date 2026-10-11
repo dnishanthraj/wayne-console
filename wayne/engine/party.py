@@ -72,6 +72,8 @@ class Call:
         self.speakerphone = {}
         # Who has muted themselves, and why: they hear the call, they don't take a turn till they're back.
         self.muted = {}
+        # Who's in the room but won't talk to him: {id: (whose room, why)} — covered for, or not.
+        self.avoiding = {}
 
     # --- membership ------------------------------------------------------
 
@@ -169,6 +171,19 @@ class Call:
                 note += (f" You've got him on speaker — {name} is right here with you and can hear him. If he wants "
                          f"you on your own, or it isn't for {name}'s ears, you can step away somewhere quieter: end "
                          "with [step away] (and later [go back] to rejoin them).")
+        for cid, (room, why) in self.avoiding.items():
+            if cid == session.contact.id:
+                holder = next((self.label(m.contact.id, session) for m in self.members if m.contact.id == room), "them")
+                note += (f" You don't want to talk to him right now{f' ({why})' if why else ''}. You're in the room with "
+                         f"{holder}: you won't take the phone — tell {holder} to say you're not here, or say it yourself, "
+                         "loud enough that he hears.")
+            elif room == session.contact.id:
+                from ..contacts import directory
+                them = directory().get(cid)
+                name = them.name if them else cid
+                note += (f" {name} is right here with you but doesn't want to talk to him"
+                         f"{f' ({why})' if why else ''}. If he asks for them, cover for them or don't, as you would — "
+                         "you can be honest, or not, but don't make up anything else.")
         for cid, why in self.muted.items():
             if cid != session.contact.id:
                 name = next((self.label(m.contact.id, session, full=False) for m in self.members

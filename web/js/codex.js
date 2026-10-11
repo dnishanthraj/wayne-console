@@ -469,7 +469,10 @@
     stat(grid, 'Home', entry.home); stat(grid, 'Work', entry.occupation);
     card.appendChild(grid);
     card.appendChild(reach(entry));
-    if (entry.contact && opts.contacts()[entry.contact]) knows(card, opts.contacts()[entry.contact]);
+    if (entry.contact && opts.contacts()[entry.contact]) {
+      standing(card, opts.contacts()[entry.contact]);
+      knows(card, opts.contacts()[entry.contact]);
+    }
     biography(card, entry, 'people');
     if (entry.first || entry.canon) {
       card.appendChild(el('p', 'cx-foot', [entry.first ? 'First seen: ' + entry.first : '', entry.canon || ''].filter(Boolean).join(' · ')));
@@ -527,6 +530,27 @@
                ['his', 'Who you are', 'That you’re Batman — nobody else’s mask.'],
                ['masks', 'Only the masks', 'Batman and the masks, never a face — yours included. You’re Batman to them, and everyone they hear is their mask.'],
                ['none', 'Nothing', 'You’re Bruce Wayne. Batman is someone in the papers.']];
+
+  /* Where things stand between you, as you'd sense it — a word, how sore, what's on their mind — never a score. */
+  function standing(card, contact) {
+    var s = contact.standing;
+    if (!s || !s.overall) return;
+    var row = el('div', 'cx-standing');
+    row.appendChild(el('span', 'cx-chips__label', 'Between you'));
+    var words = el('p', 'cx-standing__words', '');
+    var said = s.overall.charAt(0).toUpperCase() + s.overall.slice(1) + (s.sore ? ' — ' + s.sore.replace(/ at him| with him/, '') : '');
+    words.textContent = said + (s.romance ? ' · ' + s.romance : '');
+    words.dataset.tone = s.sore || /strained|hostile|estranged|distant|cool/.test(s.overall) ? 'cold'
+      : /devoted|close|warm/.test(s.overall) ? 'warm' : '';
+    row.appendChild(words);
+    // What's on their mind about him, in their own words — so "he" is him, and "you" is them.
+    if ((s.lately || []).length) {
+      row.appendChild(el('p', 'cx-standing__caption', 'On ' + contact.name + '\u2019s mind'));
+      s.lately.forEach(function (line) { row.appendChild(el('p', 'cx-standing__memory', '\u201c' + line + '\u201d')); });
+    }
+    if (s.department) row.appendChild(el('p', 'cx-standing__memory', 'GCPD on the masks: ' + s.department));
+    card.appendChild(row);
+  }
 
   function knows(card, contact) {
     var row = el('div', 'cx-chips cx-chips--file cx-knows');

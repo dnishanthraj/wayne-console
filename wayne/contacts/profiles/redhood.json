@@ -350,5 +350,37 @@
     "Gotham Docks"
   ],
   "home_sound": "safehouse",
-  "home": "Jason's safehouse"
+  "home": "Jason's safehouse",
+  "bond": {
+    "toward_him": {
+      "warmth": 20,
+      "trust": 15
+    },
+    "floor": {
+      "warmth": -60,
+      "trust": -60
+    },
+    "warms": 0.5,
+    "cools": 1.5,
+    "grudge_days": 7,
+    "ghosts": true,
+    "guarded": true,
+    "shares_at": 70,
+    "toward": {
+      "nightwing": {
+        "warmth": 45,
+        "trust": 35
+      },
+      "robin": {
+        "warmth": 25,
+        "trust": 20
+      }
+    },
+    "when_hurt": "ghost him, or pick a fight — sarcasm with an edge, old wounds dragged out",
+    "cues_when_hurt": [
+      "angry",
+      "shouting",
+      "sarcastic"
+    ]
+  }
 }

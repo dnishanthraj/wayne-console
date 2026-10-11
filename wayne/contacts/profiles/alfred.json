@@ -404,5 +404,24 @@
       "gardening and the Chelsea Flower Show"
     ]
   },
-  "sees_whereabouts": true
+  "sees_whereabouts": true,
+  "bond": {
+    "toward_him": {
+      "warmth": 90,
+      "trust": 90
+    },
+    "floor": {
+      "warmth": 70,
+      "trust": 60
+    },
+    "warms": 1.3,
+    "cools": 0.4,
+    "grudge_days": 1,
+    "loyal": true,
+    "when_hurt": "say so once, quietly and plainly, and carry on — disappointed, never gone",
+    "cues_when_hurt": [
+      "quietly",
+      "sighs"
+    ]
+  }
 }

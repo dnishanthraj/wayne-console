@@ -349,5 +349,35 @@
     "Arkham Asylum"
   ],
   "home_sound": "safehouse",
-  "home": "Randy's apartment"
+  "home": "Randy's apartment",
+  "bond": {
+    "toward_him": {
+      "warmth": 0,
+      "trust": 10
+    },
+    "floor": {
+      "warmth": -50,
+      "trust": -50
+    },
+    "warms": 0.5,
+    "cools": 1.3,
+    "grudge_days": 6,
+    "ghosts": true,
+    "guarded": true,
+    "shares_at": 60,
+    "toward": {
+      "robin": {
+        "warmth": 20,
+        "trust": 20
+      },
+      "catwoman": {
+        "warmth": 60,
+        "trust": 55
+      }
+    },
+    "when_hurt": "ghost him — leave him on read, decline, gone",
+    "cues_when_hurt": [
+      "cold"
+    ]
+  }
 }

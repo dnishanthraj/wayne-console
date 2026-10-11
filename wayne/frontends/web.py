@@ -39,6 +39,7 @@ from ..audio.tts import get_voice_engine
 from ..contacts import directory
 from ..engine import (
     ContactSession,
+    bonds,
     codex,
     culture,
     grapevine,
@@ -583,6 +584,12 @@ class Console(GroupChats):
                 ring = self._ring_token = object()
         if refused:
             return await self._let_it_ring(contact, refused, state, ring)
+        hour = time.localtime().tm_hour
+        if (not incoming and state["status"] == presence.OFFLINE and (hour >= 23 or hour < 9)
+                and re.search(r"(?i)asleep|sleep|in bed|napping", state.get("doing") or "asleep")):
+            # He woke them. Once is nothing; again this week starts to grate, and they'll say so (see bonds).
+            _, times = bonds.woken(contact)
+            log.info("%s woken by him (%d this week)", contact.id, times)
         async with self.turn_lock:
             if self.current_id != contact_id:
                 return
@@ -636,6 +643,16 @@ class Console(GroupChats):
                     or len(self.call.members) >= MAX_CONTACTS
                     or presence.of(other).now()["status"] == presence.OFFLINE):
                 continue
+            # Not speaking to him: Tim's at Dick's and doesn't want to talk. He stays out of it — Dick knows, and
+            # covers for him or doesn't — or he's there, and lets it be known through the room.
+            sore = bonds.effects(other)
+            overall = bonds.standing(other.id, bonds.ME)[0]
+            if sore["hurt"] >= 4 or overall in ("strained", "hostile", "estranged"):
+                why = next((e["text"] for e in bonds.memories(other.id, bonds.ME)), "")
+                self.call.avoiding[cid] = (host.id, why)
+                if random.random() < 0.5:
+                    log.info("%s is at %s's and won't talk to him", cid, host.id)
+                    continue
             self.call.speakerphone[cid] = host.id
             await self.broadcast({"type": "room", "with": dict(self.call.speakerphone)})
             if arriving:
@@ -1379,7 +1396,9 @@ class Console(GroupChats):
             body = "\n".join(m["text"] for m in batch)
             # Dry spells leave more on read and more unanswered; a flowing hour, less.
             dry = max(0.35, 1.6 - 0.6 * presence.engagement(contact))
-            ghost = min(0.95, pace.get("ghost", 0) * dry)
+            # Sore at him, or cooler than they were: more left on read, more never answered — by their nature.
+            quiet = bonds.effects(contact)["quiet"]
+            ghost = min(0.95, max(pace.get("ghost", 0), 0.04 if quiet > 1.5 else 0) * dry * quiet)
             if _URGENT.search(body):
                 ghost *= 0.1        # even Randy answers "are you okay"
             if random.random() < ghost:
@@ -1403,7 +1422,7 @@ class Console(GroupChats):
             if not glancing:
                 whereabouts.touch()
             await self._presence_changed(contact)
-            if not glancing and random.random() < min(0.95, pace.get("on_read", 0) * dry):
+            if not glancing and random.random() < min(0.95, pace.get("on_read", 0) * dry * quiet):
                 # Left on read, for a while. Some people do — and having done it,
                 # they aren't offered it again when they get round to answering.
                 self.session_for(contact.id).left_on_read = True
@@ -2591,6 +2610,38 @@ class Console(GroupChats):
                 self._spawn(self._send_unprompted(contact, f"the {case['kind'].lower()} at {case['place']}",
                                                   "case_arrived"))
 
+    def _case_bonds(self, closed, result):
+        """
+        What a case does between them and him: he came himself, and it's remembered; it went bad with them
+        alone and nobody sent, and that's remembered too. Those on it together are a little closer. And the
+        department keeps its own count: lives saved, cases lost, a chase through the city's streets.
+        """
+        from ..engine import cases
+        team = cases.team(closed)
+        what = f"the {closed['kind'].lower()} at {closed['place']}"
+        grade = result.get("grade", "")
+        went_bad = grade == "failure" or bool(result.get("hurt"))
+        family = [m for m in team if m != "bruce" and self.directory.get(m)]
+        for member in family:
+            if "bruce" in team:
+                bonds.nudge(member, bonds.ME, warmth=2, trust=2.5, why=f"he came himself on {what}", weight=2)
+            elif went_bad and len(family) == 1 and cases.known(closed):
+                bonds.nudge(member, bonds.ME, trust=-2.5, tension=1.5, why=f"nobody came when {what} went bad",
+                            weight=2)
+            for other in family:
+                if other != member:
+                    bonds.nudge(member, other, warmth=1.0)
+        if cases.known(closed):
+            standing = {"success": 1.5, "partial": 0.3, "failure": -1.5}.get(grade, 0.0)
+            if closed.get("severity", 2) >= 4 and grade == "success":
+                standing += 1.5
+            if closed.get("chase"):
+                standing -= 1.0           # half a district's cars, and the insurer's letter
+            if standing:
+                bonds.nudge(bonds.GCPD, bonds.ME, warmth=standing, trust=standing * 0.6,
+                            why=(f"{what}: {grade}" + (", with a chase through the streets" if closed.get("chase") else ""))
+                            if abs(standing) >= 1.5 else "", weight=2 if abs(standing) >= 2.5 else 1)
+
     async def _close_case(self, case, write=True):
         """
         It's run its course: how it went is decided by the odds (who was on it,
@@ -2650,6 +2701,7 @@ class Console(GroupChats):
                     await self._after_case(contact, closed, now)
                 await self._presence_changed(contact)
             self._remember_case(closed, result)
+            self._case_bonds(closed, result)
             await self.broadcast({"type": "cases"})
             # Said on the console as it happens — a case ending was silent unless someone texted about it.
             await self.broadcast({"type": "case_closed", "id": closed["id"], "kind": closed["kind"],
@@ -2961,7 +3013,8 @@ class Console(GroupChats):
                 if now - last["at"] < 12 * 3600 * (1 - leaning.get("double_text", 0.3)) + 3600:
                     continue
             # Something on their mind: a few times a day for the chatty ones.
-            if random.random() < leaning.get("per_day", 0.4) * PULSE_SECONDS / (16 * 3600):
+            # Warmer, they text first more; sore, less — or only to have it out (see initiative.impulse).
+            if random.random() < leaning.get("per_day", 0.4) * bonds.effects(contact)["reach"] * PULSE_SECONDS / (16 * 3600):
                 impulses.append(contact)
         if chases:
             contact = random.choice(chases)
@@ -3566,7 +3619,18 @@ def _contact_payload(contact):
         "knows": wayne_identity.level(contact.id),
         # Where they live, by its place on the map: his to find ("Jim" finds Jim's apartment), nobody else's.
         "home": contact.home,
+        # Where things stand between them, in words — never a number: what he'd sense, not a score.
+        "standing": _standing_payload(contact),
     }
+
+
+def _standing_payload(contact):
+    overall, sore, romance = bonds.standing(contact.id, bonds.ME)
+    lately = [e["text"] for e in bonds.memories(contact.id, bonds.ME, most=2)]
+    out = {"overall": overall, "sore": sore, "romance": romance, "lately": lately}
+    if getattr(contact, "sees_work", "") == "gcpd":
+        out["department"] = bonds.standing(bonds.GCPD, bonds.ME)[0]
+    return out
 
 
 def _asset_version():

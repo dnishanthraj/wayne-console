@@ -52,8 +52,9 @@ def afterthought(session, exchanges, by="text"):
     lines = ((["Earlier, for context only:"] + earlier + ["", "The newest exchange:"])
              if earlier else []) + latest
     now = time.strftime("%A %H:%M")
-    from . import cases
+    from . import bonds, cases
     case = cases.active(contact.id)
+    romance = bonds.state(contact.id, bonds.ME).get("romance") is not None
     instruction = (
         f"It's {now}. Here is the latest of a conversation {'by text' if by == 'text' else 'on a call'} "
         f"between {operator.full_name(contact.id)} and {contact.full_name}:\n\n" + "\n".join(lines) + "\n\n"
@@ -73,7 +74,11 @@ def afterthought(session, exchanges, by="text"):
            f"exchange: did they say it's dealt with — caught, stopped, over? If so, how, in a few words.\n"
            if case else "")
         + f"5. In the newest exchange, did {operator.name(contact.id)} say he's coming to pick {contact.name} up himself — "
-          f"stay where you are, I'll come and get you, I'll give you a lift — and did they agree?\n\n"
+          f"stay where you are, I'll come and get you, I'll give you a lift — and did they agree?\n"
+        + f"6. Between {contact.name} and {operator.name(contact.id)}, in the newest exchange: did anything happen that "
+          f"would stay with {contact.name} — kindness or cruelty, a promise kept or broken, being there for them or not, "
+          f"an apology, a fight, being lied to{', flirting that landed or fell flat' if romance else ''}? Most "
+          f"exchanges change nothing: then all zeros and no memory. Judge as {contact.name} would, by their nature.\n\n"
         "Reply with JSON only, in this shape:\n"
         '{"doing": "a few words, e.g. checking the docks" or null, '
         '"where": "the place it puts them, as it would show on a map (e.g. Gotham Docks); home if it\'s something '
@@ -87,7 +92,12 @@ def afterthought(session, exchanges, by="text"):
         'or null, "worried": "what about him worries them, in a few words" or null, '
         '"pickup": true if he is coming to pick them up and they agreed, else false, '
         '"joining": "the first name of one of the family they are now heading off to meet up with or back up, '
-        'if they said so" or null'
+        'if they said so" or null, '
+        '"felt": {"warmth": -3 to 3, "trust": -3 to 3, "sore": -3 to 3 (how much it hurt them; negative if it '
+        'eased an old hurt)' + (', "romance": -3 to 3' if romance else '') + ', "remember": "the moment in one '
+        'line, as they would remember it, from their side — e.g. he snapped at you about Randy — or null if nothing '
+        'happened"}, "about_others": [{"who": "first name of someone else this was about", "warmth": -2 to 2, '
+        '"why": "a few words"}] or []'
         + (', "case_closed": "how it ended, in a few words" or null' if case else '') + '}')
     try:
         reply = model.ask(contact.model, [{"role": "user", "content": instruction}],
@@ -103,10 +113,47 @@ def afterthought(session, exchanges, by="text"):
 _NOTHING = presence.NOTHING
 
 
+def _felt(session, found):
+    """What the conversation did between them, if anything — moved, and remembered in their words."""
+    from . import bonds
+    felt = found.get("felt") if isinstance(found.get("felt"), dict) else {}
+    contact = session.contact
+
+    def n(key, most=3):
+        try:
+            return max(-most, min(most, float(felt.get(key) or 0)))
+        except (TypeError, ValueError):
+            return 0.0
+    warmth, trust, sore, romance = n("warmth"), n("trust"), n("sore"), n("romance")
+    remember = felt.get("remember") if isinstance(felt.get("remember"), str) else ""
+    remember = "" if remember.strip().lower() in ("", "null", "none", "nothing") else remember.strip()[:160]
+    weight = int(round(max(abs(warmth), abs(trust), abs(sore), abs(romance))))
+    if weight or remember:
+        bonds.nudge(contact.id, bonds.ME, warmth=warmth * 3, trust=trust * 3, tension=sore * 1.2,
+                    romance=romance * 3, why=remember if weight else "", weight=max(1, weight))
+    from ..contacts import directory
+    for other in found.get("about_others") or []:
+        if not isinstance(other, dict):
+            continue
+        who = directory().find(str(other.get("who") or ""))
+        try:
+            w = max(-2.0, min(2.0, float(other.get("warmth") or 0)))
+        except (TypeError, ValueError):
+            w = 0.0
+        if who is not None and who.id != contact.id and w:
+            why = str(other.get("why") or "").strip()[:140]
+            bonds.nudge(contact.id, who.id, warmth=w * 2.5, why=why if abs(w) >= 2 and why else "",
+                        weight=int(abs(w)))
+
+
 def apply(session, found):
     """Record what the afterthought found."""
     if not isinstance(found, dict):
         return
+    try:
+        _felt(session, found)
+    except Exception:
+        pass        # a bond that couldn't be read never stops the rest being noted
     state = presence.of(session.contact)
     # A case, a lift, going to one of them: what they say in passing doesn't overwrite it. On scene and
     # texting "ten more minutes", Dick was "handling it" for ten minutes and then back on his routine
@@ -422,6 +469,12 @@ def impulse(session):
     """
     contact = session.contact
     options = []
+    # Something between them that's still on their mind — a hurt to have out, or a kindness to thank him for.
+    from . import bonds
+    weighty = [e for e in bonds.memories(contact.id, bonds.ME) if (e.get("data") or {}).get("weight", 1) >= 2
+               and time.time() - e["at"] < 3 * 86400]
+    if weighty:
+        options += [("bond", f"what's on your mind about him: {weighty[0]['text']}")] * 2
     heard = grapevine.heard(contact.id)
     if heard:
         latest = heard[0]          # newest first

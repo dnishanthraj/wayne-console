@@ -792,7 +792,11 @@ class Presence:
         either. Their status line is still theirs to set.
         """
         state = self.now(t)
-        if not self.contact.shares_status:
+        # As things stand with him: hurt, Tim goes dark; trusting him at last, Jason turns his location on.
+        from . import bonds
+        feel = bonds.effects(self.contact, t)
+        open_ = (self.contact.shares_status or feel["shares"]) and not feel["hides"]
+        if not open_:
             shown = getattr(self.contact, "hidden_as", "unknown") or "unknown"
             out = {"status": shown, "doing": "", "last_active": None, "line": self.line(t)}
             # On scene at a case, they're seen — witnesses, GCPD, the family on it —
@@ -816,7 +820,7 @@ class Presence:
             return out
         shown = {"status": state["status"], "doing": state["doing"],
                  "last_active": state["last_active"] or None, "line": self.line(t)}
-        if getattr(self.contact, "shares_location", True):
+        if getattr(self.contact, "shares_location", True) or feel["shares"]:
             where, company = self.whereabouts(t)
             shown["with"] = sharing(company)
             shown["spot"] = self.spot(where, t)
@@ -1459,7 +1463,9 @@ def answers(contact, state, again=False, rng=random):
     if status == BUSY and _EASY.search(doing) and not _HARD.search(doing) and not _SOCIAL.search(doing):
         status = IDLE
     could, otherwise = reach(contact, state) if status != OFFLINE else (1.0, "ring")
-    chance = odds.get(status, 0.9) * could
+    # Would they, as things stand with him: sore, or cooler than they were, they let it ring — by their nature.
+    from . import bonds
+    chance = odds.get(status, 0.9) * could * bonds.effects(contact)["answer"]
     # They said so on their status — "do not disturb", 💤 — and mean it: the
     # first call mostly goes unanswered. A second one soon after gets through,
     # as phones let repeated calls through a do-not-disturb.

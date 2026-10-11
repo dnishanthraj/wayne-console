@@ -390,6 +390,23 @@ _FACTS_ONLY = (" Use only the names given here for anyone real; never invent a n
                "officer. No 'URGENT' in the subject unless it truly is.")
 
 
+def _standing_with_gcpd():
+    """How the department, and Jim, feel about the masks right now — for his letters to carry (see engine.bonds)."""
+    from . import bonds
+    dept = bonds.standing(bonds.GCPD, bonds.ME)[0]
+    jim, sore, _ = bonds.standing("gordon", bonds.ME)
+    lately = "; ".join(e["text"] for e in bonds.memories(bonds.GCPD, bonds.ME, most=2))
+    line = (f" How GCPD sees the masks right now: {dept}" + (f" (lately: {lately})" if lately else "")
+            + f"; how Jim feels toward Batman: {jim}" + (f", and he's {sore}" if sore else "") + ". Let it show the way "
+            "Jim would: ")
+    if dept in ("hostile", "estranged"):
+        return line + ("the Mayor's task force, orders to bring the masks in on sight, his people out looking — and "
+                       "whether he'd warn Batman at all, given how things are.")
+    if dept in ("strained", "distant", "cool"):
+        return line + "the pressure he's under for working with Batman, and what it's costing him."
+    return line + "quiet thanks, if it's earned — he doesn't gush."
+
+
 def _gordon_letter(model, options, event, now):
     if event.get("kind") != "case":
         return None
@@ -401,8 +418,8 @@ def _gordon_letter(model, options, event, now):
                  "secure line — weary, decent, few words, signed 'Jim' or 'G'. About last night: "
                  f"the {what} at {place}" + (f", {rogue} behind it{_rogue_facts(rogue)}" if rogue else "")
                  + f" — it ended: {how}" + (f"; {event['caught']} is in GCPD custody" if event.get("caught") else "")
-                 + ". What's next for GCPD, what he needs, what he can't say in public." + _FACTS_ONLY + " "
-                 + _MAIL_SHAPE, "Gordon's email")
+                 + ". What's next for GCPD, what he needs, what he can't say in public." + _standing_with_gcpd()
+                 + _FACTS_ONLY + " " + _MAIL_SHAPE, "Gordon's email")
     if found and found.get("subject"):
         return deliver("gordon", found["subject"], found.get("body", ""), kind="gordon", key=f"gordon:{event.get('id')}")
     return None

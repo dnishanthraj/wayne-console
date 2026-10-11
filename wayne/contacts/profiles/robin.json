@@ -389,5 +389,38 @@
     "Gotham Docks",
     "Old Gotham",
     "Otisburg"
-  ]
+  ],
+  "bond": {
+    "toward_him": {
+      "warmth": 65,
+      "trust": 70
+    },
+    "floor": {
+      "warmth": 15,
+      "trust": 15
+    },
+    "warms": 1.0,
+    "cools": 1.0,
+    "grudge_days": 4,
+    "hides_when_hurt": true,
+    "toward": {
+      "batwing": {
+        "warmth": 40,
+        "trust": 40
+      },
+      "redhood": {
+        "warmth": 35,
+        "trust": 30
+      },
+      "nightwing": {
+        "warmth": 85,
+        "trust": 85
+      }
+    },
+    "when_hurt": "go quiet and clipped — read and don't answer — until he deals with it, then bring it up precisely",
+    "cues_when_hurt": [
+      "cold",
+      "frustrated"
+    ]
+  }
 }

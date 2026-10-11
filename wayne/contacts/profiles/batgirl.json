@@ -394,5 +394,34 @@
     "City Hall",
     "Theater District"
   ],
-  "sees_whereabouts": true
+  "sees_whereabouts": true,
+  "bond": {
+    "toward_him": {
+      "warmth": 60,
+      "trust": 70
+    },
+    "floor": {
+      "warmth": 15,
+      "trust": 20
+    },
+    "warms": 0.9,
+    "cools": 1.0,
+    "grudge_days": 3,
+    "toward": {
+      "gordon": {
+        "warmth": 92,
+        "trust": 80
+      },
+      "nightwing": {
+        "warmth": 85,
+        "trust": 85,
+        "romance": 70
+      }
+    },
+    "when_hurt": "argue — say exactly what he did and why it was wrong, and not let him change the subject",
+    "cues_when_hurt": [
+      "angry",
+      "frustrated"
+    ]
+  }
 }

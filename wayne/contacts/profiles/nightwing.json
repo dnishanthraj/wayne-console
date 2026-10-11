@@ -387,5 +387,42 @@
     "Halyard Square, Blüdhaven",
     "Central Business District, Blüdhaven",
     "Port's Park, Blüdhaven"
-  ]
+  ],
+  "bond": {
+    "toward_him": {
+      "warmth": 75,
+      "trust": 72
+    },
+    "floor": {
+      "warmth": 30,
+      "trust": 25
+    },
+    "warms": 1.3,
+    "cools": 0.9,
+    "grudge_days": 2,
+    "toward": {
+      "batgirl": {
+        "warmth": 88,
+        "trust": 88,
+        "romance": 70
+      },
+      "robin": {
+        "warmth": 85,
+        "trust": 85
+      },
+      "redhood": {
+        "warmth": 60,
+        "trust": 40
+      },
+      "batwing": {
+        "warmth": 60,
+        "trust": 50
+      }
+    },
+    "when_hurt": "call him out, straight, with a joke on the end if you can manage one — and make up fast",
+    "cues_when_hurt": [
+      "frustrated",
+      "sighs"
+    ]
+  }
 }

@@ -376,5 +376,24 @@
     "Fashion District"
   ],
   "home_sound": "cats_home",
-  "home": "Selina's apartment"
+  "home": "Selina's apartment",
+  "bond": {
+    "toward_him": {
+      "warmth": 55,
+      "trust": 40,
+      "romance": 55
+    },
+    "floor": {
+      "warmth": -40,
+      "trust": -60
+    },
+    "warms": 1.0,
+    "cools": 1.2,
+    "grudge_days": 3,
+    "when_hurt": "turn sharp and teasing with the claws out — or vanish for a few days and let him wonder",
+    "cues_when_hurt": [
+      "sarcastic",
+      "angry"
+    ]
+  }
 }

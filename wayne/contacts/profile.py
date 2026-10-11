@@ -171,6 +171,10 @@ class Contact:
     # scanner, Jim on the news — refreshed every so often, never at home ({"every": 1800, "how": {...},
     # "scene": {"severity": 4, "chance": 0.5, "minutes": 75}}). See ConsoleSightings in the web frontend.
     sightings: dict = field(default_factory=dict)
+    # How they feel about him and the others, and how that moves (see wayne.engine.bonds): where they start
+    # ("toward_him", "toward"), their floor, how fast they warm and cool, how long a grudge lasts, how a hurt
+    # comes out ("when_hurt"), whether they ghost, hide, or share their location only once they trust him.
+    bond: dict = field(default_factory=dict)
     # What the Batcomputer calls them: "Commissioner Gordon". Their full name if not given.
     system_name: str = ""
     # Whether they're on the family's location app at all — Jim isn't family, whatever he is.
@@ -332,6 +336,7 @@ def _load_profile(path):
         calls_in=dict(raw.get("calls_in", {})),
         system_name=str(raw.get("system_name", "")),
         sightings=dict(raw.get("sightings", {})),
+        bond=dict(raw.get("bond", {})),
         family_app=bool(raw.get("family_app", True)),
     )
 
