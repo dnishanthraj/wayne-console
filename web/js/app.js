@@ -1919,6 +1919,14 @@
       var name = document.createElement('span');
       name.className = 'book__name';
       name.textContent = g.name;
+      if (isMuted(groupKey(id))) {
+        // Muted, as a contact's row says it: the struck bell by the name.
+        var bell = document.createElement('span');
+        bell.className = 'book__muted';
+        bell.innerHTML = BELL_OFF;
+        bell.setAttribute('data-tip', 'Muted');
+        name.appendChild(bell);
+      }
       var line = document.createElement('span');
       line.className = 'book__role groups__last';
       var last = g.last;
@@ -2474,6 +2482,16 @@
      most on screen, the oldest going first. */
   function showToast(card, key, ms) {
     card.dataset.thread = key;
+    // Every pop-up can be closed where it is — not only waited out, or clicked through to the thread.
+    if (!card.querySelector('.toast__close')) {
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'toast__close';
+      close.setAttribute('aria-label', 'Dismiss');
+      close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+      close.addEventListener('click', function (e) { e.stopPropagation(); dismissToast(card); });
+      card.appendChild(close);
+    }
     Array.prototype.forEach.call(el.toasts.querySelectorAll('.toast'), function (t) {
       if (t.dataset.thread === key) t.remove();
     });

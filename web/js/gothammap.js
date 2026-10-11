@@ -1016,6 +1016,9 @@
       el.querySelector('.gm-person__name').textContent = c.name;
       opts.portrait(el.querySelector('.gm-person__face'), c);
       el.addEventListener('click', function (e) { e.stopPropagation(); select(c.id); });
+      // Together with others: hovering any of them opens the ring, so each can be picked out.
+      el.addEventListener('mouseenter', function () { openFan(c.id, true); });
+      el.addEventListener('mouseleave', function () { openFan(c.id, false); });
       marker = people[c.id] = flat(new maplibregl.Marker({ element: el, anchor: 'center' })).setLngLat(at).addTo(map);
     } else if (!marker._trip) {
       glide(marker, at);
@@ -1042,9 +1045,53 @@
     return all;
   }
 
+  /* Together in one place — Barbara and Cass at Cass's, the family on Dick's couch: fanned out by pixels, not
+     map units, so they stay apart at any zoom; their names show when you hover, and the ring opens wider. */
+  function fanRadius(n, open) {
+    var base = n === 2 ? 21 : 17 + n * 5;
+    return open ? Math.round(base * 1.6 + 8) : base;
+  }
+  function setFan(marker, open) {
+    var f = marker.getElement()._fan;
+    if (!f) { marker.setOffset([0, 0]); return; }
+    var r = fanRadius(f.n, open);
+    marker.setOffset([Math.round(Math.cos(f.angle) * r), Math.round(Math.sin(f.angle) * r)]);
+    marker.getElement().classList.toggle('is-fanned', !!open);
+  }
+  function fan(group) {
+    var n = group.length;
+    group.forEach(function (c, i) {
+      var marker = people[c.id];
+      if (!marker) return;
+      var el = marker.getElement();
+      if (n < 2) {
+        delete el._fan;
+        el.classList.remove('is-grouped', 'is-fanned', 'name-up');
+        marker.setOffset([0, 0]);
+        return;
+      }
+      el._fan = { angle: -Math.PI / 2 + (i / n) * Math.PI * 2, n: n, ids: group.map(function (g) { return g.id; }) };
+      el.classList.add('is-grouped');
+      // Names face outward from the ring: the top one's above its face, clear of the others.
+      el.classList.toggle('name-up', Math.sin(el._fan.angle) < -0.3);
+      setFan(marker, false);
+    });
+  }
+  var fanClose = null;
+  function openFan(id, open) {
+    var marker = people[id], f = marker && marker.getElement()._fan;
+    if (!f) return;
+    clearTimeout(fanClose);
+    var apply = function () {
+      f.ids.forEach(function (other) { if (people[other]) setFan(people[other], open); });
+    };
+    if (open) apply();
+    else fanClose = setTimeout(apply, 220);          // a moment to move from one face to the next
+  }
+
   function placePeople() {
     if (!ready) return;
-    var byspot = {}, moving = [], ghosts = [];
+    var byspot = {}, moving = [], ghosts = [], still = [];
     var contacts = everyone();
     Object.keys(contacts).forEach(function (id) {
       var c = contacts[id], p = c.presence;
@@ -1053,14 +1100,26 @@
       if (c.family_app === false) { if (p.last_seen) ghosts.push(c); return; }
       if (p.spot) {
         if (travelling(c)) moving.push(c);
-        else {
-          var key = p.spot.x.toFixed(1) + ',' + p.spot.y.toFixed(1);
-          (byspot[key] = byspot[key] || []).push(c);
-        }
+        else still.push(c);
       } else if (p.last_seen) {
         ghosts.push(c);
       }
     });
+    // Who's together: whoever says they're with each other, and anyone a step apart — Barbara at 106.2 and Cass
+    // at 106.0 are one group in one place, not two dots on top of each other.
+    var parent = {};
+    function root(id) { while (parent[id] !== id) { parent[id] = parent[parent[id]]; id = parent[id]; } return id; }
+    still.forEach(function (c) { parent[c.id] = c.id; });
+    still.forEach(function (a) {
+      still.forEach(function (b) {
+        if (a.id >= b.id) return;
+        var pa = a.presence, pb = b.presence;
+        var near = Math.hypot(pa.spot.x - pb.spot.x, pa.spot.y - pb.spot.y) < 0.8;
+        var together = (pa['with'] || []).indexOf(b.id) !== -1 || (pb['with'] || []).indexOf(a.id) !== -1;
+        if (near || (together && Math.hypot(pa.spot.x - pb.spot.x, pa.spot.y - pb.spot.y) < 3)) parent[root(a.id)] = root(b.id);
+      });
+    });
+    still.forEach(function (c) { (byspot[root(c.id)] = byspot[root(c.id)] || []).push(c); });
     var seen = {};
     var showPeople = layerShown('people');
     function finish(c, marker, tip) {
@@ -1073,10 +1132,12 @@
     }
     Object.keys(byspot).forEach(function (key) {
       var group = byspot[key];
-      group.forEach(function (c, i) {
+      // One place for the group: where they are between them.
+      var cx = 0, cy = 0;
+      group.forEach(function (c) { cx += c.presence.spot.x / group.length; cy += c.presence.spot.y / group.length; });
+      group.forEach(function (c) {
         var s = c.presence.spot;
-        var angle = (i / group.length) * Math.PI * 2, r = group.length > 1 ? 0.55 : 0;
-        var base = ll(s.x + Math.cos(angle) * r, s.y + Math.sin(angle) * r);
+        var base = group.length > 1 ? ll(cx, cy) : ll(s.x, s.y);
         var marker = personMarker(c, base);
         // Working a scene: about it, not pinned to it (see sceneOffset).
         marker._base = base;
@@ -1084,6 +1145,7 @@
         if (marker._trip) { marker._trip = null; marker.getElement().classList.remove('is-moving'); }
         finish(c, marker, c.name + ' · ' + (c.presence.where || ''));
       });
+      fan(group);
     });
     // On their way somewhere: along the road they're taking, at its pace (see moveTravellers).
     moving.forEach(function (c) {
@@ -1091,14 +1153,19 @@
       var marker = personMarker(c, onJourney(journey(route), Date.now() / 1000).at);
       if (!marker._trip || marker._trip.start !== route.start) marker._trip = journey(route);
       marker.getElement().classList.add('is-moving');
+      fan([c]);
       finish(c, marker, c.name + ' · ' + routeText(c, route));
     });
     // Those who keep where they are to themselves: where he last knew them to be, faded.
+    var ghostspots = {};
     ghosts.forEach(function (c) {
       var ls = c.presence.last_seen;
       var marker = personMarker(c, ll(ls.x, ls.y), true);
       finish(c, marker, c.name + ' · last seen ' + ago(Date.now() / 1000 - ls.at) + ' · ' + ls.where + ' — ' + ls.how);
+      var key = ls.x.toFixed(1) + ',' + ls.y.toFixed(1);
+      (ghostspots[key] = ghostspots[key] || []).push(c);
     });
+    Object.keys(ghostspots).forEach(function (key) { fan(ghostspots[key]); });
     Object.keys(people).forEach(function (id) {
       if (!seen[id]) { people[id].remove(); delete people[id]; }
     });

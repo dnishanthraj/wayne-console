@@ -1047,8 +1047,8 @@ html[data-rail="compact"] .lock::before { content: "⏻"; font-size: 13px; }
 }
 .toast {
   pointer-events: auto; cursor: var(--cursor-pointer);
-  display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center;
-  padding: 10px 12px; background: var(--raised);
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px 8px 10px 12px; background: var(--raised);
   border: 1px solid var(--hairline-2); border-left: 2px solid var(--contact-accent, var(--primary));
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.35s var(--ease) both;
@@ -1064,6 +1064,10 @@ html[data-rail="compact"] .lock::before { content: "⏻"; font-size: 13px; }
   overflow-wrap: anywhere;
 }
 .toast .bubble__avatar { width: 34px; height: 34px; }
+.toast__close { align-self: start; width: 20px; height: 20px; padding: 4px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--text-faint); cursor: var(--cursor-pointer); transition: color 0.15s var(--ease), background 0.15s var(--ease); }
+.toast__close svg { width: 100%; height: 100%; display: block; }
+.toast__close:hover { color: var(--text); background: var(--hairline); }
 
 /* --- presence ---------------------------------------------------------------
    What each contact is doing, on the dot: green with the phone in hand, amber
@@ -1577,6 +1581,11 @@ html[data-seats="5"] .seat__name, html[data-seats="6"] .seat__name, html[data-se
 /* People, in their own colour. */
 /* The map places the marker; it's a 34px disc, and its insides hang off it. */
 .gm-person { width: 34px; height: 34px; cursor: var(--cursor-pointer); }
+/* Together in one place: names wait for a hover, when the ring opens and each can be picked out. */
+.gm-person.is-grouped .gm-person__name { opacity: 0; transition: opacity 0.15s var(--ease); }
+.gm-person.is-grouped.is-fanned .gm-person__name, .gm-person.is-grouped.is-selected .gm-person__name { opacity: 1; }
+.gm-person.is-grouped:hover { z-index: 4; }
+.gm-person.name-up .gm-person__name { top: auto; bottom: calc(100% + 5px); }
 .gm-person__face { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--accent);
   background-color: var(--surface-2); background-size: cover; background-repeat: no-repeat;
   box-shadow: 0 0 0 3px #060a10, 0 4px 14px rgba(0, 0, 0, 0.6); cursor: var(--cursor-pointer); }

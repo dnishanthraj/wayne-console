@@ -5,6 +5,19 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-10-11
+
+### Fixed
+
+- People together on the map no longer sit on top of each other. A group
+  (whoever's with whom, or anyone a step apart) fans out by a fixed distance
+  on screen, so they stay apart at any zoom. Hover any of them and the ring
+  opens wider, with the names facing outward.
+- A muted group chat shows the struck bell by its name, as a muted contact
+  does.
+- Every pop-up (texts, group messages, mail, cases) has a close button.
+  Muted threads still don't pop up at all.
+
 ## [0.16.1] - 2026-10-11
 
 ### Fixed
