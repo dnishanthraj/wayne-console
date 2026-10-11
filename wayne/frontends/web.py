@@ -855,10 +855,13 @@ class Console(GroupChats):
         ended or they were let off it early.
         """
         grapevine.note_call(member, list(self.directory), member.call_index(), present)
+        member._comms_was = bool(getattr(member, "_comms", None))
         member._comms = None                       # off the live channel with the call
         presence.of(member.contact).touch()
         said = member.call_messages()
         began = getattr(member, "call_started_at", 0) or 0
+        if began and not member._comms_was:
+            self._log_call(member, began, present)
         if any(m["role"] == "user" for m in said) and began:
             from ..engine import diary
             others = [self.directory.get(c).name for c in (present or ()) if c != member.contact.id and self.directory.get(c)]
@@ -866,6 +869,21 @@ class Console(GroupChats):
                         f" ({time.strftime('%H:%M', time.localtime(began))}–{time.strftime('%H:%M')})")
         if any(m["role"] == "user" for m in said):
             self._spawn(self._afterthought(member, said, "call", present))
+
+    def _log_call(self, member, began, present):
+        """
+        A call that happened, in the thread — "Call · 4 min", as a phone keeps it, with who else was on it for a call
+        with company. A ring that never connected is in there already (no answer, declined, cancelled).
+        """
+        seconds = time.time() - began
+        if seconds < 3:
+            return
+        length = f"{int(seconds)} sec" if seconds < 60 else f"{round(seconds / 60)} min"
+        others = [self.directory.get(c).name for c in sorted(present or ()) if c != member.contact.id
+                  and self.directory.get(c)]
+        entry = TextLog(member.contact.id).add("me", length + (f" · with {', '.join(others)}" if others else ""),
+                                              kind="group_call" if others else "call", at=time.time())
+        self._spawn(self.broadcast({"type": "text_sent", "speaker": member.contact.id, "message": entry}))
 
     def _spawn(self, coroutine):
         """
@@ -982,11 +1000,14 @@ class Console(GroupChats):
             await self.broadcast(events.party(self._members()))
             self._spawn(self._after_refusal(contact, how, state))
             missed = "didn't pick up" if how == "no_answer" else "declined"
+            # A call all the same, in their thread: as a ring he gave up on is on their phone.
+            entry = TextLog(contact_id).add("me", "", kind="refused_call" if how == "declined" else "unanswered_call")
+            await self.broadcast({"type": "text_sent", "speaker": contact_id, "message": entry})
             if self.call is call:
-                call.event(f"{contact.name} {missed} when he tried to add them")
+                call.event(f"{wayne_identity.mention(contact_id)} {missed} when he tried to add them")
             # Someone on the line may remark on it — or not.
             if random.random() < 0.45:
-                await self._react(f"{contact.name} {missed} when he tried to add them to the call.",
+                await self._react(f"{wayne_identity.mention(contact_id)} {missed} when he tried to add them to the call.",
                                   absent=contact)
             return
         # He asked for it: whoever's mid-sentence stops. Rung in by someone else

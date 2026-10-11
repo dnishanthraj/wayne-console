@@ -1105,13 +1105,14 @@ html[data-rail="compact"] .lock::before { content: "⏻"; font-size: 13px; }
 .bubble { animation: bubble-in 0.22s var(--ease) both; }
 @keyframes bubble-in { from { opacity: 0; transform: translateY(4px); } }
 
-/* A call in the thread — missed, declined — as a line of its own. */
+/* A call in the thread — one that happened, one missed, declined, unanswered — as a line of its own. */
 .messages__call {
   align-self: center; font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em;
-  text-transform: uppercase; color: var(--alert); margin: 4px 0;
+  text-transform: uppercase; color: var(--text-faint); margin: 4px 0;
   display: inline-flex; gap: 6px; align-items: center;
 }
 .messages__call svg { width: 11px; height: 11px; }
+.messages__call.is-missed { color: var(--alert); }       /* a missed call reads as one, as on a phone */
 
 /* --- incoming call ------------------------------------------------------------- */
 .incoming {

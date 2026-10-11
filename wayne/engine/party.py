@@ -100,6 +100,22 @@ class Call:
         from .. import config
         return bool(config.GROUP_SCENE and self.is_group and not self.comms)
 
+    def strictest(self):
+        """Whoever on the line knows least — Jim — whose ears what's said about the call is put for; None if all know."""
+        return next((m.contact.id for m in self.members if identity.level(m.contact.id) in ("masks", "none")), None)
+
+    def for_scene(self, text):
+        """
+        Something about the call, said for the scene: each name as whoever knows least on the line knows them —
+        Batgirl, with Jim on — and Jim himself as Jim, never "you".
+        """
+        strict = self.strictest()
+        mark = identity._MENTION
+        if strict is None or mark not in (text or ""):
+            return identity.render(text)
+        return re.sub(f"{mark}([^{mark}]+){mark}",
+                      lambda m: identity.label(m.group(1), None if m.group(1) == strict else strict), text)
+
     def writer(self):
         """The call's scene, begun the first time it's needed — knowing what's been said on the call so far."""
         if self._scene is None:
@@ -464,7 +480,7 @@ class Call:
         didn't pick up, someone leaving — in a line, or not at all.
         """
         if self.scene_on():
-            yield from self.writer().react(identity.render(what_happened))
+            yield from self.writer().react(self.for_scene(what_happened))
             return next((t for w, t in reversed(self.transcript) if w not in (None, "me")), "")
         instruction = (
             "[REFERENCE — context only]\n" + self.note_for(member) + "\n[END REFERENCE]\n\n"
@@ -498,7 +514,8 @@ class Call:
     def ringing(self, member, name):
         """He's ringing someone into the call; while it rings, someone may say so. `name`: who, or a mention."""
         if self.scene_on():
-            yield from self.writer().react(f"He's ringing {identity.render(name)} into the call — it's still ringing.")
+            yield from self.writer().react(f"He's ringing {self.for_scene(name)} into the call — "
+                                           "it's still ringing.")
             return next((t for w, t in reversed(self.transcript) if w not in (None, "me")), "")
         name = identity.render(name, member.contact.id)
         instruction = (
@@ -664,7 +681,7 @@ class Call:
         for member in self.members:
             member.heard.append(self.heard_as(None, line, member))
         if self._scene is not None:
-            self._scene.note(identity.render(line))
+            self._scene.note(self.for_scene(line))
 
     def _notice_asks(self, line):
         """A line that puts something to him by name — any he goes by — and the call holds a moment for his answer."""

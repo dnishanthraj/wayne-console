@@ -7,6 +7,26 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-11
+
+### Added
+
+- **Every call is in the chat, as a phone keeps it.** Missed, declined and
+  unanswered calls were logged already; now so are the calls that
+  happened: "Call · 4 min", or "Group call · 6 min · with Tim, Barbara". A
+  missed call is red, and the others are quiet.
+
+### Fixed
+
+- **A missed call waits for you.** It made a sound and a notification, then
+  left no badge. Now it counts as unread until you open the thread.
+- **Being turned down for a group call shows in their thread.** If you
+  added someone to a call and they didn't pick up or declined, there was
+  nothing in their thread; now there's "No answer" or "Call declined".
+- **That turn-down is said as Jim knows people.** "Barbara declined when he
+  tried to add them" used to reach Jim on the call by name. Now it says
+  Batgirl.
+
 ## [1.3.0] - 2026-10-11
 
 ### Changed

@@ -871,7 +871,8 @@
 
   var CALL_LINE = {
     missed_call: 'Missed call', declined_call: 'You declined',
-    refused_call: 'Call declined', unanswered_call: 'No answer', cancelled_call: 'Cancelled call'
+    refused_call: 'Call declined', unanswered_call: 'No answer', cancelled_call: 'Cancelled call',
+    call: 'Call', group_call: 'Group call'
   };
 
   function bubbleNode(message, contact, opts) {
@@ -883,9 +884,11 @@
       return li;
     }
     if (message.kind) {
-      li.className = 'messages__call';
+      li.className = 'messages__call' + (message.kind === 'missed_call' ? ' is-missed' : '');
       li.innerHTML = ICONS.call;
-      li.appendChild(document.createTextNode((CALL_LINE[message.kind] || 'Call') + ' · ' + clock(message.at)));
+      // A call that happened says how long, and who else was on it: "Call · 4 min · 21:40".
+      li.appendChild(document.createTextNode((CALL_LINE[message.kind] || 'Call') +
+        (message.text ? ' · ' + message.text : '') + ' · ' + clock(message.at)));
       return li;
     }
     var from = message.from === 'me' ? 'me' : 'them';
@@ -2108,6 +2111,12 @@
     if (event.how === 'missed' && !callsMuted(event.speaker)) {
       ConsoleTones.missed();
       notify(event.speaker, 'Missed call');
+    }
+    // A missed call is something waiting for him, as on a phone: the badge stays till he looks.
+    if (event.how === 'missed' && !threadOpenFor(event.speaker)) {
+      state.unread[event.speaker] = (state.unread[event.speaker] || 0) + 1;
+      updateInbox();
+      renderDirectory();
     }
   }
 
