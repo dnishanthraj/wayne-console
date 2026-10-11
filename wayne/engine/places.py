@@ -94,7 +94,8 @@ def _resolve(lowered):
                     "x": round(region["x"] + dx, 1), "y": round(region["y"] + dy, 1)}
     # A place's own name is that place, wherever it is: "Waterloo Docks" is Blüdhaven's waterfront, not a word
     # ("docks") that Gotham's own docks answer to — which put Dick on the wrong city's waterfront for his case.
-    exact = next((p for p in data["places"] if p["name"].lower() == lowered.strip()), None)
+    exact = next((p for p in data["places"] if p["name"].lower() == lowered.strip()), None) \
+        or next((v for v in venues() if v["name"].lower() == lowered.strip()), None)     # a restaurant's name too
     if exact:
         return _spot(exact)
     best = (_match([p for p in data["places"] if p["area"] not in regions], lowered)

@@ -78,6 +78,24 @@
       ]
     },
     {
+      "doing": "family dinner out at Antonio's — the four of you, a booth at the back",
+      "days": [
+        6
+      ],
+      "from": "19:00",
+      "to": "21:00",
+      "where": "Antonio's",
+      "every": 4,
+      "phase": 2,
+      "chance": 0.7,
+      "together": "family-dinner-out",
+      "with": [
+        "nightwing",
+        "batgirl",
+        "orphan"
+      ]
+    },
+    {
       "doing": "games night on the houseboat — you host, you lose",
       "days": [
         4

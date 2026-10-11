@@ -402,6 +402,20 @@ _MAIL_SHAPE = ('Return JSON only: {"from_name": "...", "from_address": "...", "s
                'headings only in a newsletter or a formal notice"}')
 
 
+# The landmarks an evening is held at, besides the restaurants and hotels on the map.
+_HALLS = ("Gotham Opera House", "Gotham Museum", "The Gotham Plaza", "Knightsdome", "Wayne Tower", "City Hall",
+          "Gotham Public Library")
+
+
+def _real_places(rng=random, most=9):
+    """A few real places on the map to name — so an evening, a dinner, a meeting has somewhere he can actually go."""
+    from . import places
+    venues = [v for v in places.venues() if v.get("kind") in ("restaurant", "hotel", "bar", "club", "cafe")]
+    picks = rng.sample(venues, min(most, len(venues))) if venues else []
+    return ("If it names a place, use one of these real ones, by its exact name: "
+            + "; ".join([f"{v['name']} ({v['area']})" for v in picks] + list(_HALLS)) + ". ")
+
+
 def _context(now, secure=False):
     """
     The day as the mail knows it. On the secure line — Jim writing to Batman — nothing of Bruce Wayne: Jim
@@ -476,8 +490,8 @@ def _invitation(model, options, now):
     found = _ask(model, options, _context(now) + "Write one invitation to Bruce Wayne — a gala, a charity auction, a "
                  "box at the Knightsdome, the mayor's fundraiser, a gallery opening on Museum Mile, a dinner Vicki Vale "
                  "insists on, an old Gotham family's anniversary. From whoever would send it, with the date (within the "
-                 f"next two weeks, after {soon.isoformat()}), the time, the place (somewhere real in Gotham), the dress, "
-                 "an RSVP." + _FACTS_ONLY + " " + _MAIL_SHAPE[:-1]
+                 f"next two weeks, after {soon.isoformat()}), the time, the place, the dress, an RSVP. " + _real_places()
+                 + _FACTS_ONLY + " " + _MAIL_SHAPE[:-1]
                  + ', "event": {"what": "the occasion, in a few words", "where": "the place", "date": "YYYY-MM-DD", '
                  '"time": "HH:MM, 24-hour", "dress": "black tie, cocktail…", "host": "who\'s hosting"}}', "an invitation")
     if not found or not found.get("subject"):
@@ -662,7 +676,7 @@ def _correspondent(model, options, now, rng=random):
     found = _ask(model, options, _context(now) + _press() + history
                  + f"Write one email to Bruce Wayne from {name}, {who}. About something specific and real in their "
                  "life or Gotham's week that they'd actually write to him about — never the vigilantes as if he were "
-                 "one of them." + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a letter from {name}")
+                 "one of them. " + _real_places() + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a letter from {name}")
     if not found or not found.get("subject"):
         return None
     return deliver(cid, found["subject"], found.get("body", ""), folder="inbox", kind="letter", name=name,
@@ -689,7 +703,8 @@ def _reply_letter(model, options, event, now):
                  + f"Here is an email conversation between {him} and {theirs['from']}:\n\n{lines}\n\n"
                  f"Write {theirs['from']}'s reply to {him}'s last email, as {voice}. Answer what he actually wrote, "
                  "keep to everything said above, and never put words in his mouth. If it needs no more than a line, "
-                 "a line is the reply." + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a reply from {theirs['from']}")
+                 "a line is the reply. " + ("" if secure else _real_places()) + _FACTS_ONLY + " " + _MAIL_SHAPE,
+                 f"a reply from {theirs['from']}")
     if not found or not str(found.get("body") or "").strip():
         return None
     subject = theirs["subject"] if theirs["subject"].lower().startswith("re:") else "Re: " + theirs["subject"]

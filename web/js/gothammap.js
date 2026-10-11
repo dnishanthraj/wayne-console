@@ -62,13 +62,14 @@
     club: '#c77dff', bar: '#e0a43a', diner: '#5fd0c4', fire: C.alert, school: '#9fd8ff',
     // The day's own colours: coffee, the gym, the pictures, shopping, home.
     cafe: '#d9a06b', gym: '#7fd1a8', cinema: '#e07fb0', shop: '#e8c86a', market: '#e0a43a', library: '#9fd8ff',
+    restaurant: '#f0b27a',
     heliport: '#9fd8ff', home: C.lit
   };
   var ICON_KINDS = ['tower', 'manor', 'police', 'hospital', 'asylum', 'prison', 'church', 'theatre', 'university',
                     'museum', 'industry', 'station', 'stadium', 'lab', 'nightlife', 'civic', 'news', 'zoo', 'marina',
                     'naval', 'dock', 'clock', 'garden', 'water', 'cemetery', 'circus', 'statue', 'lighthouse',
                     'airport', 'observatory', 'hotel', 'club', 'bar', 'diner', 'fire', 'school', 'beach',
-                    'market', 'library', 'heliport', 'gym', 'home', 'cafe', 'cinema', 'shop'];
+                    'market', 'library', 'heliport', 'gym', 'home', 'cafe', 'cinema', 'shop', 'restaurant'];
 
   function glyph(kind) {
     var p = new Path2D();
@@ -107,6 +108,9 @@
       case 'club': p.moveTo(-2, 6); p.arc(-4, 6, 2.5, 0, Math.PI * 2); p.moveTo(7, 3); p.arc(5, 3, 2.5, 0, Math.PI * 2); p.moveTo(-1.5, 6); p.lineTo(-1.5, -7); p.lineTo(7.5, -9); p.lineTo(7.5, 3); break;
       case 'bar': p.moveTo(-6, -8); p.lineTo(6, -8); p.lineTo(4, 9); p.lineTo(-4, 9); p.closePath(); p.moveTo(-5.4, -3); p.lineTo(5.4, -3); break;
       case 'diner': p.moveTo(-7, -2); p.lineTo(5, -2); p.lineTo(4, 6); p.lineTo(-6, 6); p.closePath(); p.moveTo(5, 0); p.quadraticCurveTo(9, 0, 8, 3); p.lineTo(4.6, 3.4); p.moveTo(-3, -5); p.quadraticCurveTo(-1, -8, -3, -10); p.moveTo(1, -5); p.quadraticCurveTo(3, -8, 1, -10); break;
+      case 'restaurant': p.moveTo(-8, -9); p.lineTo(-8, -4); p.quadraticCurveTo(-8, -1, -5, -1); p.quadraticCurveTo(-2, -1, -2, -4);
+        p.lineTo(-2, -9); p.moveTo(-5, -9); p.lineTo(-5, 9); p.moveTo(5, 9); p.lineTo(5, -9); p.quadraticCurveTo(9, -6, 8, 1);
+        p.lineTo(5, 1); break;
       case 'fire': p.moveTo(0, -10); p.bezierCurveTo(6, -4, 8, 2, 4, 8); p.quadraticCurveTo(0, 11, -4, 8); p.bezierCurveTo(-8, 2, -4, -2, -2, -5); p.quadraticCurveTo(-1, 0, 1, 1); p.quadraticCurveTo(2, -4, 0, -10); break;
       case 'school': p.moveTo(-9, -3); p.lineTo(0, -8); p.lineTo(9, -3); p.lineTo(0, 2); p.closePath(); p.rect(-6, 0, 12, 8); break;
       case 'market': p.moveTo(-10, -2); p.lineTo(-8, -8); p.lineTo(8, -8); p.lineTo(10, -2); p.closePath();
@@ -886,7 +890,7 @@
     if (p.l === 'marsh') return 'Slaughter Swamp';
     if (p.l === 'venue') return p.n + ' · ' + ({ club: 'club', bar: 'bar', diner: 'diner', church: 'church', fire: 'fire station',
                                                 school: 'school', cafe: 'café', gym: 'gym', cinema: 'cinema', hotel: 'hotel',
-                                                shop: 'shop' }[p.k] || '') + ' · ' + p.a;
+                                                shop: 'shop', restaurant: 'restaurant' }[p.k] || '') + ' · ' + p.a;
     if ((p.l === 'road' || p.l === 'park' || p.l === 'water' || p.l === 'district') && p.n) return p.n;
     return '';
   }

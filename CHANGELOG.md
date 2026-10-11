@@ -5,6 +5,28 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-11
+
+### Added
+
+- **Restaurants.** Sixteen across Gotham and Blüdhaven, from Antonio's and
+  Sorrento's in Little Italy to Le Bistro de la Rue, the Grand Gotham
+  Steakhouse, Golden Dragon and Delmonico's, each on a real lot with its own
+  icon.
+- **Real places in letters.** Invitations, letters and replies name places
+  that are on the map, so an evening or a dinner always has somewhere you can
+  actually go.
+- **Blüdhaven's parks.** Bayside Park on the water in Port's Park (so Dick
+  walks Haley round an actual park), Halyard Commons, and Heights Park up in
+  Avalon Heights.
+- **A family night out.** Every few Sundays the four of them (Dick, Tim,
+  Barbara, Cass) have dinner at Antonio's, a booth at the back, together
+  on the map.
+
+### Fixed
+
+- A restaurant's or bar's own name now always means that place.
+
 ## [0.28.0] - 2026-10-11
 
 ### Added

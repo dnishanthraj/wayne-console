@@ -69,7 +69,8 @@ def test_out_walking_the_dog_they_go_round_not_stand_still(clock):
     a, b = dick.position(later), dick.position(later + 300)
     port = places.resolve("Port's Park")
     assert a != b                                                         # moving
-    assert max(math.dist(a, (port["x"], port["y"])), math.dist(b, (port["x"], port["y"]))) < 2.5
+    park = places.resolve("Bayside Park")                                # the park in Port's Park: round it
+    assert max(math.dist(a, (park["x"], park["y"])), math.dist(b, (park["x"], park["y"]))) < 3.5
     cass = presence.of(directory().get("orphan"))
     cass.set_activity("a run", presence.IDLE, 180, t=t, where="Burnside")
     shown = cass.public(t + 3600)

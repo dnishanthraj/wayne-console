@@ -2816,6 +2816,13 @@ def build():
                    "The Ashcroft", "Night & Day Motel"], {"Diamond District": 2, "Fashion District": 1, "Upper East Side": 1,
                                                           "City Hall District": 1, "Old Gotham": 1,
                                                           "Central Business District": 1, "New Town": 1}),
+        # Where people eat out: a dinner with Vicki, a family night, a deal over steak.
+        "restaurant": (["Le Bistro de la Rue", "Antonio's", "The Grand Gotham Steakhouse", "Golden Dragon", "Marrow",
+                        "Sorrento's", "The Oyster Bar", "Kaito", "Maison Bleu", "Bellamy's", "Harbor House",
+                        "Miranda's", "The Lantern Room", "Pho Haven", "Delmonico's", "Casa Verde"],
+                       {"Upper East Side": 2, "Old Gotham": 2, "Diamond District": 2, "Chinatown": 1, "Fashion District": 1,
+                        "Tricorner": 1, "City Hall District": 1, "Upper West Side": 1, "Cherry Hills": 1, "Bristol": 1,
+                        "Waterloo Docks": 1, "Halyard Square": 1, "Central Business District": 1, "Port's Park": 1}),
         "shop": (["Vintage Vault", "Gotham Books", "The Record Room", "Ellison's Jewelers", "Rook & Pawn",
                   "Bluebird Boutique", "Madame Lacroix", "Second Story Books", "Hart & Sons Tailors"],
                  {"Fashion District": 3, "Burnside": 2, "Diamond District": 1, "Upper East Side": 1, "Old Gotham": 1,
