@@ -5,6 +5,8 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-11
+
 ### Added
 
 - **The night, as a system.** Calls on the scanner turn (a robbery into a

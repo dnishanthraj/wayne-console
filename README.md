@@ -5,7 +5,7 @@
 **Gotham, running on your Mac.**
 Call Alfred. Text Dick. Get left on read by Jason. Watch the city move on a live holographic map, and work the cases off the police scanner.
 
-![version](https://img.shields.io/badge/version-0.10.0-4fa8e0?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0-4fa8e0?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-0b1520?style=flat-square&logo=apple)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-0b1520?style=flat-square&logo=python&logoColor=white)
 ![model](https://img.shields.io/badge/LLM-local%20via%20Ollama-0b1520?style=flat-square)
@@ -119,6 +119,22 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Comms on a case**: you open them (alone on a case, Alfred might just text); they know who's on scene and who's still on the way, and close themselves once it's over and quiet. Mute any chat or anyone's calls; archive any group.
 
 </td></tr>
+</table>
+
+<div align="center">
+<img src="docs/img/case.jpg" alt="A laughing-gas attack on Park Row in 3D, its card docked in the side panel: the Joker, lethal, seventeen of them, 31% projected odds, Dick and Tim on their way, and the incident log — a 911 caller, the dispatch, the first unit on scene" width="100%">
+<sub><b>A case.</b> The Joker on Park Row with seventeen men: GCPD alone would manage 3%; Dick and Tim on their way make it 31%, you going too 54%. The incident log is written as the call goes.</sub>
+</div>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/img/mail.jpg" alt="Mail open on the Secure folder: the Batcomputer's night report in markdown, each case with its time, place, team, how it was graded and how it ended, then injuries and the scanner"></td>
+<td width="50%"><img src="docs/img/night.jpg" alt="Gotham at night in 3D: the districts lit, the scanner's warnings, and the side panel listing where each of the family is — Dick and Tim on their way to Park Row on the bike, Barbara and Cass in the Bowery"></td>
+</tr>
+<tr>
+<td><sub><b>The six o'clock night report.</b> Assembled from the night itself: every case, who worked it, how it ended and how it's graded, who got hurt, the worst of the scanner.</sub></td>
+<td><sub><b>Gotham at night.</b> Everyone where they are and how they're getting about; the calls on the scanner where they're happening.</sub></td>
+</tr>
 </table>
 
 ## 🗺️ Gotham, the map

@@ -1613,8 +1613,14 @@
       var s = c.presence.spot;
       return Math.hypot(s.x - report.x, s.y - report.y) < 2.2;
     }).map(function (c) { return c.id === 'bruce' ? 'you' : c.name; });
-    var state = who ? (report.case === 'closed' ? who.name + ' closed it' + (report.outcome ? ': ' + report.outcome : '.')
-                                              : (who.you ? 'You\u2019re' : who.name + '\u2019s') + ' on it — ' + report.case + '.')
+    // Everyone on it, by name — "Dick's on it" read as Dick alone when Tim was riding with him.
+    var crew = (report.team || []).map(function (id) { return id === 'bruce' ? 'you' : (contacts[id] || {}).name; })
+      .filter(Boolean);
+    var named = crew.length > 1 ? crew.slice(0, -1).join(', ') + ' and ' + crew[crew.length - 1] : '';
+    named = named && named.charAt(0).toUpperCase() + named.slice(1);
+    var state = who ? (report.case === 'closed' ? (named || who.name) + ' closed it' + (report.outcome ? ': ' + report.outcome : '.')
+                      : named ? named + ' are on it — ' + report.case + '.'
+                      : (who.you ? 'You\u2019re' : who.name + '\u2019s') + ' on it — ' + report.case + '.')
                     : (near.length ? 'Close by: ' + near.join(', ') + '.' : 'Nobody from the family nearby.');
     var img = warning(report.severity), canvas = document.createElement('canvas');
     canvas.width = img.width; canvas.height = img.height;
