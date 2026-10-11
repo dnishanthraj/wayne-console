@@ -99,6 +99,11 @@ def briefing(contact_id):
         lines.append("What you know — background, not material: don't recite it, raise it "
                      "only when it matters, and never claim more than this:\n"
                      + "\n".join(f"- {fact}" for fact in facts))
+    # The people of the city's own additions (see wayne.lore), as real as anyone: who they are, at the name.
+    known = lore.known_to(contact_id)
+    if known:
+        lines.append("People around Gotham you know of — as real as anyone, and you know exactly who's meant when "
+                     "they're named:\n" + "\n".join(f"- {k}" for k in known))
     others = identity.who_doesnt_know(contact_id)
     if others:
         lines.append(others)

@@ -159,8 +159,21 @@ class Scene:
             room = self.call.in_the_room(m)
             if room:
                 parts.append(f"Right there with you, not just on the line: {', '.join(room)}.")
+            # What only they know of the city's own additions (see wayne.lore): what only Dick, say, would know.
+            from .. import lore
+            from .. import operator as wayne_operator
+            mine = [f["text"] for f in lore.facts()
+                    if wayne_operator._knows(f, m.contact.id, identity.level(m.contact.id))]
+            if mine:
+                parts.append("Only you know, of the people below: " + " ".join(mine))
             briefs.append("\n".join(parts))
         names = ", ".join(labels[:-1]) + (" and " if len(labels) > 1 else "") + labels[-1]
+        from .. import lore
+        gotham = []
+        for person in lore.people():
+            line = person.get("public") or f"{person['name']} — {person.get('occupation', '')}"
+            strangers = [self.label(m) for m in members if m.contact.id in (person.get("unknown_to") or ())]
+            gotham.append(f"- {line}" + (f" (news to {', '.join(strangers)})" if strangers else ""))
         self._system = (
             f"You're writing the other end of a phone call as it happens: a group call. {him} — never write a line "
             f"for him — is on the line with {names}. Each of them has a brief below, written to them as \"you\".\n\n"
@@ -183,6 +196,8 @@ class Scene:
             "one to three lines. If nobody would say anything, write only: (nothing)\n"
             "- Someone who has to go ends their line with [hang up]. Asked by him to get someone else on the line, "
             "they end their line with [add: that person's first name].\n"
+            + ("\nPeople around Gotham, as real as anyone — named, everyone on the line knows exactly who's meant (but "
+               "for whoever it's news to):\n" + "\n".join(gotham) + "\n" if gotham else "")
             + "\n" + "\n\n".join(briefs))
         self._cast = cast
         return self._system

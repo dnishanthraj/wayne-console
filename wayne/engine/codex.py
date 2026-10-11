@@ -78,11 +78,13 @@ def who_is_who():
     private = {"gordon", "selina", "talia", "kate", "duke", "steph", "bernard", "haley", "tanya", "luke"}
     public = [p for p in _data().get("people", []) if p.get("group") == "Gotham" and p.get("occupation")
               and p["id"] not in private]
+    from .. import lore
     lines = ["Commissioner James Gordon (GCPD)", "Lucius Fox (CEO, Wayne Enterprises)"] + \
-        [f"{p['name']} ({p['occupation']})" for p in public]
+        [f"{p['name']} ({p['occupation']})" for p in public] + \
+        [f"{p['name']} ({p['occupation']})" for p in lore.people() if p.get("occupation")]
     villains = [f"{g['name']}" + (f" ({g['real']})" if g.get("real") and g["real"] != "Unknown" else "")
                 for g in incidents.rogues()]
-    return ("Gotham's real people, for anyone real you name: " + "; ".join(lines[:16]) + ". The rogues are criminals — "
+    return ("Gotham's real people, for anyone real you name: " + "; ".join(lines[:24]) + ". The rogues are criminals — "
             "never an official, a host, a guest or a colleague, by their names or their real ones: "
             + ", ".join(villains[:28]) + ". Anyone else you need, invent.")
 

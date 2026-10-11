@@ -7,6 +7,22 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-11
+
+### Changed
+
+- **The people of your own Gotham are known by name.** Each person in
+  `data/lore.json` can have a `public` line, saying who they are as anyone
+  who knows of them would put it, and an `unknown_to` list of who wouldn't
+  know them. Everyone else has them in their briefing, so naming someone
+  lands at once.
+  - On a call with company, the scene knows them too, notes who they're
+    news to, and gives each person the facts only they know.
+  - The background writers (the Gazette, letters, day plans) count them
+    among Gotham's real people.
+- **Everyone knows Evelyn Adams as the Gazette's crime reporter.** That
+  she's seeing Jason stays with the family.
+
 ## [1.4.0] - 2026-10-11
 
 ### Added

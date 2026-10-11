@@ -49,3 +49,28 @@ def test_evelyn_lives_near_jason_and_the_family_knows_about_them(clock):
     flat = places.resolve("Evelyn's apartment")
     assert flat["area"] == "The Bowery"                       # near Jason's safehouse, not in Crime Alley
     assert "seeing Evelyn" in operator.briefing("nightwing") and "seeing Evelyn" not in operator.briefing("gordon")
+
+
+def test_most_know_most_of_them_and_a_few_dont(clock):
+    data = dict(LORE)
+    data["people"] = [{"id": "test-person", "name": "Testa Person", "group": "Gotham", "occupation": "Columnist",
+                       "public": "Testa Person writes the Gazette's puzzle page", "unknown_to": ["lucius"]}]
+    _write(data)
+    assert lore.known_to("robin") == ["Testa Person writes the Gazette's puzzle page"]
+    assert lore.known_to("lucius") == []
+    assert "puzzle page" in operator.briefing("robin") and "puzzle page" not in operator.briefing("lucius")
+
+
+def test_a_call_with_company_knows_them_too_and_who_its_news_to(clock):
+    from wayne.engine import party
+    from wayne.engine.session import ContactSession
+    data = dict(LORE)
+    data["people"] = [{"id": "test-person", "name": "Testa Person", "public": "Testa Person writes the puzzle page",
+                       "unknown_to": ["lucius"]}]
+    _write(data)
+    call = party.Call(operator="Bruce Wayne")
+    for cid in ("robin", "lucius"):
+        call.join(ContactSession(directory().get(cid)))
+    system = call.writer().system()
+    assert "Testa Person writes the puzzle page (news to Lucius)" in system
+    assert "Only you know, of the people below: The Test Kitchen's back booth" in system      # Tim's own fact
