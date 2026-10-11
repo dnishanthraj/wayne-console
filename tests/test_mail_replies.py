@@ -44,3 +44,27 @@ def test_jim_on_the_secure_line_is_never_told_hes_writing_to_bruce_wayne(clock, 
     assert mine["from"] == "B" and mine["folder"] == "sent"
     inbox._from_event("m", {}, inbox._take_event(clock() + 9 * 3600), clock() + 9 * 3600)
     assert asked and "Bruce Wayne" not in asked[0] and "Batman" in asked[0]
+
+
+def test_people_write_to_him_first_in_their_own_voice_and_carry_on_where_they_left_off(clock, monkeypatch):
+    import random
+    asked = []
+    monkeypatch.setattr(inbox, "_ask", lambda model, options, instruction, purpose:
+                        asked.append(instruction) or {"subject": "Dinner?", "body": "You owe me one. — V"})
+    first = inbox._correspondent("m", {}, clock(), rng=random.Random(3))
+    assert first["sender"] in inbox.CORRESPONDENTS and first["kind"] == "letter" and first["folder"] == "inbox"
+    name = inbox.CORRESPONDENTS[first["sender"]][0]
+    assert name in asked[0] and "never the vigilantes" in asked[0]
+    inbox.reply(first["id"], "Thursday?")
+    # Two days on, the same person writes again: they know what was said last time.
+    monkeypatch.setattr(inbox, "CORRESPONDENTS", {first["sender"]: inbox.CORRESPONDENTS[first["sender"]]})
+    again = inbox._correspondent("m", {}, clock() + 3 * 86400, rng=random.Random(3))
+    assert again is not None and "Thursday?" in asked[-1] and "The last time you wrote" in asked[-1]
+
+
+def test_the_real_news_in_a_letter_is_only_what_was_read(clock, monkeypatch):
+    from wayne.engine import culture
+    monkeypatch.setattr(culture, "seen", lambda contact: ["[tech] Chipmaker X posts record quarter on AI demand",
+                                                          "[film] Something opened"] if contact.id == "lucius" else [])
+    said = inbox._press()
+    assert "Chipmaker X" in said and "Something opened" not in said and "never invent" in said

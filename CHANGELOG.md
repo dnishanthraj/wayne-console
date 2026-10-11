@@ -5,6 +5,31 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-11
+
+### Added
+
+- **People who write to you first.** Twelve correspondents from the Codex now
+  write in their own voices, a couple of letters a day:
+  - Vicki Vale fishing for a story or a dinner.
+  - Evelyn Adams wanting WE's comment.
+  - Leslie Thompkins worried about you.
+  - Clark checking in from Metropolis.
+  - The Mayor's office courting your money.
+  - Councilwoman Grange wanting your backing.
+  - The DA with a favour framed as civic duty.
+  - Your cousin Kate on family business.
+  - Alexander Knox before he prints.
+  - Simon Saint's pitch.
+  - Roland Daggett smoothing things over.
+  - Tanya Fox asking you to dinner.
+
+  They carry on where you last left off, and they answer when you reply, as
+  themselves.
+- **Real news in the mail.** Letters that would touch it draw on what's
+  really in the news this week, from what Lucius and Barbara follow (searched,
+  never made up), alongside the Gazette's Gotham.
+
 ## [0.23.0] - 2026-10-11
 
 ### Added

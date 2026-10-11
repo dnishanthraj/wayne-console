@@ -406,6 +406,11 @@ def write_one(model, options, now=None):
     weekend = datetime.date.fromtimestamp(now).weekday() >= 5
     if 8 <= hour < 19 and len(company) < (1 if weekend else 3) and _draw("company", day, len(company)) < (0.15 if weekend else 0.5):
         return _company(model, options, now)
+    letters = [m for m in sent if m.get("kind") == "letter" and m.get("sender") in CORRESPONDENTS]
+    if 8 <= hour < 22 and len(letters) < (1 if weekend else 2) and _draw("letter", day, len(letters), hour) < 0.35:
+        made = _correspondent(model, options, now)
+        if made:
+            return made
     invites = [m for m in mail() if m.get("kind") == "invitation" and now - m["at"] < 2 * 86400]
     if 9 <= hour < 21 and not invites and _draw("invite", day) < 0.6:
         return _invitation(model, options, now)
@@ -524,6 +529,87 @@ _VOICES = {
               "'G'; he doesn't know who Batman is",
     "oracle": "Oracle — Barbara Gordon at the Clocktower: fast, exact, dry, never his assistant",
 }
+
+
+# The people who write to him first, not only back: who they are to him and what they'd write about — and how
+# often, roughly, against one another. Names and roles from the Codex (codex.json, "people").
+CORRESPONDENTS = {
+    "vicki": ("Vicki Vale", "vvale@gothamgazette.com", 3,
+              "the Gotham Gazette's investigative reporter — they dated once; flirtatious, sharp, always fishing: a "
+              "story she's chasing, a dinner, a question about where he really goes at night"),
+    "evelyn": ("Evelyn Adams", "eadams@gothamgazette.com", 2,
+               "the Gazette's crime reporter — terse, relentless, owes nobody: she wants Wayne Enterprises' comment on "
+               "something on her desk (a crime touching WE property, the Narrows rebuilding, a security contract)"),
+    "leslie": ("Dr. Leslie Thompkins", "leslie@parkrowclinic.org", 2,
+               "who held him the night his parents died and runs the free clinic on Park Row — warm, blunt, "
+               "motherly: the clinic needs something, a patient's story, or she's worried about him and says so"),
+    "clark": ("Clark Kent", "ckent@dailyplanet.com", 2,
+              "his closest friend outside Gotham, a reporter at the Daily Planet in Metropolis — easy, warm, wry: "
+              "checking in, a story he's on, a visit, a dig at Bruce's public life"),
+    "nakano": ("Office of Mayor Christopher Nakano", "mayor@gotham.gov", 1,
+               "the mayor's office — law-and-order, up for re-election in November: courting Wayne Enterprises' "
+               "support and money, pushing the drone programme, wanting Bruce at an event"),
+    "grange": ("Marion Grange", "marion@grangeformayor.com", 1,
+               "the councilwoman running for mayor against Nakano — housing, police reform, the Narrows rebuilding "
+               "money: she wants his backing, or a straight answer"),
+    "vandorn": ("Janet Van Dorn", "jvandorn@gothamda.gov", 1,
+                "the District Attorney — formal and ambitious: a case that touches Wayne Enterprises, a witness, a "
+                "charity board seat, a favour framed as civic duty"),
+    "kate": ("Kate Kane", "kate.kane@kanefamilytrust.org", 1,
+             "his cousin on his mother's side — dry, guarded, family business at arm's length: the Kane trust, a "
+             "memorial, an aunt's birthday nobody wants to organise"),
+    "knox": ("Alexander Knox", "aknox@gothamgazette.com", 1,
+             "the Gazette's money-follower — on the Narrows audit and Daggett's contracts this month: he wants Wayne "
+             "Enterprises' side before he prints"),
+    "saint": ("Simon Saint", "office@saintindustries.com", 1,
+              "CEO of Saint Industries — smooth and predatory: a partnership pitch, the drone contracts, the mayor's "
+              "ear, a veiled reminder of who's winning"),
+    "daggett": ("Roland Daggett", "rdaggett@daggettindustries.com", 1,
+                "Daggett Industries' chairman — glad-handing: the Narrows rebuild, a joint venture, a "
+                "'misunderstanding' he'd like smoothed over"),
+    "tanya": ("Tanya Fox", "tanya@foxfamily.net", 1,
+              "Lucius's wife — fond, teasing, formidable: dinner at theirs, a word about working Lucius too hard"),
+}
+_VOICES.update({cid: f"{entry[0]}, {entry[3]}" for cid, entry in CORRESPONDENTS.items()})
+
+
+def _press():
+    """What's really in the news this week — the tech, business and science Lucius follows, the policy Barbara does:
+    searched, never made up (engine.culture) — for letters that would touch it. '' when nothing's been read."""
+    from ..contacts import directory
+    from . import culture
+    book = directory()
+    items = []
+    for cid in ("lucius", "batgirl"):
+        contact = book.get(cid)
+        if contact is not None:
+            items += [i for i in culture.seen(contact) if not i.startswith(("[film]", "[show]", "[game]", "[music]"))][:3]
+    return ("In the real news this week (only if it fits what they'd write; never invent beyond it): "
+            + "; ".join(items[:5]) + ". ") if items else ""
+
+
+def _correspondent(model, options, now, rng=random):
+    """
+    Someone who'd write to Bruce Wayne writes, first: about their own life and Gotham's week — in their own
+    voice, picking up where they last left off with him, if they have.
+    """
+    recent = {m.get("sender") for m in mail() if now - m["at"] < 2 * 86400}
+    pool = [(cid, entry) for cid, entry in CORRESPONDENTS.items() if cid not in recent]
+    if not pool:
+        return None
+    cid, (name, address, _, who) = rng.choices(pool, weights=[e[2] for _, e in pool])[0]
+    before = [m for m in mail() if m.get("sender") == cid or (m.get("folder") == "sent" and m.get("to") == name)]
+    before = sorted(before, key=lambda m: m["at"])[-3:]
+    history = ("The last time you wrote to each other:\n" + "\n".join(
+        f"— {m['from']}: {m['subject']} — {m['body'][:240]}" for m in before) + "\n\n") if before else ""
+    found = _ask(model, options, _context(now) + _press() + history
+                 + f"Write one email to Bruce Wayne from {name}, {who}. About something specific and real in their "
+                 "life or Gotham's week that they'd actually write to him about — never the vigilantes as if he were "
+                 "one of them." + _FACTS_ONLY + " " + _MAIL_SHAPE, f"a letter from {name}")
+    if not found or not found.get("subject"):
+        return None
+    return deliver(cid, found["subject"], found.get("body", ""), folder="inbox", kind="letter", name=name,
+                   address=address)
 
 
 def _reply_letter(model, options, event, now):
