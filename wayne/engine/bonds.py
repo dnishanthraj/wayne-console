@@ -321,6 +321,37 @@ def turned_away(contact, how, times, t=None):
                  why=f"{what} — {times} times today" if how != "on_read" else f"{what}, again")
 
 
+# Letting them down — a plan called off, an evening he never showed for, an invitation left unanswered — is a slow
+# burn: once is life, the second time in a month is noticed, and a habit of it is what hurts. Knowing why (a case,
+# to someone who knows who he is) takes most of the sting out; how they take it is still theirs (their pace).
+_LETDOWN_SCALE = (0.5, 1.0, 1.6, 2.2)
+LETDOWN_DAYS = 30
+
+
+def letdowns(a, b=ME, t=None, days=LETDOWN_DAYS):
+    """How many times lately b has let a down (see let_down)."""
+    from ..store import events
+    t = t or time.time()
+    return sum(1 for e in events.of(a, "bond", since=t - days * _DAY)
+               if (e.get("data") or {}).get("toward") == b and (e.get("data") or {}).get("letdown"))
+
+
+def let_down(a, why, warmth=0.0, trust=0.0, tension=0.0, weight=1, understood=False, t=None):
+    """
+    He's let a down: moved by how often he has lately, and by less if they understand why. Returns how many times
+    that is now, this one included.
+    """
+    times = letdowns(a, ME, t) + 1
+    scale = _LETDOWN_SCALE[min(times, len(_LETDOWN_SCALE)) - 1] * (0.35 if understood else 1.0)
+    if times == 2:
+        why += " — the second time lately"
+    elif times > 2:
+        why += f" — again; {times} times this month"
+    nudge(a, ME, warmth=warmth * scale, trust=trust * scale, tension=tension * scale, why=why,
+          weight=weight + (1 if times > 2 else 0), t=t, extra={"letdown": True})
+    return times
+
+
 def woken(contact, t=None):
     """He woke them: once is nothing; again this week starts to grate — and is remembered."""
     from ..store import events

@@ -70,10 +70,13 @@ def read(text, invited, model, options, now=None):
         "is (a few words, as you'd say it: \"dinner at Ralli's\"), where (the place's name, or \"\" if he "
         "didn't say), the date (YYYY-MM-DD — work out \"Friday\" or \"tomorrow\" from today) and time (HH:MM, "
         "24-hour; a sensible one if he only said \"dinner\" or \"tonight\"), how many hours it'll last, and who "
-        f"he's asking — [\"everyone\"], or first names from: {names}. A question about a plan already made, a "
-        "joke, or a maybe-someday isn't one. Return JSON only: "
+        f"he's asking — [\"everyone\"], or first names from: {names} — and whether it only happens because of "
+        "him (needs_him: he's called them together to talk, it's about him or his thing, or they'd have no reason "
+        "to meet without him — not a family dinner, which they'd have anyway), and as which of him he'll be there "
+        "(as: \"batman\" for anything in the suit — a rooftop meet, a stakeout, the job — otherwise \"bruce\"). A "
+        "question about a plan already made, a joke, or a maybe-someday isn't one. Return JSON only: "
         '{"plan": true, "what": "...", "where": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "hours": 2, '
-        '"who": ["everyone"]} or {"plan": false}')
+        '"who": ["everyone"], "needs_him": false, "as": "bruce"} or {"plan": false}')
     try:
         reply = llm.ask(model, [{"role": "user", "content": instruction}],
                         {**options, "temperature": 0.1, "num_predict": 140}, fmt="json", purpose="reading a plan",
@@ -96,7 +99,9 @@ def read(text, invited, model, options, now=None):
     where = str(got.get("where") or "").strip()
     found = places.resolve(where) if where else None
     return {"what": str(got.get("what") or "a plan").strip()[:80], "where": found["name"] if found else where,
-            "at": at, "until": at + hours * 3600, "who": asked or [cid for cid, _ in invited]}
+            "at": at, "until": at + hours * 3600, "who": asked or [cid for cid, _ in invited],
+            **({"needs_him": True} if got.get("needs_him") is True else {}),
+            **({"as": "batman"} if str(got.get("as") or "").lower() == "batman" else {})}
 
 
 _read = {}
@@ -129,7 +134,8 @@ def add(plan, made_in=""):
         # His too: in the diary, where being there is what counts (engine.engagements).
         from . import engagements
         engagements.agree(plan["what"], plan.get("where", ""), plan["at"], ", ".join(plan["who"]), f"plan:{plan['id']}",
-                          source="plan", plan=plan["id"])
+                          as_="batman" if plan.get("as") == "batman" else "bruce", source="plan", plan=plan["id"],
+                          until=plan.get("until"))
     except Exception:
         pass
     events.add("plan.made", f"Bruce asked {', '.join(plan['who'])} to {plan['what']}{_place(plan)}, "
@@ -151,6 +157,65 @@ def answer(plan_id, contact_id, said, why=""):
                 p.setdefault("answers", {})[contact_id] = {"said": said, "why": why[:160], "at": time.time()}
                 _save(rows)
                 return
+
+
+def he_cant(plan_id, why=""):
+    """
+    He's called it off for himself, saying why or not: the rest can still go — unless it was his to host, or only
+    ever him and one of them (see off). Returns the plan, or None.
+    """
+    with _lock:
+        rows = all_plans()
+        for p in rows:
+            if p["id"] == plan_id:
+                p["his"] = {"said": "no", "why": str(why or "")[:200], "at": time.time()}
+                _save(rows)
+                return p
+    return None
+
+
+def off(plan):
+    """
+    Whether it's off for everyone now he's out: his party; something that only ever happened because of him (he
+    called them together to talk); or not enough of them left who'd go without him — one, or two who aren't close
+    (Tim and Jason don't make an evening of it). A family dinner with three of them still on goes ahead.
+    """
+    if (plan.get("his") or {}).get("said") != "no":
+        return False
+    if plan.get("host") == "me" or plan.get("needs_him"):
+        return True
+    still = [c for c in plan.get("who") or [] if going(plan, c)]
+    if len(still) < 2:
+        return True
+    if len(still) == 2:
+        from . import bonds
+        a, b = still
+        return min(bonds.state(a, b)["warmth"], bonds.state(b, a)["warmth"]) < 55
+    return False
+
+
+def reconsidering(contact_id, now=None):
+    """Plans he's dropped out of that they'd said yes to and haven't said since whether they still go, soonest first."""
+    now = now or time.time()
+    return [p for p in kept(contact_id, now) if (p.get("his") or {}).get("said") == "no" and not off(p)
+            and p["answers"][contact_id].get("at", 0) < p["his"].get("at", 0)]
+
+
+def _his_word(p, contact_id=""):
+    """What he's said about coming himself, for their prompt: '' unless he's called it off."""
+    his = p.get("his") or {}
+    if his.get("said") != "no":
+        return ""
+    why = f" (he said: \u201c{his['why']}\u201d)" if his.get("why") else ""
+    if off(p):
+        return f" Bruce has called it off{why}, so it's off — " + (
+            "it was his to host." if p.get("host") == "me" else "it only ever made sense with him there."
+            if p.get("needs_him") else "there's not enough of you left to make it worth it.")
+    if (p.get("answers") or {}).get(contact_id, {}).get("at", 0) < his.get("at", 0):
+        return (f" Bruce has since said he can't make it{why}. Whether you still go without him is yours — some "
+                "things are still worth it with the others, some only made sense with him there. If it comes up, "
+                "say, and end what you write with [rsvp: yes] if you're still going or [rsvp: no] if not.")
+    return f" Bruce has since said he can't make it{why} — it's going ahead without him."
 
 
 def pending(contact_id, now=None):
@@ -198,13 +263,13 @@ def note(contact, directory=None, now=None, schedule=None):
     """
     now = now or time.time()
     lines = []
-    for p in pending(contact.id, now)[:2]:
+    for p in [p for p in pending(contact.id, now) if not off(p)][:2]:
         then = schedule(p["at"]) if schedule else ""
         others = [f"{_name(c, directory)} {a['said']}" for c, a in p.get("answers", {}).items() if c != contact.id]
         lines.append(
             f"He's asked you to come to {p['what']}{_place(p)}, {when(p['at'], now)}."
             + (f" Around then you'd be {then}." if then else "")
-            + (f" So far: {', '.join(others)}." if others else "")
+            + (f" So far: {', '.join(others)}." if others else "") + _his_word(p, contact.id)
             + " You haven't said yet. Say whether you're in, your way — yes, no (and why, as you'd put it), "
             "or maybe — and end what you write with [rsvp: yes], [rsvp: no] or [rsvp: maybe].")
     for p in kept(contact.id, now)[:2]:
@@ -214,7 +279,7 @@ def note(contact, directory=None, now=None, schedule=None):
         lines.append(
             f"You've said you'll {'come' if mine == 'yes' else 'maybe come'} to {p['what']}{_place(p)}, "
             f"{when(p['at'], now)}" + (f" — with {', '.join(coming)}" if coming else "")
-            + (f"; {', '.join(out)} can't make it" if out else "") + ".")
+            + (f"; {', '.join(out)} can't make it" if out else "") + "." + _his_word(p, contact.id))
     return " ".join(lines)
 
 
@@ -236,7 +301,7 @@ def block(contact, t=None, lead_minutes=None):
     """
     t = t or time.time()
     for p in store.space("plans").view():          # every routine, every pulse: looked at, never changed
-        if contact.id not in p["who"] or not going(p, contact.id):
+        if contact.id not in p["who"] or not going(p, contact.id) or off(p):
             continue
         lead = (lead_minutes(p) if lead_minutes else 30) * 60
         if p["at"] - lead <= t < p["until"]:

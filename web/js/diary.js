@@ -12,9 +12,16 @@
   'use strict';
 
   var root = null, opts = null, data = { days: [], places: [], today: '' }, picked = null, editing = null, timer = null;
+  var asking = false;          // writing why he can't: the minute's refresh leaves the page alone
 
   function $(sel) { return root.querySelector(sel); }
   function esc(t) { return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  /* 'Hostage situation at Waterloo Docks' → 'hostage situation at Waterloo Docks': the kind in a sentence, the
+     place still a name (and GCPD still GCPD). */
+  function lowerKind(t) {
+    var s = String(t || ''), first = s.split(' ')[0];
+    return first === first.toUpperCase() ? s : s.charAt(0).toLowerCase() + s.slice(1);
+  }
   function hm(at) { var d = new Date(at * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function dayName(iso, long) {
     var d = new Date(iso + 'T12:00:00');
@@ -36,6 +43,7 @@
   }
 
   function render() {
+    asking = false;
     var list = $('.dx-days');
     list.innerHTML = '';
     data.days.forEach(function (day) {
@@ -112,31 +120,82 @@
       });
     } else who.remove();
     var story = li.querySelector('.dx-entry__story');
-    var said = e.story ? e.story : e.kept_away_by ? 'Out on the ' + e.kept_away_by.toLowerCase() + ' instead.' :
-               e.left_for ? 'Left for the ' + e.left_for.toLowerCase() + '.' : e.notes || '';
+    var late = e.late ? 'Got there ' + e.late + (e.held_by ? ' \u2014 straight from the ' + lowerKind(e.held_by) : '') + '.' : '';
+    var said = e.story ? e.story : e.kept_away_by ? 'Out on the ' + lowerKind(e.kept_away_by) + ' instead.' :
+               e.left_for ? 'Left for the ' + lowerKind(e.left_for) + '.' : late || e.after || e.notes || '';
+    if (e.cancel_why && (e.status === 'cancelled' || e.status === 'declined')) said = 'You said: \u201c' + e.cancel_why + '\u201d' + (e.after ? ' ' + e.after : '');
     if (said) story.textContent = said; else story.remove();
     var from = li.querySelector('.dx-entry__from');
     if (e.origin) {
       from.textContent = 'From ' + e.origin;
       if (e.thread && opts.openThread) from.appendChild(link('Open the letter', function () { opts.openThread(e.thread); }));
       if (e.group && opts.openGroup) from.appendChild(link('Open the chat', function () { opts.openGroup(e.group); }));
+      else if (e.inviter && opts.openChat) from.appendChild(link('Open the chat', function () { opts.openChat(e.inviter); }));
     } else from.remove();
     var acts = li.querySelector('.dx-entry__acts');
     if (e.readonly) { acts.remove(); return li; }          // theirs, at his: nothing of his to change
+    var told = e.source === 'plan' || e.source === 'invite';   // someone hears about it: he can say why
+    if (e.status === 'invited') {
+      // One of them asked him along: yes, or no — said back to them, in his words if he gives any.
+      acts.appendChild(button('I\u2019ll come', 'dx-go', function (btn) { btn.disabled = true; answer(e, true, ''); }));
+      acts.appendChild(button('Can\u2019t make it', 'dx-off', function () {
+        why(acts, 'Tell ' + (e.host || 'them') + ' why \u2014 or don\u2019t', 'Send', function (text) { answer(e, false, text); });
+      }));
+    }
     if (e.status === 'accepted') {
       if (opts.go && e.until * 1000 > Date.now()) acts.appendChild(button('Go', 'dx-go', function (btn) {
         btn.disabled = true;
-        opts.go(e.id).then(function () { btn.textContent = 'On the way'; });
+        opts.go(e.id).then(function (r) {
+          // On a case: he goes when it's done, on his own — late.
+          if (r && r.held) { btn.textContent = 'After the case'; return; }
+          btn.textContent = 'On the way';
+        });
       }));
       acts.appendChild(button('Change', '', function () { editing = e; render(); }));
       acts.appendChild(button('Call it off', 'dx-off', function () {
-        fetch('/api/diary/' + e.id + '/cancel', { method: 'POST' }).then(load);
+        if (!told) return cancel(e, '');
+        why(acts, 'Say why \u2014 or don\u2019t', 'Call it off', function (text) { cancel(e, text); });
       }));
     }
     acts.appendChild(button('Remove', 'dx-del', function () {
       fetch('/api/diary/' + e.id, { method: 'DELETE' }).then(load);
     }));
     return li;
+  }
+
+  function cancel(e, text) {
+    fetch('/api/diary/' + e.id + '/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ why: text }) }).then(load);
+  }
+  function answer(e, yes, text) {
+    fetch('/api/diary/' + e.id + '/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ yes: yes, why: text }) }).then(load);
+  }
+
+  /* A line he can add before it goes — why he can't — or leave empty. The buttons give way to it. */
+  function why(acts, placeholder, verb, done) {
+    var row = document.createElement('form');
+    row.className = 'dx-why';
+    row.innerHTML = '<input class="modal__input" maxlength="300"><button type="submit" class="cx-btn dx-off"></button>' +
+                    '<button type="button" class="cx-btn dx-keep">Keep it</button>';
+    row.querySelector('input').placeholder = placeholder;
+    row.querySelector('.dx-off').textContent = verb;
+    var was = Array.prototype.slice.call(acts.children);
+    was.forEach(function (b) { b.hidden = true; });
+    acts.appendChild(row);
+    asking = true;
+    row.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      asking = false;
+      done(row.querySelector('input').value.trim());
+    });
+    row.querySelector('.dx-keep').addEventListener('click', function () {
+      asking = false;
+      row.remove();
+      was.forEach(function (b) { b.hidden = false; });
+    });
+    row.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); row.querySelector('.dx-keep').click(); } });
+    setTimeout(function () { row.querySelector('input').focus(); }, 0);
   }
 
   function link(text, fn) {
@@ -225,7 +284,7 @@
     if (opts.toggled) opts.toggled(true);
     load();
     clearInterval(timer);
-    timer = setInterval(function () { if (!root.hidden && !editing) load(); }, 60000);
+    timer = setInterval(function () { if (!root.hidden && !editing && !asking) load(); }, 60000);
   }
 
   function close() {
@@ -250,7 +309,7 @@
   }
 
   window.Diary = {
-    init: init, open: open, close: close, refresh: function () { if (root && !root.hidden && !editing) load(); },
+    init: init, open: open, close: close, refresh: function () { if (root && !root.hidden && !editing && !asking) load(); },
     isOpen: function () { return !!root && !root.hidden; }
   };
 })();

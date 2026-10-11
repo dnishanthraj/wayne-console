@@ -61,7 +61,8 @@ def test_calling_off_a_family_plan_is_said_where_it_was_made_and_stings_a_little
         said.append((gid, line))
     console.group_text = group_text
     asyncio.run(console.cancel_engagement(row["id"]))
-    assert said == [("fam2", "Something's come up — I can't make dinner at Antonio's. Sorry.")]
+    # Just the two of them: without him, it's off.
+    assert said == [("fam2", "I'm going to have to call off dinner at Antonio's — something's come up. Sorry.")]
     assert "called off dinner at Antonio's" in bonds.memories("nightwing", bonds.ME, clock())[0]["text"]
 
 
@@ -91,6 +92,8 @@ def test_the_map_follows_the_diary_once_and_leaving_early_is_noted(clock, monkey
     from wayne.engine import batman, cases
     row = engagements.add("the Mayor's gala", "Gotham Opera House", clock() + 15 * 60, clock() + 3 * 3600)
     assert [e["id"] for e in engagements.due_to_go(clock())] == [row["id"]]
+    assert [e["id"] for e in engagements.due_to_go(clock())] == [row["id"]]     # until he's actually set off
+    engagements.went(row["id"], clock())
     assert engagements.due_to_go(clock()) == []                                   # once
     venue = row["venue"]
     monkeypatch.setattr(batman, "position", lambda t=None: (venue[0], venue[1]))

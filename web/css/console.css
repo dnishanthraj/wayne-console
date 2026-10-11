@@ -2531,6 +2531,9 @@ body { background:
 .dx-entry.is-batman { border-left-color: var(--alert); }
 .dx-entry.is-cancelled, .dx-entry.is-declined, .dx-entry.is-missed { opacity: 0.65; }
 .dx-entry.is-on-now { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 5%, transparent); }
+.dx-entry.is-invited { border-left-color: var(--primary); }
+.dx-entry.is-invited .dx-state { color: var(--primary); }
+.dx-entry.is-never-answered { opacity: 0.65; }
 .dx-entry time { display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 13px; color: var(--text); }
 .dx-entry time span { font-size: 10.5px; color: var(--text-faint); }
 .dx-entry__body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -2553,6 +2556,9 @@ body { background:
 .dx-link:hover { text-decoration: underline; }
 .dx-entry__acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .dx-go { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.dx-why { display: flex; flex: 1 1 100%; gap: 6px; align-items: center; }
+.dx-why .modal__input { flex: 1; min-width: 0; }
+.dx-entry__acts > [hidden] { display: none; }
 .dx-off:hover, .dx-del:hover { color: var(--alert); border-color: rgba(224, 87, 79, 0.45); }
 .dx-form { display: grid; gap: 8px; max-width: 760px; margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--primary-dim);
   background: rgba(79, 168, 224, 0.04); }

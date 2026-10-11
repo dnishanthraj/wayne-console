@@ -337,8 +337,16 @@
     var box = el('textarea', 'cx-edit');
     box.value = value || '';
     box.placeholder = placeholder;
-    box.rows = Math.min(12, Math.max(4, Math.ceil((value || '').length / 80) + 1));
+    box.rows = 4;
     card.appendChild(box);
+    // As tall as what's written — a monologue reads whole, not through a slot — and growing as he writes.
+    function fit() {
+      if (!box.isConnected || !box.offsetParent) return;      // not on screen yet: left at four lines
+      box.style.height = 'auto';
+      box.style.height = (box.scrollHeight + 2) + 'px';
+    }
+    box.addEventListener('input', fit);
+    requestAnimationFrame(fit);
     var row = el('div', 'cx-actions cx-actions--tight');
     var said = el('span', 'cx-saved', '');
     var btn = el('button', 'cx-btn', 'Save');
@@ -358,7 +366,7 @@
     // Filled in later (a text still loading): taken as what's saved, not an edit.
     box.fill = function (text) {
       box.value = last = text || '';
-      box.rows = Math.min(12, Math.max(4, Math.ceil(box.value.length / 80) + 1));
+      fit();
     };
     return box;
   }

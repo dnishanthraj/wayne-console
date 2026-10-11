@@ -53,9 +53,10 @@ def afterthought(session, exchanges, by="text", present=()):
     lines = ((["Earlier, for context only:"] + earlier + ["", "The newest exchange:"])
              if earlier else []) + latest
     now = time.strftime("%A %H:%M")
-    from . import bonds, cases
+    from . import bonds, cases, engagements
     case = cases.active(contact.id)
     romance = bonds.state(contact.id, bonds.ME).get("romance") is not None
+    invite = engagements.latest_invite(contact.id)
     instruction = (
         f"It's {now}. Here is the latest of a conversation {'by text' if by == 'text' else 'on a call'} "
         f"between {operator.full_name(contact.id)} and {contact.full_name}:\n\n" + "\n".join(lines) + "\n\n"
@@ -87,6 +88,8 @@ def afterthought(session, exchanges, by="text", present=()):
            f"{contact.name} would likely mention to someone close — news, a plan, something that happened to him? Not "
            "small talk, not anything they were asked to pass on, nothing he asked to keep quiet. Most exchanges: null.\n"
            if by == "text" else "")
+        + (f"9. {contact.name} has asked him to their {invite['what']} — in the newest exchange, did "
+           f"{operator.name(contact.id)} say he'll come, or that he can't? If neither, null.\n" if invite else "")
         + "\n"
         "Reply with JSON only, in this shape:\n"
         '{"doing": "a few words, e.g. checking the docks" or null, '
@@ -111,6 +114,7 @@ def afterthought(session, exchanges, by="text", present=()):
         'about him without his name — e.g. he wants you to text him when you\'re free", "wants": "text" or "call" if '
         'he wants them to get in touch with him, else null}] or []'
         + (f', "news": "one short line beginning with \'{operator.name(contact.id)}\'" or null' if by == "text" else '')
+        + (', "invite_answer": "yes" or "no" or null' if invite else '')
         + (', "case_closed": "how it ended, in a few words" or null' if case else '') + '}')
     try:
         reply = model.ask(contact.model, [{"role": "user", "content": instruction}],
@@ -128,6 +132,15 @@ _NOTHING = presence.NOTHING
 # Said to keep it quiet: nothing from that conversation travels (see grapevine.note_call).
 _HUSH = re.compile(r"\b(don'?t tell|keep (it|this) (quiet|between us)|between (us|you and me)|nobody (can|must) know|"
                    r"secret)\b", re.I)
+
+
+def _invite_answered(session, found):
+    """He said yes, or no, to their invitation in so many words: in the diary as he said it."""
+    from . import engagements
+    said = str(found.get("invite_answer") or "").strip().lower()
+    invite = engagements.latest_invite(session.contact.id)
+    if invite and said in ("yes", "no"):
+        engagements.answer_invite(invite["id"], said == "yes")
 
 
 def _word_travels(session, found, present, by, exchanges):
@@ -245,6 +258,10 @@ def apply(session, found, present=(), by="text", exchanges=()):
         pass        # a bond that couldn't be read never stops the rest being noted
     try:
         _word_travels(session, found, present, by, exchanges)
+    except Exception:
+        pass
+    try:
+        _invite_answered(session, found)
     except Exception:
         pass
     state = presence.of(session.contact)
@@ -467,7 +484,11 @@ def day_plan(contact, when=None, others="", people=()):
         + (f". You've told Bruce you'll be at {promised} — keep it" if promised else "")
         + "." + midway + " Sketch your day today and tonight as loose blocks of time, the way your "
         "life actually runs — sleep, work, patrol if you'd go out tonight, and two or three "
-        "things that are yours today: errands, people, plans, a whim. The masks come out after "
+        "things that are yours today: errands, people, plans, a whim. Make them specific and yours — the day "
+        "only you would have, true to who you are in the comics: not \"errands\" but which one, where and why; "
+        "a friend by name, a place you'd actually go, a habit of yours; and now and then one small thing with "
+        "some life in it — a favour someone calls in, a run-in, a plan that goes sideways, something funny. "
+        "Plausible, never a set piece. The masks come out after "
         "dark: by day you live your own life, not the work. Times are approximate and "
         "needn't fill the day. Each block's status: online (phone in hand, on comms), idle "
         "(around, phone down), busy (occupied — a glance at most), offline (asleep or "
@@ -481,7 +502,7 @@ def day_plan(contact, when=None, others="", people=()):
         + (f" What others in your circle have planned so far today — if one of them is meeting "
            f"you, keep it at their time and place, unless you'd really not:\n{others}\n"
            if others else " ")
-        + "Return JSON only: "
+        + _gotham_who() + " Return JSON only: "
         '{"plan": [{"from": "HH:MM", "to": "HH:MM", "doing": "under eight words, as you\'d say it", '
         '"status": "online|idle|busy|offline", "where": "place", "with": []}]}')
     try:
@@ -522,6 +543,15 @@ def day_plan(contact, when=None, others="", people=()):
             plan.append({"from": start, "to": end, "doing": doing, "status": status, "drift": 0.4,
                          "where": where, "with": company})
     return plan
+
+
+def _gotham_who():
+    """Who's who in Gotham — so a day doesn't have lunch with Commissioner Harvey Dent (engine.codex.who_is_who)."""
+    from . import codex
+    try:
+        return codex.who_is_who()
+    except Exception:
+        return ""
 
 
 def _on_the_map(place):

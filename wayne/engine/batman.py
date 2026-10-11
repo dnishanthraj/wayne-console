@@ -225,11 +225,17 @@ def off_case(case_id):
 
 def note(t=None):
     """A line for the ones who'd know where he is — Alfred and Barbara on their screens."""
+    from . import engagements
     t = t or time.time()
     s = state(t)
+    # What he's there for, if it's in the diary — and as which of him: the gala as Bruce Wayne, Jim's roof as Batman.
+    e = engagements.happening(s.get("where") or "", t)
+    why = f" for {e['what']}, as {'Batman' if e.get('as') == 'batman' else 'Bruce Wayne'}" if e else ""
     if s.get("route"):
         left = max(1, round((s["route"]["end"] - t) / 60))
-        return f"Bruce: on his way to {s['where']}, {s['route'].get('by', 'travelling')}, about {left} min out"
+        late = ", running late" if e and s["route"]["end"] > e["at"] + engagements.LATE_AFTER else ""
+        return (f"Bruce: on his way to {s['where']}{why}{late}, {s['route'].get('by', 'travelling')}, "
+                f"about {left} min out")
     where = s["where"] or HOME
     at = where if where.lower().startswith(("with ", "at ", "on ", "in ")) else f"at {where}"
-    return f"Bruce: {at}" + (" — suited up" if s["suit"] and where != HOME else "")
+    return f"Bruce: {at}{why}" + (" — suited up" if s["suit"] and where != HOME else "")

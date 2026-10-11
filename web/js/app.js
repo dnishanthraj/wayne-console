@@ -3166,6 +3166,11 @@
         diaryToast(event.engagement);
         break;
 
+      case 'diary':
+        // Something new in his diary — one of them asking him along: the page catches up if it's open.
+        if (window.Diary) Diary.refresh();
+        break;
+
       case 'they_muted':
         // They've muted themselves for a minute: shown on their seat (or the call), their room gone quiet.
         state.theyMuted = state.theyMuted || {};
@@ -3986,6 +3991,7 @@
         .map(function (id) { return { id: id, name: state.contacts[id].name }; }); },
       openThread: function (thread) { Diary.close(); if (window.Mail) Mail.openThread(thread); },
       openGroup: function (id) { Diary.close(); openGroup(id); },
+      openChat: function (id) { Diary.close(); openMessages(id); },
       showOnMap: function (x, y) {
         Diary.close();
         if (!(window.GothamMap && GothamMap.isOpen())) document.getElementById('map-open').click();
@@ -4163,7 +4169,11 @@
     go.textContent = 'Go';
     go.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      goToEngagement(e.id).then(function () { dismissToast(card); });
+      goToEngagement(e.id).then(function (r) {
+        // In the middle of a case: he'll go the moment it's done, on his own.
+        if (r && r.held) { go.textContent = 'After the case'; go.disabled = true; setTimeout(function () { dismissToast(card); }, 2500); return; }
+        dismissToast(card);
+      });
     });
     card.appendChild(go);
     card.addEventListener('click', function () { dismissToast(card); });

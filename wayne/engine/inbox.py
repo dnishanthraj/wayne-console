@@ -456,6 +456,10 @@ def _context(now, secure=False):
            "him a charming, unserious billionaire). ")
     from . import engagements
     lately = "" if secure else engagements.lately(now)
+    if not secure:
+        word, said = engagements.repute()
+        if said:
+            lately += f"Society's view of Bruce Wayne lately: {word} ({said}). "
     return (f"It's {day.strftime('%A %-d %B %Y')}, {time.strftime('%H:%M', time.localtime(now))}, in Gotham City. "
             + who + lately + (f"This morning's papers: {papers}. " if papers else ""))
 

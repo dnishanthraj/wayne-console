@@ -1736,7 +1736,7 @@ class ContactSession:
         said = plans.RSVP.search(text)
         text = plans.RSVP.sub("", text)
         if said:
-            waiting = plans.pending(self.contact.id)
+            waiting = plans.pending(self.contact.id) or plans.reconsidering(self.contact.id)
             mine = [p for p in waiting if p.get("made_in") == f"g:{group.id}"] or waiting
             if mine:
                 plans.answer(mine[0]["id"], self.contact.id, said.group(1).lower(), delivery.clean(text))
@@ -1986,6 +1986,13 @@ class ContactSession:
             ask = (f"He rang you earlier and you didn't pick up — {about}. You're free now. "
                    "Get back to him by text. Say why you couldn't answer if you want to, or don't; "
                    "if it was nothing in particular, it was nothing in particular.")
+        elif why == "invite":
+            ask = (f"You're asking him along to something of yours: {about}. Ask him your way, in a text — make clear "
+                   "what, when and where.")
+        elif why == "letdown":
+            ask = (f"{about} If you'd say something to him about it, say it your way, in a text — how it went without "
+                   "him, a dig, asking what came up, telling him it's fine, or what's really on your mind. If you'd "
+                   "honestly let it go, reply with exactly SKIP.")
         elif why == "relayed":
             ask = (f"{about}. Get in touch with him about it the way you would — you might say who told you, you "
                    "might not; if there was a question in it, answer it. If you'd honestly let it sit, reply with "
@@ -2015,7 +2022,8 @@ class ContactSession:
         text = "\n".join(lines)
         if re.fullmatch(r"\W*skip\W*", text, re.I) or (
                 why in ("second_thought", "chase", "worry", "case_taken", "case_closed", "tapback", "case_declined",
-                        "case_pulled", "case_watch", "case_arrived", "case_trouble", "case_hurt", "relayed")
+                        "case_pulled", "case_watch", "case_arrived", "case_trouble", "case_hurt", "relayed",
+                        "letdown")
                 and re.match(r"\W*skip\b", text, re.I)):
             return ""
         if text:
@@ -2437,7 +2445,7 @@ class ContactSession:
                 reply = ""
 
         if getattr(self, "_rsvp", None):
-            waiting = plans.pending(self.contact.id)
+            waiting = plans.pending(self.contact.id) or plans.reconsidering(self.contact.id)
             if waiting:
                 plans.answer(waiting[0]["id"], self.contact.id, self._rsvp,
                              delivery.clean(reply if isinstance(reply, str) else ""))

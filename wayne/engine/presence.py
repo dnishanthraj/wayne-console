@@ -407,6 +407,11 @@ class Presence:
         kept = plans_made.block(self.contact, t, self._lead)
         if kept:
             return kept
+        # Something of their own they asked him to, once — Cass's recital, Lucius's jazz night: they go, him or not.
+        from . import engagements
+        theirs = engagements.their_block(self.contact, t, self._lead)
+        if theirs:
+            return theirs
         # Then what they keep with each other — Sunday lunch at Jim's, movie night at Dick's: on for all of them.
         joint = week.together_block(self.contact, t)
         if joint:

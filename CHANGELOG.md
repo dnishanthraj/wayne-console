@@ -5,6 +5,60 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-11
+
+### Added
+
+- **The family ask you along.** Now and then one of them invites you to
+  something of theirs by text: Dick's movie night, Tim's games night, or
+  something of their own that's in character (Cass's recital, a jazz night
+  Lucius has two tickets for). It lands in your diary as an invitation.
+  Answer from there ("I'll come" or "Can't make it", with a reason if you
+  like) or just text them back. They go whether you come or not. Coming
+  means something to them; saying yes and not showing is worse than saying
+  no; never answering is noticed.
+- **A case first, then you're late.** If an event comes up while you're on a
+  case, you stay on the case. Once it's over, you set off on your own (no Go
+  needed) as whoever the event calls for: Bruce Wayne in the car to an
+  evening, Batman to a meeting. Arriving late is noted ("Got there 45
+  minutes late, straight from the hostage situation at Waterloo Docks"), and
+  family who know what you do take it that way. Go from the diary or a
+  reminder says "After the case" while you're on one.
+- **Call it off, say why.** Calling off a plan or someone's invitation lets
+  you add a line, and they get your words. The rest of them still go
+  without you, unless it needed you: your own party, something you called
+  them together for ("Jason, Randy, we need to talk"), or two people left
+  who aren't close. Each of them can also decide there's no point without
+  you. The diary shows what became of it ("Went ahead without you: Alfred,
+  Barbara, Tim"). Afterwards one of them might text: how it went, a dig,
+  "what came up?", or that it's fine.
+- **Batman's Codex entry is his own story,** and every rogue and everyone
+  else in the Codex is now written in your voice, as your files on them.
+  Bios show in full instead of in a small scrolling box.
+
+### Changed
+
+- **Relationships are a slow burn.** Letting someone down once (a cancelled
+  plan, a no-show) barely registers. A second time in a month is noticed. A
+  habit of it is what hurts. A case is a reason to anyone who knows who you
+  are. Calling off a day or more ahead is just plans changing.
+- **Gotham notices Bruce Wayne.** Turning up to galas, slipping out early and
+  standing hosts up add up to a reputation that colours the letters you get.
+  Skipping Lucius's briefing is skipping Lucius.
+- **People's days are livelier.** The family's daily schedules and your own
+  chairman's day are more specific and in character (Wayne Enterprises'
+  divisions, the Foundation's causes, a favour called in, a plan that goes
+  sideways), and they know who's who in Gotham.
+- **Where you are says what for.** Alfred and Barbara see "on his way to the
+  gala, as Bruce Wayne, running late" or "at GCPD Headquarters for a word
+  with Jim, as Batman". A plan made in a chat knows whether you'll be there
+  as Batman (a rooftop meet, a stakeout) or as Bruce, and how long it runs.
+
+### Fixed
+
+- Place names in the diary keep their capitals ("Out on the armed robbery at
+  Ace Chemicals instead", not "ace chemicals").
+
 ## [0.32.1] - 2026-10-11
 
 ### Fixed

@@ -25,6 +25,7 @@ LENGTH = 3 * 3600          # an evening, give or take, when the invitation doesn
 MEETING = 3600             # a meeting: an hour's grace either side of being on time
 PRESENT_RADIUS = 2.5       # this close to the place, he's there (map units; one is ~150 m)
 REMIND_BEFORE = 40 * 60    # the reminder, and time enough to get across town
+LATE_AFTER = 15 * 60       # turning up this long after the start is late
 _KEEP_DAYS = 30
 
 
@@ -81,7 +82,7 @@ def answer(message, accept, now=None):
     return row
 
 
-def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, source="mail", plan=None):
+def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, source="mail", plan=None, until=None):
     """
     A meeting agreed in a letter's thread — dinner with Vicki, Batman and Jim on a roof — or a plan he made with
     the family (`plan`: engine.plans), in the diary. One per thread and time: agreeing again is the same meeting.
@@ -93,8 +94,9 @@ def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, s
         return found
     row = {"id": uuid.uuid4().hex[:10], "message": message, "thread": thread, "what": str(what)[:120],
            "where": str(where)[:80], "venue": _venue(where), "host": str(with_)[:80], "with": str(with_)[:80],
-           "dress": "", "at": at, "until": at + (MEETING if as_ == "batman" else LENGTH), "as": as_, "source": source,
-           "status": "accepted", "answered_at": now or time.time(), **({"plan": plan} if plan else {})}
+           "dress": "", "at": at, "until": until if until and until > at else at + (MEETING if as_ == "batman" else LENGTH),
+           "as": as_, "source": source, "status": "accepted", "answered_at": now or time.time(),
+           **({"plan": plan} if plan else {})}
     rows.put(row["id"], row)
     return row
 
@@ -114,7 +116,12 @@ def watch(now=None):
             continue
         here = here or batman.position(now)
         if here and ((here[0] - e["venue"][0]) ** 2 + (here[1] - e["venue"][1]) ** 2) ** 0.5 <= PRESENT_RADIUS:
-            _rows().put(e["id"], {**e, "present": True, "present_at": now})
+            # There — and if well after the start, late: from the case that held him, if that's what it was.
+            late = now - e["at"]
+            held = _was_out(e["at"], now) if late > LATE_AFTER else None
+            _rows().put(e["id"], {**e, "present": True, "present_at": now,
+                                  **({"late": int(late // 60)} if late > LATE_AFTER else {}),
+                                  **({"held_by": f"{held['kind']} at {held['place']}"} if held else {})})
     # There, and then gone well before the end — somewhere else he chose, or a case: leaving early, and why.
     for e in _rows().list():
         if (e["status"] != "accepted" or not e.get("present") or e.get("left_at") or not e.get("venue")
@@ -127,6 +134,23 @@ def watch(now=None):
             where = batman.state(now).get("where") or ""
             _rows().put(e["id"], {**e, "left_at": now, "left_for": f"{case['kind']} at {case['place']}" if case
                                   else (where if where != e.get("where") else "")})
+
+
+def lower_kind(text):
+    """'Hostage situation at Waterloo Docks' → 'hostage situation at Waterloo Docks': the place stays a name."""
+    first = str(text).split(" ", 1)[0]
+    return text if first.isupper() else str(text)[:1].lower() + str(text)[1:]
+
+
+def late_words(e):
+    """'twenty minutes late', 'an hour late' — '' if he wasn't."""
+    mins = e.get("late") or 0
+    if mins < LATE_AFTER // 60:
+        return ""
+    if mins < 50:
+        return f"{int(round(mins / 5.0) * 5)} minutes late"
+    hours = round(mins / 60.0 * 2) / 2
+    return ("an hour" if hours <= 1 else f"{hours:g} hours".replace(".5 hours", " and a half hours")) + " late"
 
 
 def reminders(now=None):
@@ -142,14 +166,30 @@ def reminders(now=None):
 
 
 def go(engagement_id, now=None):
-    """He sets off for it: as Bruce Wayne in the car to an evening, as Batman to a meeting (batman.go)."""
+    """
+    He sets off for it: as Bruce Wayne in the car to an evening, as Batman to a meeting (batman.go) — never out of
+    the middle of a case (batman.committed): that's finished first, and then he's late.
+    """
     from . import batman
     e = _rows().get(engagement_id)
-    if not e or e["status"] != "accepted":
+    if not e or e["status"] != "accepted" or batman.committed(now):
         return None
     if e.get("venue"):
         return batman.go(e["where"] or "there", e["venue"][0], e["venue"][1], t=now, suit=e.get("as") == "batman")
     return batman.go(e["where"], t=now, suit=e.get("as") == "batman")
+
+
+def happening(where, now=None):
+    """
+    What's on in his diary now that he's at — or on his way to, at `where` — or None: the evening he's at as Bruce
+    Wayne, the meeting he's at as Batman.
+    """
+    now = now or time.time()
+    for e in _rows().view():
+        if (e["status"] == "accepted" and e.get("where") and e["at"] - REMIND_BEFORE <= now < e["until"]
+                and (e.get("present") or e["where"] == where)):
+            return e
+    return None
 
 
 def upcoming(now=None, days=8):
@@ -167,7 +207,7 @@ def diary_note(now=None):
         return ""
     gone = "; ".join(
         f"{'went to' if e['status'] == 'attended' else 'never made it to'} {e['what']}"
-        + (f" — out on the {e['kept_away_by'].lower()} instead" if e.get("kept_away_by") else "")
+        + (f" — out on the {lower_kind(e['kept_away_by'])} instead" if e.get("kept_away_by") else "")
         for e in past[-3:])
     if not items:
         return f"His diary, lately: he {gone}."
@@ -207,23 +247,48 @@ def _consequences(e):
     remember either way (engine.bonds). Bruce Wayne's evenings answer in letters (see inbox).
     """
     from . import bonds
-    if e.get("plan"):
-        # A plan he made with them: whoever came, came for him — an evening together warms; waiting for a man who
-        # never shows stays with them.
+    if e.get("plan") or e.get("inviter"):
+        # A plan he made with them, or their own thing they asked him to: whoever came, came for him — an evening
+        # together warms, late is still there; waiting for a man who never shows stays with them. A slow burn
+        # (bonds.let_down): once is life; and a case is a reason, to anyone who knows what he does at night.
+        from .. import identity
         from . import plans
-        plan = next((p for p in plans.all_plans() if p["id"] == e["plan"]), None)
-        for cid in (plan or {}).get("who") or []:
-            if not plans.going(plan, cid):
-                continue
-            if e["status"] == "attended":
-                bonds.nudge(cid, bonds.ME, warmth=2.5, trust=1, why=f"an evening with him: {e['what']}", weight=1)
+        plan = next((p for p in plans.all_plans() if p["id"] == e.get("plan")), None) if e.get("plan") else None
+        theirs = bool(e.get("inviter")) and not plan
+        goers = [e["inviter"]] if theirs else [c for c in (plan or {}).get("who") or [] if plans.going(plan, c)]
+        late = late_words(e)
+        for cid in goers:
+            knows = not identity.outside(cid)
+            held = e.get("held_by") if knows else ""
+            what = f"your {e['what']}" if theirs else e["what"]
+            if e["status"] == "attended" and not late:
+                bonds.nudge(cid, bonds.ME, warmth=3 if theirs else 2.5, trust=1.5 if theirs else 1, weight=1,
+                            why=f"he came to {what}" if theirs else f"an evening with him: {e['what']}")
+            elif e["status"] == "attended":
+                bonds.nudge(cid, bonds.ME, warmth=1.5 if held else 1, tension=0 if held else 0.4, weight=1,
+                            why=f"he came to {what} — {late}" + (f", straight from the {lower_kind(held)}" if held else ""))
             elif e["status"] == "left":
-                bonds.nudge(cid, bonds.ME, warmth=0.5, tension=0.8, weight=1,
-                            why=f"he came to {e['what']} — and slipped out early")
+                bonds.nudge(cid, bonds.ME, warmth=0.5, tension=0.6, weight=1,
+                            why=f"he came to {what} — and slipped out early")
             else:
-                bonds.nudge(cid, bonds.ME, warmth=-2.5, trust=-2, tension=1.5, weight=2,
-                            why=f"he never showed for {e['what']} — you went, and waited")
+                kept = e.get("kept_away_by") if knows else ""
+                bonds.let_down(cid, f"he said he'd come to {what} and never showed" if theirs else
+                               f"he never showed for {e['what']} — you went, and waited"
+                               + (f" (the {lower_kind(kept)} kept him)" if kept else ""),
+                               warmth=-3 if theirs else -2.5, trust=-3 if theirs else -2, tension=2 if theirs else 1.5,
+                               weight=2, understood=bool(kept))
         return
+    if e.get("source") == "routine":
+        # His own day: the company's and the Foundation's. Skipping Lucius's briefing is skipping Lucius.
+        if e["status"] == "missed" and ("lucius" in (e.get("with") or "").lower() or
+                                        any(w in e["what"].lower() for w in ("board", "briefing", "wayne enterprises"))):
+            bonds.nudge("lucius", bonds.ME, warmth=-1.5, trust=-1, tension=0.6, weight=1, why=f"he skipped {e['what']}")
+        elif e["status"] == "attended" and "lucius" in (e.get("with") or "").lower():
+            bonds.nudge("lucius", bonds.ME, warmth=0.5)
+        return
+    if e.get("source") == "invitation" or e.get("source") == "mail":
+        # The host, and the society that watches him: a man who stands up the Mayor is talked about.
+        _talked_about(e)
     if not _gordon(e):
         return
     if e["status"] in ("attended", "left"):
@@ -237,6 +302,37 @@ def _consequences(e):
         bonds.nudge(bonds.GCPD, bonds.ME, warmth=-2, trust=-2, why="Batman stood the commissioner up", weight=1)
 
 
+# --- what Gotham thinks of Bruce Wayne ----------------------------------------------------------------------
+# His public life is watched: turning up is expected, standing people up is noticed, slipping out early is
+# gossip. A standing (0–100, from where he began), and what's been said lately — for the letters, the papers and
+# how many doors stay open.
+
+_REPUTE_START = 60.0
+
+
+def _talked_about(e):
+    from .. import store
+    doc = store.doc("repute", {"score": _REPUTE_START, "said": []})
+    delta = {"attended": 1.0, "left": -1.5, "missed": -3.0}.get(e["status"], 0.0)
+    if e.get("as") == "batman" or not delta:
+        return
+    line = {"attended": f"he was at {e['what']}", "left": f"he slipped out of {e['what']} early",
+            "missed": f"he stood up {e.get('host') or 'his host'} at {e['what']}"}[e["status"]]
+    doc["score"] = max(0.0, min(100.0, doc.get("score", _REPUTE_START) + delta))
+    doc["said"] = ([line] + list(doc.get("said") or []))[:4]
+    store.save_doc("repute", doc)
+
+
+def repute():
+    """(how society sees him in a word, the last thing said) — reliable, charming, flaky, a no-show."""
+    from .. import store
+    doc = store.doc("repute", {"score": _REPUTE_START, "said": []})
+    score = doc.get("score", _REPUTE_START)
+    word = ("the most reliable man in Gotham society" if score >= 75 else "charming, and mostly there" if score >= 55
+            else "flaky — known to stand people up" if score >= 35 else "a notorious no-show")
+    return word, (doc.get("said") or [""])[0]
+
+
 def settle(now=None):
     """
     What's over: he was there, or he wasn't (out on a case, if that's why) — what it does between them, and the
@@ -247,6 +343,12 @@ def settle(now=None):
     settled = []
     rows = _rows()
     for e in rows.list():
+        if e["status"] == "invited" and e["until"] <= now:
+            # Asked, and never answered: they noticed.
+            from . import bonds
+            rows.put(e["id"], {**e, "status": "unanswered", "settled_at": now})
+            bonds.let_down(e["inviter"], f"he never answered about your {e['what']}", warmth=-1.5, tension=0.8)
+            continue
         if e["status"] != "accepted" or e["until"] > now:
             continue
         case = _was_out(e["at"], e["until"])
@@ -300,7 +402,7 @@ def lately(now=None):
 # --- the diary, as he manages it ---------------------------------------------------------------------------
 
 _STATUS_WORDS = {"accepted": "upcoming", "attended": "went", "missed": "missed", "left": "left early",
-                 "cancelled": "cancelled", "declined": "declined"}
+                 "cancelled": "cancelled", "declined": "declined", "invited": "invited", "unanswered": "never answered"}
 
 
 def _who(e):
@@ -334,11 +436,27 @@ def entry(e, now=None):
               "plan": "a plan with the family", "manual": "you", "routine": "your day", "dm": "a text",
               "call": "a call"}.get(e.get("source") or "", "")
     plan = next((p for p in plans.all_plans() if p["id"] == e.get("plan")), None) if e.get("plan") else None
+    if e.get("source") == "invite":
+        origin = f"{e.get('with') or 'their'}'s invitation"
+    # Called off: what became of it for the rest of them.
+    after = ""
+    if e["status"] == "cancelled" and plan:
+        if plans.off(plan):
+            after = "Off for everyone."
+        else:
+            still = [c for c in _who(e) if c["id"] and plans.going(plan, c["id"])]
+            names = ", ".join(c["name"] for c in still)
+            after = (f"Going ahead without you — {names}." if e["until"] > now else f"Went ahead without you — {names}.")
+    elif e["status"] in ("cancelled", "declined") and e.get("inviter"):
+        after = f"{e.get('with') or 'They'} went without you." if e["until"] <= now else ""
     return {"id": e["id"], "what": e["what"], "where": e.get("where", ""), "venue": e.get("venue"),
+            "inviter": e.get("inviter", ""),
             "at": e["at"], "until": e["until"], "as": e.get("as", "bruce"), "source": e.get("source", ""),
             "origin": origin, "status": e["status"], "state": "on now" if on_now else _STATUS_WORDS.get(e["status"], ""),
             "who": _who(e), "host": e.get("host", ""), "dress": e.get("dress", ""), "notes": e.get("notes", ""),
             "story": e.get("story", ""), "kept_away_by": e.get("kept_away_by", ""), "left_for": e.get("left_for", ""),
+            "late": late_words(e), "held_by": e.get("held_by", ""), "cancel_why": e.get("cancel_why", ""),
+            "after": after,
             "present": bool(e.get("present")), "thread": e.get("thread") if e.get("source") in ("invitation", "mail") else "",
             "group": (plan or {}).get("made_in", "")[2:] if str((plan or {}).get("made_in", "")).startswith("g:") else ""}
 
@@ -370,6 +488,53 @@ def add(what, where, at, until=None, as_="bruce", with_="", notes="", now=None, 
     return row
 
 
+def invited(what, where, at, until, contact, now=None, one_off=False):
+    """
+    One of them has asked him to something of theirs: in the diary, waiting for his yes or no. Something of theirs
+    once (`one_off` — not one of their regular evenings, which their week already has them at) is in their day as
+    well (their_block), whether he comes or not. Returns the row.
+    """
+    row = {"id": uuid.uuid4().hex[:10], "what": str(what).strip()[:120], "where": str(where).strip()[:80],
+           "venue": _venue(where), "host": contact.name, "with": contact.name, "inviter": contact.id, "notes": "",
+           "dress": "", "at": at, "until": until if until and until > at else at + LENGTH, "as": "bruce",
+           "source": "invite", "status": "invited", "thread": "", "answered_at": now or time.time(),
+           **({"one_off": True} if one_off else {})}
+    _rows().put(row["id"], row)
+    return row
+
+
+def their_block(contact, t, lead_minutes=None):
+    """
+    Their own thing, once, that they asked him to — on whether he comes or not: a block of their day, setting off
+    in time to be there (see presence). None if nothing's on.
+    """
+    for e in _rows().view():
+        if e.get("inviter") != contact.id or not e.get("one_off"):
+            continue
+        lead = (lead_minutes({"id": f"invite:{e['id']}", "where": e.get("where", "")}) if lead_minutes else 30) * 60
+        if e["at"] - lead <= t < e["until"]:
+            start = time.localtime(e["at"] - lead)
+            return {"from": start.tm_hour + start.tm_min / 60, "to": 0, "doing": e["what"], "status": "idle",
+                    "where": e.get("where", ""), "with": [], "invite": e["id"]}
+    return None
+
+
+def answer_invite(engagement_id, yes, now=None):
+    """His yes or no to their invitation. Returns the row, or None if it isn't one waiting on him."""
+    e = _rows().get(engagement_id)
+    if not e or e.get("status") != "invited":
+        return None
+    e = {**e, "status": "accepted" if yes else "declined", "answered_at": now or time.time()}
+    _rows().put(e["id"], e)
+    return e
+
+
+def latest_invite(contact_id):
+    """The invitation of theirs he hasn't answered yet, the latest — or None."""
+    found = [e for e in _rows().list() if e.get("inviter") == contact_id and e.get("status") == "invited"]
+    return max(found, key=lambda e: e["answered_at"]) if found else None
+
+
 def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, as_=None):
     """He changes it: the time, the place, what it is. Only what's still to come. Returns the row, or None."""
     e = _rows().get(engagement_id)
@@ -394,17 +559,35 @@ def edit(engagement_id, what=None, where=None, at=None, until=None, notes=None, 
     return e
 
 
-def cancel(engagement_id, now=None):
+def cancel(engagement_id, why="", case="", now=None):
     """
-    He calls it off. Someone else's evening, a meeting, a plan with the family: they're told (inbox and the
-    console see to that — see Console.cancel_engagement); his own entry just goes. Returns the row, or None.
+    He calls it off — saying why, or not; `case` the one he's on, if he is. Someone else's evening, a meeting, a
+    plan with the family: they're told (inbox and the console see to that — see Console.cancel_engagement); his own
+    entry just goes. Returns the row, or None.
     """
     e = _rows().get(engagement_id)
     if not e or e["status"] != "accepted":
         return None
-    e = {**e, "status": "cancelled", "cancelled_at": now or time.time()}
+    e = {**e, "status": "cancelled", "cancelled_at": now or time.time(), "cancel_why": str(why or "").strip()[:300],
+         **({"cancel_case": case} if case else {})}
     _rows().put(e["id"], e)
     return e
+
+
+def called_off_over(now=None):
+    """
+    What he called off (or turned down) with them that's over now: the plan they went to without him, their
+    evening he wasn't at — for a word from them after, maybe (see Console._after_called_off). Marked. [rows]
+    """
+    now = now or time.time()
+    out = []
+    for e in _rows().list():
+        if (e["status"] in ("cancelled", "declined") and (e.get("plan") or e.get("inviter")) and not e.get("followed")
+                and e["until"] <= now < e["until"] + 6 * 3600):
+            e = {**e, "followed": now}
+            _rows().put(e["id"], e)
+            out.append(e)
+    return out
 
 
 def delete(engagement_id):
@@ -449,7 +632,11 @@ def write_day(model_name, options, day, now=None):
         "day) and the face of the Wayne Foundation — to Gotham, a charming, not very serious billionaire. Sketch his "
         f"day: {'two or three' if weekend else 'three to five'} things between 09:00 and 19:00 — the board, a briefing "
         "with Lucius at Wayne Tower, a lunch where a deal or a favour is, a Foundation visit, a fitting, a photograph, a "
-        "charity's committee — specific, with who it's with. Already in his diary that day (keep clear of it): "
+        "charity's committee — specific, with who it's with, and with some life in it: Wayne Enterprises' divisions "
+        "(Applied Sciences, WayneTech, Wayne Aerospace, Wayne Shipping), the Foundation's causes (the Thomas Wayne "
+        "Memorial Clinic, the Martha Wayne arts fund, the Narrows children's centre), the Gotham Opera's board, the box "
+        "at the Knightsdome, a photo op Vicki Vale will mock, a cheque the size of a door, a rival's handshake, him "
+        "playing the bored playboy while listening to everything. Already in his diary that day (keep clear of it): "
         f"{busy}." + (f" This morning's papers: {papers}." if papers else "") + " "
         + inbox._real_places() + inbox._who() + ' JSON only: {"day": [{"what": "...", "where": "a place from the list, by its exact '
         'name", "from": "HH:MM", "to": "HH:MM", "with": "who, in a few words", "notes": "a line, or empty"}]}')
@@ -479,8 +666,9 @@ def write_day(model_name, options, day, now=None):
 
 def due_to_go(now=None):
     """
-    What he should be setting off for now, on his own: the next thing in the diary, a little before it starts, not
-    already gone for and not over. Marked as gone for. [rows]
+    What he should be setting off for now, on his own: the next thing in the diary, a little before it starts — or
+    late, the moment he's free (a case first: he doesn't walk out on one) — not already gone for and not over.
+    Not marked here: only once he's actually set off (went), so a case that held him up doesn't lose it. [rows]
     """
     now = now or time.time()
     out = []
@@ -488,10 +676,15 @@ def due_to_go(now=None):
         if (e["status"] != "accepted" or e.get("auto_went") or e.get("present") or not e.get("venue")
                 or not (e["at"] - AUTO_LEAD <= now < e["until"] - 600)):
             continue
-        e = {**e, "auto_went": now}
-        _rows().put(e["id"], e)
         out.append(e)
     return out[:1]
+
+
+def went(engagement_id, now=None):
+    """He's set off for it on his own: not again."""
+    e = _rows().get(engagement_id)
+    if e:
+        _rows().put(engagement_id, {**e, "auto_went": now or time.time()})
 
 
 def day_done(now=None):

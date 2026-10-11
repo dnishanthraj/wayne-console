@@ -210,6 +210,7 @@ class Console(GroupChats):
         self._typing_now = set()
         self._mail_seen = set()       # breakouts already queued for mail
         self._mail_next = 0.0         # when the model may next write him something
+        self._invite_next = time.time() + 15 * 60     # when one of them might next ask him along to something
         self._init_groups()
         self.migrated = migrate_legacy(config.DEFAULT_CONTACT)
 
@@ -1862,7 +1863,8 @@ class Console(GroupChats):
         if not calling:
             for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
                                ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
-                               ("mail", self._write_mail), ("dispatches", self._write_dispatches)):
+                               ("mail", self._write_mail), ("invites", self._write_invites),
+                               ("dispatches", self._write_dispatches)):
                 await self._step(name, step())
         if not self.clients:
             # Nobody at the console to hear about it — but the night goes on: cases still end when they end.
@@ -3450,45 +3452,144 @@ class Console(GroupChats):
                 + ("You're invited." if len(invited) == 1 else "You're all invited.") + (f" {notes}" if notes else ""))
         if len(invited) == 1:
             # One guest: asked in their own thread, not a chat of one.
-            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited}, made_in="")
+            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited, "host": "me"},
+                             made_in="")
             await self.text(invited[0], line)
         else:
             group = group_store.create(f"{what}"[:60], invited)
             await self.broadcast({"type": "group_created", "group": self.group_payload(group)})
-            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited},
+            plan = plans.add({"what": what, "where": where, "at": at, "until": until, "who": invited, "host": "me"},
                              made_in=f"g:{group.id}")
             await self.group_text(group.id, line)
         return next((e for e in engagements.all_engagements() if e.get("plan") == plan["id"]), None)
 
-    async def cancel_engagement(self, engagement_id):
+    async def cancel_engagement(self, engagement_id, why=""):
         """
-        He calls something off from the diary. An invitation: Alfred sends his regrets. A meeting made by letter:
-        Alfred writes to say so, and they answer as they would. A plan with the family: he says so where it was
-        made, and whoever was going takes it their way. His own entry just goes. Returns the row, or None.
+        He calls something off from the diary — saying why, or not. An invitation: Alfred sends his regrets. A
+        meeting made by letter: Alfred writes to say so, and they answer as they would. A plan with the family, or
+        their evening he'd said yes to: he says so where it was made — his words, if he gave any — and they take it
+        their way: the rest still go without him (unless it was his party, or just the two of them), they can ask
+        what came up, and it stays with them a little (bonds.let_down — days ahead is nothing much; the last minute
+        is felt; a case is a reason, to anyone who knows). His own entry just goes. Returns the row, or None.
         """
-        from ..engine import bonds, engagements, inbox, plans
-        row = engagements.cancel(engagement_id)
+        from .. import identity as wayne_identity
+        from ..engine import batman, bonds, cases, engagements, inbox, plans
+        case = cases.active(batman.PILOT)
+        row = engagements.cancel(engagement_id, why, case=f"{case['kind']} at {case['place']}" if case else "")
         if row is None:
             return None
+        ahead = row["at"] - time.time()
+        timing = 0.0 if ahead > 86400 else 1.0 if ahead > 3 * 3600 else 1.6
+        said = (why or "").strip()
+
+        def hurt(cid, what):
+            if not timing:
+                bonds.nudge(cid, bonds.ME, warmth=-0.3)                  # a day or more ahead: plans change
+                return
+            understood = bool(case) and not wayne_identity.outside(cid)
+            bonds.let_down(cid, f"he called off {what}" + (" at the last minute" if timing > 1 else ""),
+                           warmth=-1.5 * timing, trust=-0.5 * timing, tension=0.8 * timing, understood=understood)
+
         if row.get("source") in ("invitation", "mail") and row.get("thread"):
             note = inbox.call_off(row)
             if note:
                 await self.broadcast({"type": "mail", "message": note, "unread": inbox.unread()})
         elif row.get("plan"):
-            plan = next((p for p in plans.all_plans() if p["id"] == row["plan"]), None)
-            made = str((plan or {}).get("made_in") or "")
-            line = f"Something's come up — I can't make {row['what']}. Sorry."
+            plan = plans.he_cant(row["plan"], said) or {}
+            made = str(plan.get("made_in") or "")
+            line = said or (f"I'm going to have to call off {row['what']} — something's come up. Sorry."
+                            if plans.off(plan) else f"Something's come up — I can't make {row['what']}. Sorry.")
             if made.startswith("g:"):
                 await self.group_text(made[2:], line)
-            for cid in (plan or {}).get("who") or []:
-                contact = self.directory.get(cid)
-                if contact is None or not plans.going(plan, cid):
+            for cid in plan.get("who") or []:
+                if self.directory.get(cid) is None or not plans.going(plan, cid):
                     continue
                 if not made.startswith("g:"):
                     await self.text(cid, line)
-                bonds.nudge(cid, bonds.ME, warmth=-1.5, tension=0.6, weight=1,
-                            why=f"he called off {row['what']}")
+                hurt(cid, row["what"])
+        elif row.get("inviter") and self.directory.get(row["inviter"]) is not None:
+            await self.text(row["inviter"], said or f"Something's come up — I can't make {row['what']} after all. Sorry.")
+            hurt(row["inviter"], f"your {row['what']}")
         return row
+
+    async def answer_invite(self, engagement_id, yes, why=""):
+        """
+        His yes or no to one of them asking him along (engine.invites), from the diary: in the diary either way,
+        and said to them in their thread — his words, or a plain yes or no — and they answer as they would.
+        """
+        from ..engine import engagements
+        row = engagements.answer_invite(engagement_id, yes)
+        if row is None:
+            return None
+        if self.directory.get(row.get("inviter", "")) is not None:
+            await self.text(row["inviter"], (why or "").strip() or
+                            ("I'll be there." if yes else f"I can't make {row['what']} — sorry."))
+        return row
+
+    def _after_called_off(self, e):
+        """
+        Something he called off, or turned down, with them is over: whoever went without him might say so — how it
+        went, a dig, what came up, that it's fine — or let it be (session.reach_out, "letdown"). One of them, now
+        and then, a little after; a two-person plan that fell through, less often.
+        """
+        from .. import identity as wayne_identity
+        from ..engine import bonds, engagements, plans
+        if e.get("plan"):
+            plan = next((p for p in plans.all_plans() if p["id"] == e["plan"]), None)
+            if plan is None:
+                return
+            fell_through = plans.off(plan)
+            went = [c for c in plan.get("who") or [] if plans.going(plan, c)]
+        else:
+            fell_through, went = False, [e["inviter"]]
+        went = [c for c in went if self.directory.get(c) is not None]
+        chance = 0.3 if fell_through else 0.35 if e["status"] == "declined" else 0.6
+        if not went or random.random() > chance:
+            return
+        contact = self.directory.get(random.choice(went))
+        others = [self.directory.get(c).name for c in went if c != contact.id]
+        times = bonds.letdowns(contact.id)
+        said = e.get("cancel_why") or ""
+        case = e.get("cancel_case") if not wayne_identity.outside(contact.id) else ""
+        what = e["what"] if e.get("plan") else f"your {e['what']}"
+        if fell_through:
+            about = (f"{what} was meant to be tonight — he called it off" + (f" (he said: \u201c{said}\u201d)" if said else "")
+                     + ", so it didn't happen; you did something else with the evening.")
+        else:
+            about = (f"{what} was tonight — he " + ("said he couldn't come" if e["status"] == "declined" else "called it off")
+                     + (f" (he said: \u201c{said}\u201d)" if said else "") + (f" — the {engagements.lower_kind(case)}" if case else "")
+                     + ", and you went without him" + (f", with {', '.join(others)}" if others else "") + ". It's over now.")
+        about += (" He's let you down like this a few times lately." if times >= 3 else
+                  " It's one evening — you know him, and it's not the end of anything.")
+        self._spawn(self._later(random.uniform(120, 1500), self._send_unprompted(contact, about, "letdown")))
+
+    async def _write_invites(self):
+        """
+        Now and then one of them asks him along to something of theirs (engine.invites) — while the model's loaded
+        and idle: a text from them, and a line in his diary to say yes or no to, from there or just by answering.
+        """
+        from ..engine import invites
+        now = time.time()
+        if (self._writing_lines or not self.clients or self.current_id or self._texters or self.turn_lock.locked()
+                or now < self._invite_next):
+            return
+        self._invite_next = now + random.uniform(25, 70) * 60
+        if random.random() > 0.35:
+            return
+        writer = self.directory.get("alfred") or next(iter(self.directory), None)
+        if writer is None or not await asyncio.to_thread(_model_loaded, writer.model):
+            return
+        self._writing_lines = True
+        try:
+            found = await asyncio.to_thread(invites.make, self.directory, writer.model, writer.options, now)
+        finally:
+            self._writing_lines = False
+        if not found:
+            return
+        contact, row, about = found
+        log.info("%s asked him along to %s", contact.id, row["what"])
+        await self.broadcast({"type": "diary"})
+        self._spawn(self._send_unprompted(contact, about, "invite"))
 
     def _warn_of_the_hunt(self, report):
         """
@@ -3513,14 +3614,18 @@ class Console(GroupChats):
         """
         from ..engine import batman, engagements
         engagements.watch(now)
+        for e in engagements.called_off_over(now):
+            self._after_called_off(e)
         # The map follows the diary: off to the next thing in time — unless he's in the middle of a case, or on his
         # way somewhere he chose — and home when the day's done.
         state = batman.state(now)
         free = not batman.committed(now) and not state.get("route")
         for e in engagements.due_to_go(now):
             if free:
-                await asyncio.to_thread(engagements.go, e["id"], now)
-                log.info("off to %s (%s), as the diary has it", e["what"], e["where"])
+                if await asyncio.to_thread(engagements.go, e["id"], now):
+                    engagements.went(e["id"], now)
+                    log.info("off to %s (%s), as the diary has it%s", e["what"], e["where"],
+                             " — late" if now > e["at"] else "")
         if free and engagements.day_done(now) and state.get("where") != batman.HOME and \
                 time.localtime(now).tm_hour < 20 and getattr(self, "_went_home", "") != time.strftime("%Y-%m-%d"):
             self._went_home = time.strftime("%Y-%m-%d")
@@ -4536,11 +4641,26 @@ async def diary_edit(engagement_id: str, request: Request):
 
 
 @app.post("/api/diary/{engagement_id}/cancel")
-async def diary_cancel(engagement_id: str):
-    """He calls it off — and whoever it was with is told."""
-    row = await console.cancel_engagement(engagement_id)
+async def diary_cancel(engagement_id: str, request: Request):
+    """He calls it off — saying why, or not — and whoever it was with is told."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    row = await console.cancel_engagement(engagement_id, str((body or {}).get("why") or "")[:300])
     if row is None:
         return JSONResponse({"error": "nothing to cancel"}, status_code=400)
+    from ..engine import engagements
+    return JSONResponse({"entry": engagements.entry(row)})
+
+
+@app.post("/api/diary/{engagement_id}/answer")
+async def diary_answer(engagement_id: str, request: Request):
+    """His yes or no to one of them asking him along — and it's said to them."""
+    body = await request.json()
+    row = await console.answer_invite(engagement_id, bool(body.get("yes")), str(body.get("why") or "")[:300])
+    if row is None:
+        return JSONResponse({"error": "nothing waiting on an answer"}, status_code=400)
     from ..engine import engagements
     return JSONResponse({"entry": engagements.entry(row)})
 
@@ -4565,6 +4685,9 @@ async def list_engagements():
 async def go_to_engagement(engagement_id: str):
     """He sets off for it — as Bruce Wayne to an evening, as Batman to a meeting — and the map follows."""
     from ..engine import batman, engagements
+    if batman.committed():
+        # A case first: he goes the moment it's done, on his own — late (see Console._diary_tick).
+        return JSONResponse({"error": "after the case", "held": True}, status_code=409)
     trip = await asyncio.to_thread(engagements.go, engagement_id)
     if trip is None:
         return JSONResponse({"error": "nowhere to go"}, status_code=400)
