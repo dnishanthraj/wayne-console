@@ -5,6 +5,15 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-10-11
+
+### Added
+
+- **Keyboard shortcuts, written down.** Press `?` (when you're not typing in
+  a box) for a card of what the keys do: M map, C Codex, D diary, E mail, /
+  to search the open map or Codex, Space to talk, Esc to close or stop. It's
+  also in Settings.
+
 ## [0.37.1] - 2026-10-11
 
 ### Added

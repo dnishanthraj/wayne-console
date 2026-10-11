@@ -453,6 +453,13 @@
       </section>
       <section class="settings__row">
         <div>
+          <p class="settings__name">Keyboard shortcuts</p>
+          <p class="settings__note">M map, C Codex, D diary, E mail, Space to talk — press ? any time.</p>
+        </div>
+        <button class="modal__btn" id="settings-keys" type="button">Show</button>
+      </section>
+      <section class="settings__row">
+        <div>
           <p class="settings__name">Restart the console</p>
           <p class="settings__note">Everything read again from disk. Nothing's lost.</p>
         </div>
@@ -476,6 +483,26 @@
       <div class="modal__actions">
         <button class="modal__btn" id="settings-close" type="button">Close</button>
         <button class="modal__btn modal__btn--danger" id="settings-reset" type="button" disabled>Back up and start over</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- What the keys do, on ? -->
+  <div class="modal" id="shortcuts" hidden role="dialog" aria-labelledby="shortcuts-title">
+    <div class="modal__card shortcuts">
+      <h2 class="modal__title" id="shortcuts-title">Keyboard</h2>
+      <dl class="shortcuts__list">
+        <dt><kbd>Space</kbd></dt><dd>Hold to talk on a call</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close what's on top — or stop them talking</dd>
+        <dt><kbd>M</kbd></dt><dd>The map</dd>
+        <dt><kbd>C</kbd></dt><dd>The Codex</dd>
+        <dt><kbd>D</kbd></dt><dd>Your diary</dd>
+        <dt><kbd>E</kbd></dt><dd>Mail</dd>
+        <dt><kbd>/</kbd></dt><dd>Search the map or the Codex, when it's open</dd>
+        <dt><kbd>?</kbd></dt><dd>This card</dd>
+      </dl>
+      <div class="modal__actions">
+        <button class="modal__btn" id="shortcuts-close" type="button">Close</button>
       </div>
     </div>
   </div>

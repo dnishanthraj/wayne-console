@@ -2664,3 +2664,12 @@ body { background:
   white-space: nowrap; }
 .card__refs a:hover { text-decoration: underline; }
 .card__refs span { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+
+/* --- the keys, on ? ------------------------------------------------------------------------------------------ */
+.shortcuts { width: min(420px, 92vw); }
+.shortcuts__list { display: grid; grid-template-columns: 72px 1fr; gap: 10px 14px; margin: 6px 0 18px; align-items: center; }
+.shortcuts__list dt { margin: 0; }
+.shortcuts__list dd { margin: 0; font-size: 13px; color: var(--text-dim); }
+kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px solid var(--hairline-2); border-bottom-width: 2px;
+  border-radius: 5px; background: var(--surface-2); color: var(--text); font-family: var(--mono); font-size: 11px;
+  text-align: center; }

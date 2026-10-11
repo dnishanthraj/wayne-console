@@ -3943,6 +3943,12 @@
         if (window.GothamMap && GothamMap.isOpen()) GothamMap.close(); else document.getElementById('map-open').click();
         return;
       }
+      if (!typing && e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        var keys = $('shortcuts');
+        keys.hidden = !keys.hidden;
+        return;
+      }
       if (!typing && e.key === '/' && window.GothamMap && GothamMap.isOpen()) {
         e.preventDefault();
         GothamMap.search();
@@ -4445,6 +4451,8 @@
     });
     $('settings-close').addEventListener('click', function () { box.hidden = true; });
     $('settings-wake').addEventListener('change', function () { setWakePref(this.checked); syncWake(); });
+    $('settings-keys').addEventListener('click', function () { box.hidden = true; $('shortcuts').hidden = false; });
+    $('shortcuts-close').addEventListener('click', function () { $('shortcuts').hidden = true; });
     $('wake-on').addEventListener('click', function () { setWakePref(false); syncWake(); });
     ConsoleMic.on('onWake', onWake);
     box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); box.hidden = true; } });
