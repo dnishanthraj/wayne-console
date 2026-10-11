@@ -511,6 +511,61 @@ def clip(name):
         return target
 
 
+def _wanted(scene):
+    """Every clip a place needs, its loop first: the layers under it, then its sounds from each distance."""
+    spec = CATALOGUE_SCENES.get(scene) or {}
+    names = [scene] + [name for name, _ in spec.get("layers", [])]
+    for sound, _, distances in spec.get("sounds", []):
+        names += [_variant_file(sound, d) for d in str(distances).split(",")]
+    return [n for n in dict.fromkeys(names) if _what(n)]
+
+
+def upcoming(directory, t=None, hours=2):
+    """The places the family will be in over the next couple of hours, the most of them first."""
+    import collections
+    t = t or time.time()
+    counts = collections.Counter()
+    for contact in directory:
+        for step in range(0, hours * 2 + 1):
+            try:
+                counts[scene_for(contact, t + step * 1800)] += 1
+            except Exception:
+                continue
+    return [scene for scene, _ in counts.most_common() if scene in CATALOGUE_SCENES]
+
+
+def _warm_key(t=None):
+    return "warm:" + time.strftime("%Y-%m-%d", time.localtime(t or time.time()))
+
+
+def warm(directory, t=None, most=2):
+    """
+    Makes up to `most` of the clips the coming couple of hours will want and don't have yet — the places most of
+    them will be in first, each place's loop before its sounds — within the day's warm-up allowance
+    (WAYNE_SFX_WARM_PER_DAY) and the month's. Blocking: run off the event loop, never on a call. Returns what was
+    made.
+    """
+    from .. import store
+    if not available() or config.SFX_WARM_PER_DAY <= 0:
+        return []
+    space = store.space("ambience")
+    made = []
+    for scene in upcoming(directory, t):
+        for name in _wanted(scene):
+            if len(made) >= most:
+                return made
+            if path(name).exists() or time.time() - _failed.get(name, 0) < 600:
+                continue
+            cost = int(_what(name)[1] * CREDITS_PER_SECOND)
+            today = int(space.get(_warm_key(t)) or 0)
+            if today + cost > config.SFX_WARM_PER_DAY:
+                return made
+            if clip(name) is not None:
+                space.put(_warm_key(t), today + cost)
+                made.append(name)
+    return made
+
+
 def every_clip():
     """[(name, seconds)] for everything the catalogue could ever play — what a full render would make."""
     out = [(name, LOOP_SECONDS) for name in CATALOGUE_SCENES]

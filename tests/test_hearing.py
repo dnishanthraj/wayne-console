@@ -67,3 +67,31 @@ def test_a_sound_the_decoder_is_sure_was_not_speech_is_not_a_turn():
     speech = {"segments": [{"no_speech_prob": 0.1, "avg_logprob": -0.3}]}
     assert stt._hallucinated("hand me the wrench", noise, 3.0)
     assert not stt._hallucinated("hand me the wrench", speech, 3.0)
+
+
+# --- the sound of where they'll be, made ahead -------------------------------------------------------------------
+
+def test_the_places_coming_up_are_made_ahead_within_the_days_allowance(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from wayne import config
+    from wayne.audio import ambience
+    monkeypatch.setattr(ambience, "available", lambda: True)
+    monkeypatch.setattr(ambience, "path", lambda name: tmp_path / f"{name}.mp3")
+    made = []
+
+    def clip(name):
+        made.append(name)
+        (tmp_path / f"{name}.mp3").write_bytes(b"x" * 2000)
+        return tmp_path / f"{name}.mp3"
+    monkeypatch.setattr(ambience, "clip", clip)
+    family = [SimpleNamespace(id="a"), SimpleNamespace(id="a2"), SimpleNamespace(id="b")]
+    monkeypatch.setattr(ambience, "scene_for",
+                        lambda contact, t=None: "rooftop" if contact.id in ("a", "a2") else "cave")
+    monkeypatch.setattr(config, "SFX_WARM_PER_DAY", 100000)
+    first = ambience.warm(family, most=2)
+    assert first == ["rooftop", ambience._wanted("rooftop")[1]]               # where most of them will be, loop first
+    monkeypatch.setattr(config, "SFX_WARM_PER_DAY", 0)
+    assert ambience.warm(family) == []                                        # switched off
+    monkeypatch.setattr(config, "SFX_WARM_PER_DAY", 1)
+    assert ambience.warm(family) == []                                        # nothing fits today's allowance

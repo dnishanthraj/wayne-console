@@ -5,6 +5,19 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.34.3] - 2026-10-11
+
+### Added
+
+- **Their sounds made ahead.** A place's sound used to be made the first
+  time a call needed it, so the first call somewhere new was quiet. Now,
+  never during a call, the console makes the sounds of the places the family
+  is about to be in over the next couple of hours, a couple of clips at a
+  time. The places most of them will be in come first, each loop before its
+  sounds. It spends at most `WAYNE_SFX_WARM_PER_DAY` credits a day (default
+  3,000, counted at ElevenLabs' dearest rate), within the monthly allowance.
+  0 turns it off. To make places now, use `scripts/soundscape.py --render`.
+
 ## [0.34.2] - 2026-10-11
 
 ### Fixed

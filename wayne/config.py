@@ -119,6 +119,9 @@ AMBIENCE = setting("AMBIENCE", "1") != "0"
 # Credits a month the room sounds may spend being made (each is made once, then kept): counted at ElevenLabs'
 # dearest rate, 40 a second, so the real spend is lower. 0 makes nothing new.
 SFX_CREDITS = int(setting("SFX_CREDITS", "40000") or 0)
+# Of those, how many a day may go on making the places the family's about to be in before anyone rings them — so a
+# first call somewhere isn't silent while its sound is made (see ambience.warm). Never on a call. 0 turns it off.
+SFX_WARM_PER_DAY = int(setting("SFX_WARM_PER_DAY", "3000") or 0)
 
 # --- Push-to-talk (terminal frontend only; the console has its own controls) ---
 PTT_KEY_STR = setting("PTT_KEY", "Key.cmd_r")

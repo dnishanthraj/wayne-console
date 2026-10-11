@@ -1930,7 +1930,7 @@ class Console(GroupChats):
             for name, step in (("status lines", self._write_status_lines), ("keep up", self._keep_up),
                                ("day plans", self._write_day_plans), ("gazette", self._write_gazette),
                                ("mail", self._write_mail), ("invites", self._write_invites),
-                               ("dispatches", self._write_dispatches)):
+                               ("dispatches", self._write_dispatches), ("sounds", self._warm_sounds)):
                 await self._step(name, step())
         if not self.clients:
             # Nobody at the console to hear about it — but the night goes on: cases still end when they end.
@@ -3628,6 +3628,20 @@ class Console(GroupChats):
         about += (" He's let you down like this a few times lately." if times >= 3 else
                   " It's one evening — you know him, and it's not the end of anything.")
         self._spawn(self._later(random.uniform(120, 1500), self._send_unprompted(contact, about, "letdown")))
+
+    async def _warm_sounds(self):
+        """
+        Now and then, off a call, the sound of where they're about to be is made ahead of anyone ringing them —
+        a couple of clips at a time, within the day's allowance (ambience.warm) — so a first call there isn't quiet.
+        """
+        from ..audio import ambience
+        now = time.time()
+        if self.current_id or getattr(self, "_ringing_out", None) or now < getattr(self, "_warm_next", 0):
+            return
+        self._warm_next = now + random.uniform(4, 8) * 60
+        made = await asyncio.to_thread(ambience.warm, list(self.directory), now)
+        if made:
+            log.info("sounds made ahead: %s", ", ".join(made))
 
     async def _write_invites(self):
         """
