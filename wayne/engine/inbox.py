@@ -208,6 +208,30 @@ def queue(event):
         waiting.trim(41)
 
 
+def suggest(message_id, model, options, now=None):
+    """
+    A few ways he might answer a letter — each a kind of answer and a draft of it, in his voice (or, on the
+    secure line, Batman's): [{"kind", "body"}]. Drafts to pick from and change, never sent for him.
+    """
+    now = now or time.time()
+    original = _mail().get(message_id)
+    if original is None or not answerable(original):
+        return []
+    convo = thread(original.get("thread") or original["id"])[-4:]
+    batman = original.get("sender") == "gordon"
+    him = "Batman (signing 'B')" if batman else "Bruce Wayne — charming in public, sharp underneath"
+    lines = "\n\n".join(f"— {m['from']}:\n{m['body'][:1200]}" for m in convo)
+    found = _ask(model, options, _context(now, secure=original.get("folder") == "secure")
+                 + f"Here is an email conversation:\n\n{lines}\n\nSuggest three different ways {him} might answer the "
+                 "last letter — really different in what they do (say yes, say no, put it off, flirt, deflect, ask "
+                 "something back, get serious), each short and in his voice, as he'd actually write it. JSON only: "
+                 '{"options": [{"kind": "two or three words for what it does", "body": "the email"}]}',
+                 "reply suggestions")
+    picks = (found or {}).get("options") if isinstance((found or {}).get("options"), list) else []
+    return [{"kind": str(p.get("kind") or "")[:40], "body": str(p.get("body") or "").strip()[:2000]}
+            for p in picks[:3] if isinstance(p, dict) and str(p.get("body") or "").strip()]
+
+
 def _take_event(now=None):
     """
     The oldest event waiting that's due — looked at, not taken: it's only gone once its mail is (see

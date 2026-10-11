@@ -5,6 +5,16 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-11
+
+### Added
+
+- **Suggest a reply.** In the reply box, Suggest offers three really
+  different ways to answer (say yes, deflect, put it off, flirt, get
+  serious), each labelled with what it does and drafted in your voice. On
+  the secure line the drafts are Batman's. Pick one and it fills the reply,
+  yours to change before it goes. Nothing is sent for you.
+
 ## [0.25.0] - 2026-10-11
 
 ### Added

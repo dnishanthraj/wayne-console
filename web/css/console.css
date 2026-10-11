@@ -2394,6 +2394,16 @@ body { background:
 .mx-reply__text:focus { outline: none; border-color: var(--primary-dim); }
 .mx-reply__acts { display: flex; gap: 6px; margin-top: 10px; }
 .mx-reply__send { color: var(--primary); border-color: var(--primary-dim); }
+/* Ways he might answer: each what it does, and how it starts — a pick fills the reply, his to change. */
+.mx-reply__picks { display: grid; gap: 6px; margin-bottom: 10px; }
+.mx-reply__picks[hidden] { display: none; }
+.mx-pick { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 9px 12px; background: transparent;
+  border: 1px solid var(--hairline-2); color: var(--text-dim); cursor: var(--cursor-pointer); font: inherit; }
+.mx-pick b { font-family: var(--mono); font-weight: 500; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--primary); }
+.mx-pick span { font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.mx-pick:hover { border-color: var(--primary-dim); }
+.mx-pick.is-on { border-color: var(--primary); background: rgba(79, 168, 224, 0.06); }
 /* An invitation's evening: when, where, the dress, the host — and Accept / Decline, or how he answered. */
 .mx-event { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--hairline-2); background: rgba(79, 168, 224, 0.04);
   display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; max-width: 74ch; }

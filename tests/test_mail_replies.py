@@ -68,3 +68,19 @@ def test_the_real_news_in_a_letter_is_only_what_was_read(clock, monkeypatch):
                                                           "[film] Something opened"] if contact.id == "lucius" else [])
     said = inbox._press()
     assert "Chipmaker X" in said and "Something opened" not in said and "never invent" in said
+
+
+def test_a_few_ways_to_answer_each_what_it_does_and_never_sent_for_him(clock, monkeypatch):
+    asked = []
+    monkeypatch.setattr(inbox, "_ask", lambda model, options, instruction, purpose: asked.append(instruction) or {
+        "options": [{"kind": "Say yes", "body": "Thursday it is."}, {"kind": "Put it off", "body": "Next week?"},
+                    {"kind": "Flirt", "body": "Only if you're buying."}, {"kind": "Extra", "body": "ignored"}]})
+    vicki = inbox.deliver("vicki", "Dinner?", "You owe me one.", kind="letter", name="Vicki Vale")
+    picks = inbox.suggest(vicki["id"], "m", {})
+    assert [p["kind"] for p in picks] == ["Say yes", "Put it off", "Flirt"] and "Bruce Wayne" in asked[0]
+    assert not [m for m in inbox.mail("sent")]                          # nothing went
+    jim = inbox.deliver("gordon", "Tonight", "We need to talk.", kind="gordon")
+    inbox.suggest(jim["id"], "m", {})
+    assert "Batman" in asked[-1] and "Bruce Wayne" not in asked[-1]
+    spam = inbox.deliver("x", "WIN", "click", folder="spam", kind="spam")
+    assert inbox.suggest(spam["id"], "m", {}) == []

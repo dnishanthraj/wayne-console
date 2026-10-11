@@ -4306,6 +4306,17 @@ async def mail_thread(thread_id: str):
     return JSONResponse({"thread": found, "answerable": [m["id"] for m in found if inbox.answerable(m)]})
 
 
+@app.get("/api/mail/{message_id}/suggest")
+async def suggest_mail(message_id: str):
+    """A few ways he might answer — drafts to pick from and change, in his voice. Written by Alfred's model."""
+    from ..engine import inbox
+    writer = console.directory.get("alfred") or next(iter(console.directory), None)
+    if writer is None:
+        return JSONResponse({"options": []})
+    picks = await asyncio.to_thread(inbox.suggest, message_id, writer.model, writer.options)
+    return JSONResponse({"options": picks})
+
+
 @app.post("/api/mail/{message_id}/reply")
 async def reply_mail(message_id: str, request: Request):
     """He writes back: his reply in Sent, in the thread; theirs comes when they'd write it."""

@@ -254,8 +254,10 @@
   function compose(target, shown) {
     var box = $('.mx-reply');
     box.hidden = false;
-    box.innerHTML = '<p class="mx-reply__to"></p><textarea class="mx-reply__text" rows="6" placeholder="Write back\u2026"></textarea>' +
+    box.innerHTML = '<p class="mx-reply__to"></p><div class="mx-reply__picks" hidden></div>' +
+                    '<textarea class="mx-reply__text" rows="6" placeholder="Write back\u2026"></textarea>' +
                     '<div class="mx-reply__acts"><button type="button" class="cx-btn mx-reply__send">Send</button>' +
+                    '<button type="button" class="cx-btn mx-reply__suggest">Suggest</button>' +
                     '<button type="button" class="cx-btn mx-reply__cancel">Cancel</button></div>';
     box.querySelector('.mx-reply__to').textContent = 'To ' + target.from + (target.address ? ' <' + target.address + '>' : '');
     var text = box.querySelector('textarea');
@@ -268,6 +270,32 @@
     });
     box.querySelector('.mx-reply__cancel').addEventListener('click', cancel);
     box.querySelector('.mx-reply__send').addEventListener('click', send);
+    // A few ways he might answer, each with what it does — picked, it's his to change before it goes.
+    var suggestBtn = box.querySelector('.mx-reply__suggest'), picks = box.querySelector('.mx-reply__picks');
+    suggestBtn.addEventListener('click', function () {
+      suggestBtn.disabled = true;
+      suggestBtn.textContent = 'Thinking\u2026';
+      fetch('/api/mail/' + target.id + '/suggest').then(function (r) { return r.json(); }).then(function (d) {
+        suggestBtn.disabled = false;
+        suggestBtn.textContent = 'Suggest again';
+        picks.innerHTML = '';
+        (d.options || []).forEach(function (o) {
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'mx-pick';
+          chip.innerHTML = '<b></b><span></span>';
+          chip.querySelector('b').textContent = o.kind || 'Reply';
+          chip.querySelector('span').textContent = plain(o.body).slice(0, 110);
+          chip.addEventListener('click', function () {
+            text.value = o.body;
+            text.focus();
+            Array.prototype.forEach.call(picks.children, function (c) { c.classList.toggle('is-on', c === chip); });
+          });
+          picks.appendChild(chip);
+        });
+        picks.hidden = !picks.children.length;
+      }).catch(function () { suggestBtn.disabled = false; suggestBtn.textContent = 'Suggest'; });
+    });
     function send() {
       var body = text.value.trim();
       if (!body) return;
