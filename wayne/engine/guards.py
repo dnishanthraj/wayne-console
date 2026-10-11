@@ -139,9 +139,42 @@ def takes_his_temperature(sentence, prompt):
     return bool(_CHECK_IN.search(sentence or ""))
 
 
+# A goodbye is how he ends, not a phrase he passes through (see user_is_leaving).
+_SOFT_CLAUSE = re.compile(r"(?:ok(?:ay)?|alright|all right|right|well|anyway|yeah|yep|cool|great|good|"
+                          r"thanks|thank you|cheers|sorry|listen)(?:\s+\w+)?", re.I)
+_GOODBYE_CLAUSE = re.compile(
+    r"(?:bye(?:[\s-]?bye)?(?: now| for now)?|good ?night|night(?:[\s-]night)?|nighty[\s-]night|"
+    r"see (?:you|ya)(?: later| tomorrow| soon| around| then| in the morning)?|"
+    r"talk (?:to you )?(?:later|tomorrow|soon|in the morning)|later|catch you later|take care|"
+    r"(?:i'?ve |i )?(?:gotta|got to|have to) (?:go|run)(?: now)?|"
+    r"i(?:'| a)?m (?:going|off|heading) to (?:bed|sleep)|(?:i'?m )?(?:going to|gonna) (?:bed|sleep|crash)|"
+    r"off to bed|heading off(?: now)?|i'?m heading off|turning in|logging off|signing off|i'?m out|"
+    r"i'?m done for (?:the night|tonight|today)|i'?m tired)"
+    r"(?:\s+(?:then|now|for now|everyone|everybody|guys|all|y'?all|\w+))?", re.I)
+_NAMEISH = re.compile(r"[a-z][\w'.]*(?:\s+[a-z][\w'.]*)?", re.I)      # "Alfred", "B", "old man"
+
+
 def user_is_leaving(prompt):
-    lowered = (prompt or "").lower()
-    return any(re.search(cue, lowered) for cue in LEAVING_CUES)
+    """
+    Whether what he said ends with him going: its last sentence is a goodbye and
+    nothing else — "Bye.", "Night, Alfred.", "Okay, see you tomorrow.", "night,
+    I'm off to bed" — each part of it a goodbye, a softener or who he's saying it
+    to. Searched for anywhere, "I see you've been busy", "it was a good night for
+    us", "I'm heading off to the docks" and "see you at the warehouse in ten" all
+    rang the call off.
+    """
+    sentences = [s for s in split_sentences(prompt or "") if s.strip(" .!?…\"'“”")]
+    if not sentences:
+        return False
+    clauses = [c.strip(" .!?…\"'“”") for c in re.split(r"[,;:—–]|\s-\s", sentences[-1])]
+    clauses = [c for c in clauses if c]
+    said_goodbye = False
+    for clause in clauses:
+        if _GOODBYE_CLAUSE.fullmatch(clause):
+            said_goodbye = True
+        elif not (_SOFT_CLAUSE.fullmatch(clause) or _NAMEISH.fullmatch(clause)):
+            return False
+    return said_goodbye
 
 
 def strip_signoffs(text):

@@ -132,7 +132,10 @@ class Group:
         others' messages still unread, and then couldn't recall his own text.
         """
         upto = self.read_upto(member)
-        return [m for m in self.messages() if m["at"] <= upto or m.get("from") == member][-limit:]
+        # Nothing from before they were let in: Selina added with no backlog still "knew" everything the
+        # family had said about patrol, because reading up to the moment she joined covered all of it.
+        since = (self.meta().get("joined") or {}).get(member, 0)
+        return [m for m in self.messages() if (since <= m["at"] <= upto) or m.get("from") == member][-limit:]
 
     def page(self, before=None, limit=40):
         messages = self.messages()
@@ -186,6 +189,9 @@ class Group:
             said = [m for m in self.messages() if m.get("kind") != "system"]
             seen_to = said[-backlog - 1]["at"] if backlog and len(said) > backlog else (0 if backlog else time.time())
             meta.setdefault("reads", {})[contact_id] = seen_to
+            # What they're let see of the past: the backlog they're given, or nothing before now.
+            meta.setdefault("joined", {})[contact_id] = (said[-backlog]["at"] if backlog and len(said) >= backlog
+                                                         else 0 if backlog else time.time())
             self._save_meta(meta)
         return True
 

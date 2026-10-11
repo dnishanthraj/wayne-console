@@ -183,10 +183,14 @@ def roster(t, depth=1):
     global _NIGHTLIFE, _ROUGH
     if not _NIGHTLIFE:
         _NIGHTLIFE, _ROUGH = _sets()
+    from .. import paths
     w = watch_of(t)
+    # Settled once a watch: worked out again every minute, a crew showing up on the scanner moved Tim
+    # from Chinatown to City Hall and back inside one watch, and his dot jumped with it.
+    key = (w, depth, str(paths.DATA_DIR))
     with _lock:
-        made = _rosters.get((w, depth))
-        if made and time.monotonic() - made[0] < 60:
+        made = _rosters.get(key)
+        if made:
             return made[1]
     from ..contacts import directory
     book = directory()
@@ -224,7 +228,7 @@ def roster(t, depth=1):
         fixed = fixed_for.get(cid)
         city = (_city_named(block.get("where") or "") or _city_named(block.get("doing") or "")
                 or _home_city(contact, t))
-        related = _related_areas(cid, t)
+        related = _related_areas(cid, start)       # the leads as they stood when the watch began
         lead = ""
         if fixed:
             choice = fixed
@@ -245,7 +249,7 @@ def roster(t, depth=1):
         if mate and mate not in result:
             result[mate] = {"sector": choice["name"], "with": [cid], "lead": lead}
     with _lock:
-        _rosters[(w, depth)] = (time.monotonic(), result)
+        _rosters[key] = (time.monotonic(), result)
         if len(_rosters) > 64:
             for key in sorted(_rosters, key=lambda k: _rosters[k][0])[:16]:
                 _rosters.pop(key, None)

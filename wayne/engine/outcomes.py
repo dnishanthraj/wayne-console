@@ -345,8 +345,11 @@ def decide(case, now=None):
     if good:
         how = {"hostage": "saved", "hunt": "solved", "disaster": "contained"}.get(sort, "caught")
         took = bool(suspect) and (sort not in ("hostage", "disaster") or _roll(case, "caught") < 0.75)
-        if sort in ("street", "petty") and not suspect:
-            took = True                        # nobody named: the ones who did it, arrested
+        if sort in ("street", "petty", "hunt", "hostage") and not suspect:
+            # Nobody named: the ones who did it, arrested. A hunt with no rogue behind it always failed
+            # ("identified, still out there"), a hostage-taking could only ever be partial — both worse
+            # than GCPD alone, which broke the floor.
+            took = True
         culprit = "caught" if took else ("none" if sort == "disaster" and not suspect else "escaped")
         lives = "safe"
         if sort in ("hostage", "street") and case.get("severity", 2) >= 3 and _roll(case, "costly") < (1 - p) * 0.35:

@@ -162,7 +162,9 @@ def together(presence, t=None):
     def situation(cid):
         if cid not in seen:
             block, company, firm = own(cid)
-            if not firm and places.is_patrol(block.get("doing")):
+            # Out as a pair — whether the roster says so or one of them just said "heading out on patrol"
+            # (which used to split the pair while their dots walked the roofs side by side).
+            if places.is_patrol(block.get("doing")) and not block.get("follow"):
                 # Out as a pair tonight: Dick and Tim on the same roofs — while both of them are out.
                 mates = [m for m in patrols.partner(cid, t) if m in everyone and m not in company
                          and places.is_patrol(own(m)[0].get("doing"))]
@@ -179,8 +181,11 @@ def together(presence, t=None):
         """a says they're with b: is b with a?"""
         if b not in everyone or b == a:
             return False
-        if situation(a)[0].get("follow") == b or situation(b)[0].get("follow") == a:
-            return True             # one went to be with the other: wherever that is, they're there together
+        for follower, followed in ((a, b), (b, a)):
+            if situation(follower)[0].get("follow") == followed:
+                # One went to be with the other: wherever that is, they're there together — unless the
+                # other's asleep, and the one who came is just at the door.
+                return situation(followed)[0].get("status") != OFFLINE
         block, company, firm = situation(b)
         if a in company:
             return True             # they both say so
@@ -285,7 +290,18 @@ def how_far(d):
     return f"about {km:.0f} km from you" if km >= 10 else f"about {km:.1f} km from you"
 
 
-def glance(contact, t=None, here=None):
+def _masked(contact_id, t):
+    """Whether what they're up to right now is the work — a case, a patrol — which outsiders never hear of."""
+    from ..contacts import directory
+    from . import cases
+    if cases.active(contact_id):
+        return True
+    found = directory().get(contact_id)
+    them = (_registry.get(contact_id) or of(found)) if found else None
+    return bool(them) and places.is_patrol(them._situation(t)[0].get("doing"))
+
+
+def glance(contact, t=None, here=None, viewer=None):
     """
     Where one of them is and what they're doing, as the family's app shows it to
     someone standing at `here` (x, y): "on the way to the shots fired at Central
@@ -294,8 +310,10 @@ def glance(contact, t=None, here=None):
     to themselves. '' if there's nothing to see.
     """
     from ..contacts import directory
-    from . import cases
+    from . import cases, groupchat
     t = t or time.time()
+    if viewer is not None and groupchat.outside(viewer) and _masked(contact.id, t):
+        return ""           # Selina knows Dick left; never that he's on a case, or on the roofs
     book = directory()
     them = _registry.get(contact.id) or of(contact)
     shows_dot = getattr(contact, "shares_location", True)
@@ -504,8 +522,8 @@ class Presence:
         """
         t = t or time.time()
         last = self._state["last_active"]
-        activity = self._state["activity"]
-        if activity and activity.get("until", 0) > t and (activity.get("doing") or "").strip().lower().strip(" .") not in NOTHING:
+        activity = self._activity_at(t)
+        if activity:
             return {"status": activity["status"], "doing": activity["doing"],
                     "until": activity["until"], "source": "conversation", "last_active": last,
                     "terminal": activity.get("terminal", False)}
@@ -607,12 +625,44 @@ class Presence:
         Firm is what a conversation established — they said where they are —
         and it outranks any plan, theirs or anyone else's.
         """
-        activity = self._state.get("activity")
-        if (activity and activity.get("since", 0) <= t < activity.get("until", 0)
-                and (activity.get("doing") or "").strip().lower().strip(" .") not in NOTHING):
+        activity = self._activity_at(t)
+        if activity:
             return activity, list(activity.get("with") or []), True
         block = self._routine(t) or self._whim(t) or {}
         return block, list(block.get("with") or []), False
+
+    def _activity_at(self, t):
+        """
+        What a conversation (or a case, a lift, a follow) had them doing at t —
+        the current activity, or one it replaced: the past stays as it was, so
+        a journey out of it starts where they actually were.
+        """
+        for activity in [self._state.get("activity")] + list(reversed(self._state.get("earlier") or [])):
+            if (activity and activity.get("since", 0) <= t < activity.get("until", 0)
+                    and (activity.get("doing") or "").strip().lower().strip(" .") not in NOTHING):
+                return activity
+        return None
+
+    def _follow_target(self, activity, t, seen=None):
+        """
+        Whoever they've gone to be with, at the end of any chain of following —
+        Cass with Tim, who's with Dick: Dick — or None: nobody, a loop (each
+        stays put), or someone asleep, who isn't going anywhere with anyone.
+        """
+        from ..contacts import directory
+        seen = (seen or set()) | {self.contact.id}
+        cid = (activity or {}).get("follow")
+        other = directory().get(cid) if cid else None
+        if other is None or cid in seen:
+            return None
+        them = _registry.get(other.id) or of(other)
+        theirs = them._activity_at(t)
+        if theirs and theirs.get("follow"):
+            return them._follow_target(theirs, t, seen)
+        block, _company, _firm = them._situation(t)
+        if block.get("status") == OFFLINE:
+            return None
+        return them
 
     def _own_place(self, t):
         """Where they'd be at t by themselves, before anyone they're with comes into it."""
@@ -630,13 +680,9 @@ class Presence:
         """
         doing, where = activity.get("doing") or "", activity.get("where") or ""
         if activity.get("follow"):
-            from ..contacts import directory
-            other = directory().get(activity["follow"])
-            if other is not None and other.id != self.contact.id:
-                them = _registry.get(other.id) or of(other)
-                theirs = them._state.get("activity") or {}
-                if theirs.get("follow") != self.contact.id:      # two following each other: each stays put
-                    return them._own_place(t) or where
+            target = self._follow_target(activity, t)
+            if target is not None:
+                return target._own_place(t) or where
         if places.is_patrol(doing):
             covering = patrols.sector(self.contact, where or doing, t)
             if covering:
@@ -967,10 +1013,9 @@ class Presence:
     def spot(self, where, t=None):
         """Where `where` is on the map for them: the place — or the exact point what they're doing pinned it to."""
         found = places.resolve(where or "")
-        activity = self._state.get("activity") or {}
         t = t or time.time()
-        if (found and activity.get("xy") and activity.get("where") == where
-                and activity.get("since", 0) <= t < activity.get("until", 0)):
+        activity = self._activity_at(t) or {}
+        if found and activity.get("xy") and activity.get("where") == where:
             found = {**found, "x": activity["xy"][0], "y": activity["xy"][1]}
         return found
 
@@ -1006,6 +1051,9 @@ class Presence:
         state = self.now(t)
         block, _, firm = self._situation(t)
         doing = (block.get("doing") or "").strip()
+        # Who's still on their way first: that works out their journeys, and who's here follows from them —
+        # Tim was told "waiting on Dick, 13 minutes out" and "you're with Dick" in one breath.
+        arriving = self.coming(t)
         where, company = self.whereabouts(t)
         book = directory()
         trip = self.trip(where, self.spot(where, t), t) if where else None
@@ -1017,7 +1065,7 @@ class Presence:
         status = self.line(t)
         said = f' Your status line, which he can see, says "{status}".' if status else ""
         place = self._spoken_place(where)
-        on_the_way = [] if trip else self.coming(t)
+        on_the_way = [] if trip else arriving
         if trip:
             line = self._en_route(trip, place, doing, t)
         elif doing and on_the_way:
@@ -1043,9 +1091,10 @@ class Presence:
             other = book.get(cid)
             if other is None or cid in company:
                 continue
-            seen = glance(other, t, here)
-            if seen:
-                line += f" {other.name} was with you till {time.strftime('%H:%M', time.localtime(at))}; now {seen}."
+            seen = glance(other, t, here, viewer=self.contact.id)
+            till = time.strftime('%H:%M', time.localtime(at))
+            line += (f" {other.name} was with you till {till}; now {seen}." if seen
+                     else f" {other.name} was with you till {till}, and has gone since.")
         if on_the_way and not doing:
             line += " On their way to you, not there yet: " + ", ".join(
                 f"{n} (about {m} minute{'s' if m != 1 else ''} out)" for n, m in on_the_way) + "."
@@ -1139,11 +1188,17 @@ class Presence:
             self._state["last_active"] = t or time.time()
             self.save()
 
-    def set_activity(self, doing, status, minutes, t=None, where="", company=(), xy=None, follow=None):
+    def set_activity(self, doing, status, minutes, t=None, where="", company=(), xy=None, follow=None, owner=""):
+        """
+        What they're doing now, for so long. `owner` is what set it when it isn't
+        just something they said — "case", "lift", "follow" — which what they
+        say in passing doesn't overwrite (see `owned`).
+        """
         with self._lock:
             t = t or time.time()
             status = status if status in STATUSES else BUSY
             minutes = max(5, min(int(minutes or 60), 14 * 60))
+            self._retire(t)
             self._state["activity"] = {"doing": doing.strip()[:80], "status": status,
                                        "since": t, "until": t + minutes * 60,
                                        "where": (where or "").strip()[:60],
@@ -1154,14 +1209,43 @@ class Presence:
             if follow:
                 # Gone to meet one of them: wherever they are, that's where this one's headed — and then is.
                 self._state["activity"]["follow"] = follow
+            if owner:
+                self._state["activity"]["owner"] = owner
             self.save()
         if where and not getattr(self.contact, "shares_status", True):
             self.seen_at(where, "they told you", t)
 
-    def clear_activity(self):
+    def _retire(self, t):
+        """The activity in hand, ended at t and kept a while — what they were doing an hour ago stays true."""
+        old = self._state.get("activity")
+        if not old:
+            return
+        if old.get("until", 0) > t:
+            old = {**old, "until": max(old.get("since", t), t)}
+        earlier = [a for a in (self._state.get("earlier") or []) if a.get("until", 0) > t - 6 * 3600]
+        if old.get("until", 0) > old.get("since", 0):
+            earlier.append(old)
+        self._state["earlier"] = earlier[-6:]
+        self._state["activity"] = None
+
+    def clear_activity(self, t=None):
+        """Done with it: it ends now — and is still what they were doing until now."""
         with self._lock:
-            if self._state["activity"]:
-                self._state["activity"] = None
+            if self._state.get("activity"):
+                self._retire(t or time.time())
+                self.save()
+
+    def owned(self, t=None):
+        """What set what they're doing, if it was a case, a lift or a follow and it still holds — else ''."""
+        activity = self._activity_at(t or time.time())
+        return (activity or {}).get("owner", "") if activity is self._state.get("activity") else ""
+
+    def last_until(self, until):
+        """Keep what they're doing going till at least `until` — an errand isn't over before they've got there."""
+        with self._lock:
+            activity = self._state.get("activity")
+            if activity and activity.get("until", 0) < until:
+                activity["until"] = until
                 self.save()
 
         # --- intentions ----------------------------------------------------------

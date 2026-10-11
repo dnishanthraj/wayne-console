@@ -776,10 +776,7 @@ class ContactSession:
             text = self._chat_once(retry_payload, temperature=0.95)
         except Exception:
             text = ""
-        if _HANG_UP.search(text):
-            self._hanging_up = True
-            text = _HANG_UP.sub("", text).strip()
-        text = self._plain(text)
+        text = self._read_markers(text)
         if not text or guards.parrots(text, prompt) or guards.too_similar(text, recent):
             text = self._deflection()
         text = guards.apply(text, prompt,
@@ -791,6 +788,7 @@ class ContactSession:
                                         for y in guards.split_sentences(text)) if x)
         for i, sentence in enumerate(guards.split_sentences(text)):
             if sentence.strip():
+                self._spoken.append(sentence.strip())       # cut off mid-retry, what was said is still remembered
                 yield events.sentence(i, sentence.strip())
         return text
 
@@ -1173,7 +1171,39 @@ class ContactSession:
         """Markers that only mean something to the engine, never said or sent."""
         text = _TRANSCRIPT_NOTE.sub("", _SEARCH_MARKER_COMPLETE.sub("", text or ""))
         text = _SEARCH_MARKER.sub("", text)
-        return _HANG_UP.sub("", text).strip()
+        text = _LEFTOVER_MARKER.sub("", _HANG_UP.sub("", text))
+        return re.sub(r"[ \t]{2,}", " ", text).strip()
+
+    def _read_markers(self, text):
+        """
+        The console's markers in a reply that arrived whole — a retry, a line on
+        joining — read and acted on as the streamed ones are ([join: Dick] still
+        sends Tim), and taken out: a retry once said "[join: Dick]" aloud, wrote
+        it into history and sent nobody anywhere.
+        """
+        text = text or ""
+        for pattern, attr, read in (
+                (_TAKE, "_take_case", lambda m: m.group(1).strip()),
+                (_JOIN, "_join", lambda m: m.group(1).strip()),
+                (_GROUP_TASK, "_group_task", lambda m: (m.group(1).strip(), m.group(2).strip())),
+                (plans.RSVP, "_rsvp", lambda m: m.group(1).lower()),
+                (_TEXT_REACT, "_text_react", lambda m: _tapback_emoji(m.group(1)) or None),
+                (_QUOTE, "_text_quote", lambda m: m.group(1).strip())):
+            found = pattern.search(text)
+            if found:
+                setattr(self, attr, read(found))
+                text = pattern.sub("", text)
+        choice = _REPLY_CHOICE.search(text)
+        if choice:
+            self._reply_choice = "none" if "no" in choice.group(1).lower() else "later"
+            text = _REPLY_CHOICE.sub("", text)
+        added = [name.strip() for name in _CALL_ADD.findall(text)]
+        if added and isinstance(getattr(self, "_call_add", None), list):
+            self._call_add.extend(added)
+        text = _CALL_ADD.sub("", text)
+        if _HANG_UP.search(text):
+            self._hanging_up = True
+        return self._plain(text)
 
     def case_outcome(self, case, result=None):
         """How a case ended, in a line of their own — for the board, and for him — true to how it went."""
@@ -1672,9 +1702,10 @@ class ContactSession:
         # A text, not a letter: told "a line or two", a model writes a paragraph.
         lines = [guards.cap_length(line, 3) for line in text.splitlines() if line.strip()][:4]
         text = "\n".join(lines)
-        if why in ("second_thought", "chase", "worry", "case_taken", "case_closed", "tapback", "case_declined",
-                   "case_pulled", "case_watch") \
-                and re.match(r"\W*skip\b", text, re.I):
+        if re.fullmatch(r"\W*skip\W*", text, re.I) or (
+                why in ("second_thought", "chase", "worry", "case_taken", "case_closed", "tapback", "case_declined",
+                        "case_pulled", "case_watch", "case_arrived", "case_trouble", "case_hurt")
+                and re.match(r"\W*skip\b", text, re.I)):
             return ""
         if text:
             self.history.record_exchange(REACH_MARKER, text, via="text")
@@ -2131,9 +2162,14 @@ class ContactSession:
                 + (f". Not on it: {', '.join(dark)}." if dark else ".")
                 + (f" {scanner}" if scanner else "") + (f" {board}" if board else ""))
 
-    # Him, as somewhere to go: "come to me", "meet me here", "get over here", "back me up".
-    _TO_HIM = re.compile(r"(?i)\b(come|meet|join|get|head|swing|drop|back|find|catch up)\b[^.?!]{0,24}"
-                         r"\b(me|here|my (place|location|position)|where i am)\b")
+    # Him, as somewhere to go: "come to me", "get over here", "meet me", "back me up" — not "get me the
+    # file" or "find me everything on the Penguin".
+    _TO_HIM = re.compile(r"(?i)\b(?:come|get|head|swing|hurry|run)\s+(?:on\s+|over\s+|back\s+|down\s+|up\s+|to\s+)?"
+                         r"(?:here|to me|to my (?:place|location|position)|where i am)\b"
+                         r"|\b(?:meet|join) me\b|\bback me up\b|\bfind me\b(?=\s*(?:[.!?,]|$|here\b|at\b|on\b))")
+    # "Help him", "go to her", "stick with them": a pronoun as who to go to.
+    _GO_TO_THEM = re.compile(r"(?i)\b(?:help|back|join|find|meet|follow|cover|reach|check on|go to|get to|stick with|"
+                             r"stay with|catch up with|attach to|link up with)\s+(?:him|her|them)\b")
 
     def _named_family(self, prompt, listed=False):
         """
@@ -2154,10 +2190,11 @@ class ContactSession:
         book = directory()
 
         def names_in(text):
+            # By name: an id ("batwing", "orphan") is also the jet, and a word.
             return [c for c in book if c.id != self.contact.id and c.id in cases.FIELD
-                    and any(re.search(rf"(?i)\b{re.escape(n)}\b", text) for n in {c.name, c.full_name, c.id})][:3]
+                    and any(re.search(rf"(?i)\b{re.escape(n)}\b", text) for n in {c.name, c.full_name})][:3]
         named = names_in(prompt)
-        if not named and re.search(r"(?i)\b(him|her|them|he|she|they|his)\b", prompt):
+        if not named and self._GO_TO_THEM.search(prompt):
             # "Where'd Dick go?" — "Help him out.": who "him" is, from what he said just before.
             before = next((m["content"] for m in reversed(self.history.messages)
                            if m["role"] == "user" and not m.get("marker")), "")

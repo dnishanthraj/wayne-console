@@ -194,6 +194,12 @@ def subject_of_a_take(prompt):
         return ""
     if _NOT_A_TITLE.match(subject) or any(re.search(p, subject.lower()) for p in _PERSONAL_SUBJECTS):
         return ""
+    # "How was the party last night?", "how is the shoulder?", "did you see the game?" are small talk:
+    # each ran a silent web search (seconds of dead air on a call) for "party last night review". Asked
+    # how something was, or whether they've seen it, it's a title only if it's written like one.
+    casual = re.match(r"(?i)how |(?:have|did|has) ", found.group(0))
+    if casual and not (re.search(r"[\"“”‘’']\w", subject) or re.search(r"(?:^|\s)[A-Z0-9][\w']", subject)):
+        return ""
     return " ".join(subject.split()[:8])
 
 

@@ -1442,10 +1442,10 @@
     fetch('/api/map/odds/' + encodeURIComponent(report.id)).then(function (r) { return r.json(); }).then(function (o) {
       if (openReport !== report.id || !o || o.error) return;
       var chips = [];
-      if (report.suspect) chips.push('<span class="gm-chip" data-k="' + (o.threat || '') + '">' + report.suspect +
-                                     (o.threat ? ' · ' + o.threat : '') + '</span>');
+      if (report.suspect) chips.push('<span class="gm-chip" data-k="' + esc(o.threat || '') + '">' + esc(report.suspect) +
+                                     (o.threat ? ' · ' + esc(o.threat) : '') + '</span>');
       if (report.crew >= 3) chips.push('<span class="gm-chip">' + report.crew + ' of them</span>');
-      if (report.gang && !report.suspect) chips.push('<span class="gm-chip">' + report.gang + '</span>');
+      if (report.gang && !report.suspect) chips.push('<span class="gm-chip">' + esc(report.gang) + '</span>');
       if (report.moving) chips.push('<span class="gm-chip" data-k="moving">On the move</span>');
       // The best of who's free — among those who'd get there in time to make a difference.
       var best = null, free = Object.keys(o['with'] || {});
@@ -1559,16 +1559,35 @@
       }).catch(function () {});
   }
 
+  // The open call's card, brought up to date where he's reading it: not back to the top, not losing
+  // what he's just been told ("Tim's on his way") or the button he'd tabbed to.
+  function refreshCard(report) {
+    var side = $('.gm-side'), keep = side.scrollTop, said = $('.gm-info__said');
+    var shown = !said.hidden && said.textContent;
+    if (shown && said._text !== shown) { said._text = shown; said._at = Date.now(); }
+    var focused = document.activeElement && document.activeElement.closest &&
+                  document.activeElement.closest('.gm-info [data-id]');
+    var focusId = focused && focused.dataset.id;
+    incidentCard(report);
+    side.scrollTop = keep;
+    if (shown && Date.now() - (said._at || 0) < 12000) { said.textContent = shown; said.hidden = false; }
+    if (focusId) {
+      var again = document.querySelector('.gm-info [data-id="' + focusId + '"]');
+      if (again) again.focus();
+    }
+  }
+
   function incidentCard(report) {
     var contacts = opts.contacts();
-    var who = report.assignee && contacts[report.assignee];
     var him = opts.bruce && opts.bruce();
+    // His own case leads with him — it said "nobody from the family nearby" while he was on scene.
+    var who = report.assignee === 'bruce' ? { id: 'bruce', name: 'You', you: true } : report.assignee && contacts[report.assignee];
     var near = visible().concat(him && him.presence && him.presence.spot ? [him] : []).filter(function (c) {
       var s = c.presence.spot;
       return Math.hypot(s.x - report.x, s.y - report.y) < 2.2;
     }).map(function (c) { return c.id === 'bruce' ? 'you' : c.name; });
     var state = who ? (report.case === 'closed' ? who.name + ' closed it' + (report.outcome ? ': ' + report.outcome : '.')
-                                              : who.name + '\u2019s on it — ' + report.case + '.')
+                                              : (who.you ? 'You\u2019re' : who.name + '\u2019s') + ' on it — ' + report.case + '.')
                     : (near.length ? 'Close by: ' + near.join(', ') + '.' : 'Nobody from the family nearby.');
     var img = warning(report.severity), canvas = document.createElement('canvas');
     canvas.width = img.width; canvas.height = img.height;
@@ -1701,7 +1720,7 @@
       renderLists();
       if (openReport) {
         var again = reports.filter(function (r) { return r.id === openReport; })[0];
-        if (again) incidentCard(again);
+        if (again) refreshCard(again);
       }
     }).catch(function () {});
   }
@@ -1758,6 +1777,13 @@
       t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false');
     });
     root.querySelectorAll('[data-pane]').forEach(function (p) { p.hidden = p.dataset.pane !== name; });
+  }
+
+  // Text that came from the server, made safe to put in markup.
+  function esc(text) {
+    return String(text == null ? '' : text).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
 
   function clock(at) {
@@ -2550,7 +2576,9 @@
         var hit = map.queryRenderedFeatures(e.point, { layers: ['landmark', 'spot', 'district-label', 'quarter-label', 'incident']
           .filter(function (id) { return map.getLayer(id); }) });
         if (hit.length) return;
-        $('.gm-info').hidden = true; openReport = null;
+        // A floating card goes; a call docked in the side panel stays till he goes back to the list
+        // (hiding it there left the panel's tabs over nothing).
+        if (!$('.gm-info').classList.contains('is-docked')) closeInfo();
         if (selected) deselect();
       });
       map.on('contextmenu', function (e) { e.preventDefault(); dropPin(e.lngLat); });
@@ -2610,6 +2638,15 @@
     refreshPeople: function () { if (map && !root.hidden) placePeople(); },
     search: function () { if (root && !root.hidden) $('.gm-search__input').focus(); },
     focus: function (id) { if (map && !root.hidden) select(id, true); },
+    // A call, by its id — from a toast that said how it ended: its card, and the map over it.
+    showReport: function (id) {
+      if (!map || root.hidden) return false;
+      var found = reports.filter(function (r) { return r.id === id; })[0];
+      if (!found) { loadIncidents(); return false; }
+      incidentCard(found);
+      map.flyTo({ center: ll(found.x, found.y), zoom: Math.max(map.getZoom(), 15), duration: 900 });
+      return true;
+    },
     // A place from the Codex: there, close enough to see it.
     flyTo: function (x, y) { if (map && !root.hidden) map.flyTo({ center: ll(x, y), zoom: Math.max(map.getZoom(), 15.4), duration: 1200 }); }
   };

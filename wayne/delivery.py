@@ -134,8 +134,15 @@ def remembered(text):
     return _tidy(_BRACKETED.sub(keep, _marked(text or "")))
 
 
+# The console's own markers — [join: Dick], [react: 👍], [group: Family | …] — are instructions to the
+# engine, never words: whatever path a reply took, they never reach the voice, the screen or memory.
+_CONSOLE_MARKER = re.compile(r"\[\s*(?:join|take|react|reply|re|group|add|dm|remove|leave|rsvp|search|later|"
+                             r"no reply|hang ?up|nudge|yield|you go)\b[^\]]*\]", re.I)
+
+
 def _marked(text):
     """*sighs* and (laughs) written as the cues they are; emphasis asterisks just go."""
+    text = _CONSOLE_MARKER.sub(" ", text)
     def star(match):
         inside = match.group(1)
         cue = " ".join(inside.lower().split())

@@ -1285,8 +1285,8 @@ class Console(GroupChats):
                     self._spawn(self._post_as(meant, contact, given=reply))
                     session.history.amend_last_reply(f"(Posted in “{meant.name}”: {reply})")
                     reply = ""
-                else:
-                    group_task = (meant.name, "\n".join(m["text"] for m in batch))
+                # Otherwise they answered him here and chose not to go to the chat — theirs to choose. Sent
+                # there anyway with his words as the task, "what did Tim say in the group?" became a post in it.
             if group_task and reply.strip(" .").lower() in ("", "mm"):
                 # Nothing to say to him: they've gone to say it in the group.
                 session.history.amend_last_reply(f"(Went to say it in “{group_task[0]}”.)")
@@ -1689,9 +1689,10 @@ class Console(GroupChats):
         """'[take: Diamond District]' — the open report they meant, by place or kind."""
         import difflib
 
-        from ..engine import incidents
-        # Open or already being worked: with teams, "back Cass up" is a case to join.
-        open_ = sorted((r for r in incidents.at() if r["status"] != "resolved"),
+        # Open or already being worked: with teams, "back Cass up" is a case to join — not one that's closed.
+        from ..engine import cases, incidents
+        open_ = sorted((r for r in incidents.at() if r["status"] != "resolved"
+                        and (cases.for_report(r["id"]) or {}).get("status") != "closed"),
                        key=lambda r: (-r["severity"], -r["at"]))
         if not open_:
             return
@@ -1750,7 +1751,7 @@ class Console(GroupChats):
                 return await self.assign_case(theirs["id"], contact.id, by=by, tell=False)
             if not getattr(target, "shares_location", True):
                 return None                                  # nowhere to go: they keep where they are to themselves
-            if (whereabouts.get("activity") or {}).get("follow") == target.id:
+            if whereabouts.owned() == "follow" and (whereabouts.get("activity") or {}).get("follow") == target.id:
                 return None                                  # on their way already
             there = presence.of(target).position()
             if there is None:
@@ -1764,9 +1765,10 @@ class Console(GroupChats):
         if target is not None:
             # With them from now on: where they go — the next roof, home, a case — this one goes too.
             whereabouts.set_activity(f"with {label}", presence.BUSY, max(90, minutes + 60), where=name,
-                                     company=[target.id], follow=target.id)
+                                     company=[target.id], follow=target.id, owner="follow")
         else:
-            whereabouts.set_activity(f"with {label}", presence.BUSY, max(60, minutes + 45), where=name, xy=there)
+            whereabouts.set_activity(f"with {label}", presence.BUSY, max(60, minutes + 45), where=name, xy=there,
+                                     owner="follow")
         whereabouts.set_trip(name, {**trip, "left": time.time()})
         diary.write(contact.id, "joining", f"went to join {label}" + (" — Bruce asked" if by == "him" else ""))
         log.info("%s joining %s (%s, %d min)", contact.id, label, by, minutes)
@@ -1789,6 +1791,9 @@ class Console(GroupChats):
         contact = self.directory.get(contact_id)
         if contact is None or report is None or contact_id not in cases.FIELD:
             return None
+        done = cases.for_report(report_id)
+        if done and done["status"] == "closed":
+            return None             # over already: nobody's sent to an empty scene
         about = f"{report['kind'].lower()} at {report['place']}" + (
             f" — dispatch said: {report['dispatch']}" if report.get("dispatch") else "")
         if by == "him" and tell and contact_id not in self._members():
@@ -1821,7 +1826,7 @@ class Console(GroupChats):
             codex.encounter(report["suspect"], f"{report['kind'].lower()} at {report['place']}")
         whereabouts.set_activity(f"on the way to the {report['kind'].lower()} at {report['place']}",
                                  presence.BUSY, max(90, int(minutes) + 60), where=report["place"],
-                                 xy=goal if report.get("route") else None)
+                                 xy=goal if report.get("route") else None, owner="case")
         whereabouts.set_trip(report["place"], {**trip, "left": time.time()})
         if not contact.shares_status:
             whereabouts.seen_at(report["place"], "on a case")
@@ -1952,11 +1957,11 @@ class Console(GroupChats):
         place = case["place"] if case else name
         if case:
             whereabouts.set_activity(f"on the way to the {case['kind'].lower()} at {case['place']}, on the Batwing with him",
-                                     presence.BUSY, 90, where=case["place"], xy=drop)
+                                     presence.BUSY, 90, where=case["place"], xy=drop, owner="lift")
             cases.retime(case["id"], contact_id, (theirs["end"] - now) / 60)
         else:
             whereabouts.set_activity(f"getting a lift from him in the Batwing, to {name}", presence.BUSY, 60,
-                                     where=place, xy=drop)
+                                     where=place, xy=drop, owner="lift")
         whereabouts.set_trip(place, {**theirs, "left": now})
         if onward:
             batman.ferry(own["place"], onward, his, now)
@@ -2011,8 +2016,16 @@ class Console(GroupChats):
         now. The case follows it; whoever's on scene goes after it, and whether they
         catch it is decided as they go; whoever's still on the way heads it off.
         """
-        from ..engine import cases, outcomes
-        changes = {"kind": report["kind"], "severity": report["severity"], "was": report.get("was", [])}
+        from ..engine import cases, incidents, outcomes
+        if report["kind"] in (case.get("was") or []) or report["kind"] in (case.get("kinds") or []):
+            # Back to something it already was — a getaway run out to "suspects fled", a turn un-happening:
+            # a case only moves forward (going back re-scored a clean getaway as a robbery "caught"). A
+            # chase that's over ends now, as a chase.
+            if case["kind"] in incidents.MOVING and now < case.get("due", now):
+                cases.mark(case["id"], due=now, fled=bool(report.get("fled")))
+            return
+        changes = {"kind": report["kind"], "severity": report["severity"], "was": report.get("was", []),
+                   "kinds": list(dict.fromkeys(list(case.get("kinds") or []) + [case["kind"]]))}
         route = report.get("route") if report.get("moving") else None
         held = case.get("chase") or {}
         if route and held.get("start") != round(route["start"]):
@@ -2041,7 +2054,7 @@ class Console(GroupChats):
                         continue
                     whereabouts = presence.of(contact)
                     whereabouts.set_activity(f"after the {report['kind'].lower()} from {case['place']}", presence.BUSY,
-                                             90, where=case["place"], xy=(x, y))
+                                             90, where=case["place"], xy=(x, y), owner="case")
                     whereabouts.set_trip(case["place"], {"pts": pts, "start": route["start"], "end": at,
                                                          "by": "in pursuit", "left": route["start"]})
         case = cases.mark(case["id"], **changes) or case
@@ -2056,7 +2069,7 @@ class Console(GroupChats):
                 goal, cut = self._heading_for(report, here, member)
                 trip = travel.fastest(member, here, goal, None, now, book=False, jet=False)
                 whereabouts.set_activity(f"after the {report['kind'].lower()} from {case['place']}", presence.BUSY, 90,
-                                         where=case["place"], xy=goal)
+                                         where=case["place"], xy=goal, owner="case")
                 whereabouts.set_trip(case["place"], {**trip, "left": now})
                 case = self._chase_after(case, report, cut, member, trip["end"]) or case
         log.info("case %s turned: %s -> %s", case["id"], case.get("was", ["?"])[-1:], report["kind"])
@@ -2262,7 +2275,8 @@ class Console(GroupChats):
             state = whereabouts.now()
             if state["status"] == presence.OFFLINE or now < (whereabouts.get("case_rest") or 0):
                 continue        # asleep, out of reach, or just back from one
-            patrolling = places.is_patrol(state["doing"])
+            # What they're actually doing — not "" because they've just texted him (on their phone, still out).
+            patrolling = places.is_patrol(whereabouts._situation(now)[0].get("doing"))
             # From exactly where they are — the roof they're watching from, the road they're on.
             here = whereabouts.position(now)
             sector = whereabouts.whereabouts(now)[0] or ""
@@ -2306,10 +2320,11 @@ class Console(GroupChats):
             odds, what, _how = max(choices, key=lambda ch: ch[0])
             if random.random() < odds * (contact.initiative or {}).get("self_dispatch", 1.0):
                 whereabouts.put("case_rest", now + random.uniform(25, 70) * 60)
+                company = whereabouts.whereabouts(now)[1]       # before the case takes them off on their own
                 await self.assign_case(what["id"], cid, by="self")
                 busy.add(cid)
                 # Whoever they're with comes too: Dick and Tim drop the controllers together.
-                for friend in whereabouts.whereabouts(now)[1]:
+                for friend in company:
                     if friend in cases.FIELD and friend not in busy and friend not in self._members():
                         await self.assign_case(what["id"], friend, by="self")
                         busy.add(friend)
@@ -2363,7 +2378,7 @@ class Console(GroupChats):
             left = max(20, int((case.get("due", time.time()) - time.time()) / 60) + 15)
             presence.of(contact).set_activity(f"working the {case['kind'].lower()} at {case['place']}",
                                               presence.BUSY, left, where=case["place"],
-                                              xy=(case["x"], case["y"]) if case.get("chase") else None)
+                                              xy=(case["x"], case["y"]) if case.get("chase") else None, owner="case")
             self._spawn(self._presence_changed(contact))
             odds = (contact.initiative or {}).get("case_updates", 0.4)
             if mine.get("by") == "him" and contact.id not in self._members() and random.random() < odds:
@@ -2383,19 +2398,17 @@ class Console(GroupChats):
         try:
             result = outcomes.decide(case)
             writer = next((self.directory.get(m) for m in cases.team(case) if self.directory.get(m)), None)
-            if writer is None:
-                closed = cases.close(case["id"], result["line"][:1].upper() + result["line"][1:] + ".", result)
-                await self.broadcast({"type": "cases"})
-                if closed:
-                    self._remember_case(closed, result)
-                return
-            session = self.session_for(writer.id)
-            async with self.turn_lock:
-                loop = asyncio.get_running_loop()
-                outcome = await loop.run_in_executor(None, session.case_outcome, case, result)
-                # The story of it, told once, the way they'd tell it later — the one everyone on it remembers.
-                result["story"] = await loop.run_in_executor(None, session.case_story, case, result)
-            closed = cases.close(case["id"], outcome or result["line"], result)
+            outcome = ""
+            if writer is not None:
+                session = self.session_for(writer.id)
+                async with self.turn_lock:
+                    loop = asyncio.get_running_loop()
+                    outcome = await loop.run_in_executor(None, session.case_outcome, case, result)
+                    # The story of it, told once, the way they'd tell it later — the one everyone on it remembers.
+                    result["story"] = await loop.run_in_executor(None, session.case_story, case, result)
+            # His own case, alone, has nobody to write it up — but it ends the same way as anyone's: the rogue's
+            # run, the letters, him off it (skipped, his suit stayed on in daylight and Gordon never wrote).
+            closed = cases.close(case["id"], outcome or (result["line"][:1].upper() + result["line"][1:] + "."), result)
             if not closed:
                 return
             if "bruce" in cases.team(closed):
@@ -2429,7 +2442,12 @@ class Console(GroupChats):
                 await self._presence_changed(contact)
             self._remember_case(closed, result)
             await self.broadcast({"type": "cases"})
-            log.info("%s closed case %s (%s, p=%.2f): %s", writer.id, case["id"], result["how"], result["chance"], outcome)
+            # Said on the console as it happens — a case ending was silent unless someone texted about it.
+            await self.broadcast({"type": "case_closed", "id": closed["id"], "kind": closed["kind"],
+                                  "place": closed["place"], "grade": result.get("grade", ""), "how": result.get("how", ""),
+                                  "line": outcome or result["line"], "team": cases.team(closed)})
+            log.info("%s closed case %s (%s, p=%.2f): %s", writer.id if writer else "bruce", case["id"], result["how"],
+                     result["chance"], outcome)
             # Hurt on it: they may tell him — a text, or a ring if it's bad and he's free. Or not.
             for member, injury in result["hurt"].items():
                 contact = self.directory.get(member)
@@ -2441,8 +2459,8 @@ class Console(GroupChats):
                     await self._ring(contact, f"hurt — {about}")
                 elif random.random() < (contact.initiative or {}).get("asks_for_help", 0.4) + 0.2:
                     self._spawn(self._later(random.uniform(60, 600), self._send_unprompted(contact, about, "case_hurt")))
-            chatty = min(1.0, (writer.initiative or {}).get("per_day", 0.4))
-            if (writer.id not in self._members() and now - case.get("due", now) < 2 * 3600
+            chatty = min(1.0, (writer.initiative or {}).get("per_day", 0.4)) if writer else 0.0
+            if (writer is not None and writer.id not in self._members() and now - case.get("due", now) < 2 * 3600
                     and self._may_reach_out(now) and random.random() < (0.3 + 0.12 * case["severity"]) * chatty):
                 self._count_initiative()
                 await self._send_unprompted(writer, f"{case['kind'].lower()} at {case['place']} — {outcome}",
@@ -2902,7 +2920,7 @@ class Console(GroupChats):
         await self.drive(keep(), contact, epoch)
         return result.get("value")
 
-    async def submit(self, text, spoken=False, confidence=1.0, talked_over=""):
+    async def submit(self, text, spoken=False, confidence=1.0, talked_over="", overlapped=None):
         """
         Run one turn. `spoken` marks input that came from a microphone, which is
         the only kind that can be an acoustic echo — typed text never is.
@@ -2910,7 +2928,10 @@ class Console(GroupChats):
         text = (text or "").strip()
         if not text or not self.current_id or self._ringing_out == self.current_id:
             return      # nobody on the line — it's ringing, and they won't answer
-        if spoken and self._is_own_echo(text):
+        # Only a take their voice could have got into can be their voice coming back (the page knows;
+        # an older page that doesn't say is checked as before).
+        if spoken and overlapped is not False and self._is_own_echo(text):
+            await self.broadcast(events.state(events.IDLE))      # not left on "one moment" for nothing
             return
         wanted = self._asked_to_add(text) if self.call else None
         if self.call:
@@ -3883,7 +3904,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     confidence = 1.0
                 console._spawn(console.submit(
                     payload.get("text", ""), spoken=bool(payload.get("spoken")),
-                    confidence=confidence, talked_over=str(payload.get("talked_over") or "")))
+                    confidence=confidence, talked_over=str(payload.get("talked_over") or ""),
+                    overlapped=payload.get("overlapped")))
             elif kind == "connect":
                 console._spawn(console.connect(payload.get("id", "")))
             elif kind == "disconnect":

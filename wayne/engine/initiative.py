@@ -108,10 +108,15 @@ def apply(session, found):
     if not isinstance(found, dict):
         return
     state = presence.of(session.contact)
-    if found.get("free"):
+    # A case, a lift, going to one of them: what they say in passing doesn't overwrite it. On scene and
+    # texting "ten more minutes", Dick was "handling it" for ten minutes and then back on his routine
+    # while the board still had him on the case.
+    owned = state.owned()
+    if found.get("free") and not owned:
         state.clear_activity()     # done with the last thing — maybe on to the next
     doing = found.get("doing")
-    if isinstance(doing, str) and doing.strip() and doing.strip().lower().strip(" .") not in _NOTHING:
+    if (isinstance(doing, str) and doing.strip() and doing.strip().lower().strip(" .") not in _NOTHING
+            and not owned):
         status = found.get("status") if found.get("status") in (presence.BUSY, presence.OFFLINE) \
             else presence.BUSY
         minutes = _number(found.get("minutes"), None)
@@ -122,6 +127,12 @@ def apply(session, found):
         state.set_activity(doing, status, minutes,
                            where="" if where.strip().lower().strip(" .") in _NOTHING else where,
                            company=_people(found.get("with"), session.contact))
+        # Sent somewhere: the errand starts when they get there. "Check the docks, half an hour" with
+        # fifty minutes of driving had Dick give up on the way — and still report back.
+        place, _ = state.whereabouts()
+        trip = state.trip(place, state.spot(place), time.time()) if place else None
+        if trip and trip.get("end"):
+            state.last_until(trip["end"] + max(10.0, min(minutes, 120)) * 30)
     # "joining" — off to one of the family — is the console's to carry out (Console._join_by_name):
     # onto their case if they're on one, to them by the fastest way if not.
     reach = found.get("contact")
@@ -138,11 +149,13 @@ def apply(session, found):
         state.intend(reach.get("by", "text"), reach["about"], due, origin="promise")
     closed = found.get("case_closed")
     if isinstance(closed, str) and closed.strip() and closed.strip().lower() not in ("null", "none", "no"):
+        # "Handled it" is a hint, not the ending: how a case ends is the odds' (engine.outcomes), and it
+        # closes through the one path that grades it, writes it up and sends everyone on. Said when
+        # it's nearly over anyway, it's over now; said from ten minutes out, it's talk.
         from . import cases
         case = cases.active(session.contact.id)
-        if case:
-            cases.close(case["id"], closed.strip())
-            state.clear_activity()
+        if case and case["status"] == "on scene" and cases.phase(case)[0] == "wrapping up":
+            cases.mark(case["id"], due=time.time())
     worry = found.get("worried")
     if isinstance(worry, str) and worry.strip() and worry.strip().lower() not in ("null", "none", "no"):
         # It stayed with them. Whether they say so later is theirs — Dick will,

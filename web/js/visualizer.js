@@ -190,6 +190,14 @@
       this.lastFrame = 0;
       return;
     }
+    // The ring with no call is faded right out: looked at now and then, never drawn while invisible
+    // (it was drawing all day to a transparent canvas).
+    if (this.shape !== 'line') {
+      if ((this._seenTick = (this._seenTick || 0) + 1) % 30 === 1) {
+        this._invisible = parseFloat(getComputedStyle(this.canvas).opacity) === 0;
+      }
+      if (this._invisible) { this.lastFrame = 0; return; }
+    }
     if (this.shape === 'line' && this._accentTick % 30 === 0) {
       var rect = this.canvas.getBoundingClientRect();
       if (Math.round(rect.width * this.dpr) !== this.canvas.width) this._resize();    // shown after it was made

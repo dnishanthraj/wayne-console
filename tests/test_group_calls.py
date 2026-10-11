@@ -449,14 +449,22 @@ def test_a_case_is_assigned_reaches_the_scene_and_closes_with_its_ending(private
     assert "Tim" in cases.board_note({"robin": "Tim"})
 
 
-def test_saying_its_handled_closes_the_case(private_data):
+def test_saying_its_handled_is_a_hint_not_the_ending(private_data):
+    """
+    "Handled it, he's in cuffs" from ten minutes out closed the case with no grade, put a rogue in custody
+    on one generated line and skipped everything after. The odds end a case; saying so when it's nearly
+    over anyway brings the end forward, through the one path that grades it.
+    """
     from wayne.engine import cases, initiative
-    cases.assign(REPORT, "robin", by="self")
+    case = cases.assign(REPORT, "robin", by="self", travel=10)
     tim = SimpleNamespace(id="robin", name="Tim", initiative={}, texting_pace={}, routine=(),
                           shares_status=True, home="")
     initiative.apply(SimpleNamespace(contact=tim), {"case_closed": "caught them at the docks"})
-    assert cases.active("robin") is None
-    assert cases.recent("robin")["outcome"] == "caught them at the docks"
+    assert cases.active("robin")["status"] == "assigned"          # still on the way: it's talk
+    now = time.time()
+    cases.mark(case["id"], status="on scene", updated_at=now - 900, due=now + 60)    # nearly done
+    initiative.apply(SimpleNamespace(contact=tim), {"case_closed": "caught them at the docks"})
+    assert cases.active("robin")["due"] <= time.time()             # ends now — by the odds, on the next tick
 
 
 def test_only_the_field_takes_cases():

@@ -65,7 +65,7 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 - **Speech starts in about half a second.** The turn is read ahead while you're still talking, sentences are voiced as the model writes them, and the words appear in time with the voice.
 - **Voices that fit the moment**, and the sound of where they are. Woken by your call, they yawn; mid-fight, they grunt and cut off; on a stakeout, they whisper. Under it, rain and thunder, sirens, a kitchen, Selina's cats, Tim's houseboat. Stage directions are performed, never shown.
 - **A ring that means something.** It covers the model warming up; busy people decline, sleeping ones ring out, and they call you back.
-- **Group calls**, you plus four, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time.
+- **Group calls**, you plus four, each with a visualiser of their own, answering in a few seconds. *"Dick, get Tim on"* rings Tim; everyone hears who declined, who joined and who left. While someone's ringing, the others talk among themselves; people talk over each other and sort it out, and you can jump in any time. **One phone per room**: ring Dick while Tim's with him and Tim's on his speaker, on Dick's seat, and goes when Dick does.
 
 </td><td width="50%" valign="top">
 
@@ -94,10 +94,29 @@ Each one is a JSON profile in [`wayne/contacts/profiles/`](wayne/contacts/profil
 
 ### 🚨 The city
 - **A police scanner** with a steady stream of reports drawn from each district's own trouble: Crime Alley far more than the Upper East Side, and three times busier at night. Knife and gang crime between named crews, domestics, overdoses, and under it the monsters' work, only when they're loose. Every report has its dead and hurt, which change as the call goes on; dispatches and incident logs are written by the model, quote people as they talk, and some are as grim as Gotham gets.
-- **Cases.** Put someone on a report from the map, or just tell them in conversation. Awake, they take it about as readily as they take orders (Dick nearly always, Randy rarely); asleep, they get your text when they wake. They travel there, talk about it, and close it when they say it's handled. Now and then a patrol takes a call on its own.
+- **Calls that turn and move.** A robbery becomes a getaway on real roads, a snatch a foot chase, a bar fight a stabbing. Crews have numbers (Bane brings thirty), and whoever's sent cuts a getaway off where they can get ahead of it.
+- **Cases with odds.** Put someone on a report from the map, or just tell them in conversation. Every call shows its odds as the Batcomputer reckons them, with GCPD's own under them (the family never makes it worse than nobody going), and each free member's button says what sending them would make it, or that they'd be too late. Endings are graded lives first: success, partial, failure. Rogues who get away come back worse; a capture ends the run.
 - **Hearsay.** What one of them hears may reach another, with who said it.
 - **Secrets that stay secret.** Every fact about you is tagged with who knows it, so Lucius never learns who's under the Batwing mask.
 - **The Codex** (<kbd>C</kbd>): everyone in Bruce's world and every rogue as a file — vital details, a biography you can rewrite (a contact's is the directory's own), where each rogue is now (loose, in custody, Arkham, Blackgate), how they work, their weakness and your contingency — and every place on the map. Drop a picture on a face to give it one.
+
+</td></tr>
+<tr><td valign="top">
+
+### 🦇 The family at work
+- **Patrols on a roster.** Sectors per two-hour watch, the worst of the city first, Dick and Tim or Barbara and Cass paired some nights, a lead followed where the same crew is on the scanner again. They run the roofs (fast on the lines, a sprint on the tops) and watch from each vantage a while; a call nearby, and they go.
+- **Getting there like Batman.** The fastest plausible way in the suit: grapple lines, the bike, Randy flying, your Batmobile. You go as Batman to a case or by night and as Bruce Wayne by day, to any pin or place, or to one of them and with them from then on.
+- **The Batwing is yours alone.** Call it and it comes; it drops you anywhere, lifts one of the family on the way, and sweeps the city as a drone till dawn.
+- **They go to one another.** Ask Tim to help Dick, however you put it, and it's his to take, question or turn down; if he goes, he's on Dick's case with him or at his side.
+- **Their night, on record.** Each keeps a diary the console writes as it happens: set off, got there, who they were with and who left for where, the cases and how they ended. Ask what they were just doing and they know, and so does whoever was with them.
+- **Committed on scene.** In the middle of a case, nobody (you included) walks off it; on the way, you can change your mind.
+
+</td><td valign="top">
+
+### 📬 Mail and the morning
+- **Mail** (<kbd>E</kbd>), in markdown, filed into Inbox, Secure, Spam and Archive. The Batcomputer's **night report** at six, assembled from the night's cases, injuries, rogues and patrols; **the briefing** at seven; **the market's close** on trading days, with Wayne Enterprises and Gotham's other listed companies moving on the city's news.
+- **Letters that follow the night**: Gordon on the secure line after a capture, a thank-you after a rescue, the insurer after a chase, Arkham after an escape. The office keeps office hours, and the spam is Gotham's.
+- **Comms on a case**: you open them (alone on a case, Alfred might just text); they know who's on scene and who's still on the way, and close themselves once it's over and quiet. Mute any chat or anyone's calls; archive any group.
 
 </td></tr>
 </table>
@@ -164,6 +183,11 @@ Tick them off as you go.
 - [ ] Ask Dick to come to Wayne Tower, then watch him drive in from Blüdhaven.
 - [ ] Ask anyone what's in Burnside.
 - [ ] Take the 3D view down to Amusement Mile.
+- [ ] Call Tim while he's on patrol with Dick, and ask him where Dick went.
+- [ ] Tell Cass to go help Barbara, and watch her cross the city.
+- [ ] Call the Batwing, give Tim a lift, and drop yourself on a case.
+- [ ] Watch a robbery turn into a getaway, and send someone to cut it off.
+- [ ] Read the six o'clock night report after a long night.
 
 ## 🚀 Setup
 
@@ -242,6 +266,7 @@ If you try a reasoning model (qwen3, deepseek-r1, gpt-oss), set `"think": false`
 | <kbd>Esc</kbd> | Stop playback · close the map · close a picker |
 | <kbd>M</kbd> | Open the map |
 | <kbd>C</kbd> | Open the Codex |
+| <kbd>E</kbd> | Open your mail |
 | <kbd>/</kbd> | Search the map |
 | <kbd>@</kbd> | Tag someone (in a group, `@everyone` too) |
 | Double-click a message | React |
@@ -270,7 +295,11 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 | [`presence.py`](wayne/engine/presence.py) | What each of them is doing, where, and with whom. One state drives the status dot, how fast they read, whether they answer, and what they're in the middle of when you call. |
 | [`initiative.py`](wayne/engine/initiative.py) | The pass after every conversation: what they're off to do, promises to keep, whether they're worried about you, whether a case is closed. Also their morning plans and status lines. |
 | [`places.py`](wayne/engine/places.py) · [`gotham.json`](wayne/engine/gotham.json) | The gazetteer: where "the docks" or "home" actually is, beats to patrol, the shape of the city. |
-| [`incidents.py`](wayne/engine/incidents.py) · [`cases.py`](wayne/engine/cases.py) | The scanner (the same moment always gives the same reports, so the map, the patrols and the people on comms agree) and the cases taken from it. |
+| [`diary.py`](wayne/engine/diary.py) | What each of them actually did today, written as it changes and never recomputed: what they're told about their own night, and whoever left them, reads from it. |
+| [`patrols.py`](wayne/engine/patrols.py) · [`travel.py`](wayne/engine/travel.py) | Tonight's roster (sectors, pairs, leads) and how each of them gets anywhere in the suit; [`batman.py`](wayne/engine/batman.py) and [`jet.py`](wayne/engine/jet.py) are you and the Batwing. |
+| [`incidents.py`](wayne/engine/incidents.py) · [`cases.py`](wayne/engine/cases.py) | The scanner (the same moment always gives the same reports, so the map, the patrols and the people on comms agree): calls that turn, move and get cut off, and the cases taken from it. |
+| [`outcomes.py`](wayne/engine/outcomes.py) · [`arcs.py`](wayne/engine/arcs.py) | The odds (GCPD's baseline as a floor), how a case ends, graded lives first, and the rogues who get away and come back worse. |
+| [`inbox.py`](wayne/engine/inbox.py) · [`markets.py`](wayne/engine/markets.py) · [`gazette.py`](wayne/engine/gazette.py) | His mail (the night report, the briefing, the market's close, the letters a night leaves) and the morning's papers. |
 | [`groupchat.py`](wayne/engine/groupchat.py) · [`party.py`](wayne/engine/party.py) | Who answers in a group and when it goes quiet; who speaks next on a group call. |
 | [`culture.py`](wayne/engine/culture.py) · [`grapevine.py`](wayne/engine/grapevine.py) | What they've been watching and following; what one heard from another. |
 | [`guards.py`](wayne/engine/guards.py) | The failures that break the illusion, caught in code: echoing you, repeating themselves, a forbidden form of address, a monologue. |
@@ -280,7 +309,7 @@ A conversation is one engine for calls, texts and the terminal alike. It never p
 
 - **The ring covers the load.** A call's greeting is generated and voiced while it rings, so they speak the moment they pick up.
 - **They know they're on a link.** No offering you tea, no telling you to sit down. They can't see you.
-- **They won't invent your life.** Anything about your day has to have been said by you or remembered; their own afternoon is theirs to make up.
+- **They won't invent your life, or their own night.** Anything about your day has to have been said by you or remembered; what they did tonight is on record in their diary, theirs to tell, not to rewrite.
 - **Whisper's confident mistakes are caught.** Low-confidence audio is flagged to the contact, who asks rather than assumes.
 - **The voice can't hear itself.** Echo cancellation, a higher threshold while a reply plays, and a final check that discards a transcript matching what was just said aloud.
 - **Memory knows when.** Facts are dated and the conversation timestamped, so "it's been a while" means something.
@@ -297,9 +326,10 @@ wayne-console/
 ├── wayne/
 │   ├── contacts/profiles/*.json # the cast
 │   ├── operators/bruce.json     # who you play, and who knows what about you
-│   ├── engine/                  # session, presence, initiative, party, groupchat,
-│   │                            # places, incidents, cases, culture, grapevine,
-│   │                            # guards, prompting, search, world
+│   ├── engine/                  # session, presence, diary, initiative, party, groupchat,
+│   │                            # places, patrols, travel, batman, jet, incidents, cases,
+│   │                            # outcomes, arcs, inbox, markets, gazette, culture,
+│   │                            # grapevine, guards, prompting, search, world
 │   ├── memory/                  # history, texts, groups, vault, encrypted store
 │   ├── audio/                   # Whisper in, ElevenLabs out
 │   └── frontends/               # web (FastAPI + WebSocket), groupchats, cli
@@ -368,7 +398,7 @@ Test with a scratch `WAYNE_DATA_DIR` so your real memory stays out of it. Front-
 - **Local-first, not local-only.** The model and speech recognition run on your Mac; the reply text goes to ElevenLabs to be voiced.
 - **Memory encryption is opt-in and key-adjacent.** The key lives in `.env` beside the data: good against casual reading and backups, not against someone who has that file.
 - **macOS only** as written (`afplay`, and `pynput` for the terminal's hotkey).
-- **Wiping memory:** stop the server and delete `data/` (or one contact's folder under it). Saying "protocol zero" to a contact wipes theirs.
+- **Starting over:** stop the console and run `venv/bin/python scripts/reset_world.py --all` (or `--chats`, `--world`, with `--dry-run` to see first); it backs `data/` up before anything goes. Saying "protocol zero" to a contact wipes theirs.
 
 ## License
 

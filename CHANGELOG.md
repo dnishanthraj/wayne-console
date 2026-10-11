@@ -68,6 +68,30 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 - Turning up late is never worse than GCPD alone: odds and endings for a call
   that was over before anyone got there are GCPD's, the card says so, and the
   ones who can't make it in time are marked late rather than shown at 2%.
+- From a full audit: a goodbye is only how a sentence ends ("I see you've
+  been busy" and "see you at the warehouse in ten" hung up calls); markers in
+  a retried reply are acted on and never spoken; a literal "SKIP" is never
+  texted; someone added to a chat never sees what was said before; outsiders
+  never hear the family is on a case; asking about a chat no longer posts in
+  it; small talk doesn't trigger web searches; agreeing with what was just
+  said isn't thrown away as an echo; three following each other no longer
+  crash the world's pulse; ending or replacing what someone's doing no longer
+  rewrites where they were (no teleporting); a case, a lift or a follow isn't
+  overwritten by something said in passing; an errand lasts till they've got
+  there; patrol sectors hold for the whole watch; a pair stays a pair; hunts
+  and hostage cases with nobody named can succeed; a getaway that ran out ends
+  as a chase, never re-scored as the robbery; a contact saying "handled it"
+  only hurries an ending that's nearly there; your own cases close with
+  everything a case brings (letters, a rogue's run, you off it); nobody's sent
+  to a case that's over; a case ending shows a notification; when the server
+  ends a call the page rings off too.
+- Mail and your position update without a call up; message tabs survive a
+  reload; Escape closes Mail and the Codex; Space presses a button you've
+  tabbed to; the call card stays over Mail and lifts the person card clear;
+  a ring is never hidden behind a dialog; quieter labels are readable; native
+  controls are drawn dark; the voice ring stops drawing when nobody can see it.
+- `scripts/reset_world.py`: start over (chats, the world, or both) with a
+  backup first.
 - Someone on another's speaker leaves with them even when they're the last
   on; comms never spin off private asides; nobody is moved off a scene they're
   in the middle of, from the map or anywhere else; finished calls stay faded

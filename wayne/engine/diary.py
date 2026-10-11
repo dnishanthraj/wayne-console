@@ -114,12 +114,17 @@ def _snapshot(whereabouts, t):
             "asleep": block.get("status") == "offline"}
 
 
-def _their_now(contact_id, t):
-    """What someone who's just gone is doing now, in a few words: 'on the way to the shots fired at …'."""
+def _their_now(contact_id, t, viewer=None):
+    """
+    What someone who's just gone is doing now, in a few words: 'on the way to the
+    shots fired at …' — or nothing, for a viewer outside the secret when it's the work.
+    """
     from ..contacts import directory
-    from . import presence
+    from . import groupchat, presence
     contact = directory().get(contact_id)
     if contact is None:
+        return ""
+    if viewer and groupchat.outside(viewer) and presence._masked(contact_id, t):
         return ""
     them = presence.of(contact)
     block, _company, _firm = them._situation(t)
@@ -155,9 +160,17 @@ def observe(whereabouts, t=None):
             made.append(entry)
 
     spoken = whereabouts._spoken_place
+
+    def at(doing, where):
+        """'working the robbery at Ralli's' — and where, unless that already says it."""
+        place = spoken(where)
+        if not place or place.split(" (")[0].split(",")[0].lower() in doing.lower():
+            return doing or place or "about"
+        return f"{doing} — {place}" if doing else place
+
     if not last:
-        put("doing", (f"{snap['doing']} — " if snap["doing"] else "") + (
-            f"on the way to {spoken(snap['trip'])}" if snap["trip"] else spoken(snap["where"]) or "about"))
+        put("doing", at(snap["doing"], snap["where"]) if not snap["trip"] else
+            (f"{snap['doing']} — " if snap["doing"] else "") + f"on the way to {spoken(snap['trip'])}")
         if snap["with"]:
             put("with", "with " + " and ".join(_name(c) for c in snap["with"]), who=list(snap["with"]))
     else:
@@ -174,8 +187,8 @@ def observe(whereabouts, t=None):
         elif ended and snap["where"] == last.get("trip"):
             put("arrived", f"got to {spoken(snap['where'])}" + why)
         elif changed:
-            put("doing", (snap["doing"] or "nothing on") + ("" if snap["trip"] else f" — {spoken(snap['where'])}"
-                                                            if snap["where"] else ""))
+            put("doing", (snap["doing"] or "nothing on") if snap["trip"] else at(snap["doing"] or "nothing on",
+                                                                                   snap["where"]))
         elif snap["where"] != last.get("where") and not ended and not snap["trip"]:
             put("moved", f"moved on to {spoken(snap['where'])}")
         if snap["asleep"] != bool(last.get("asleep")):
@@ -185,7 +198,7 @@ def observe(whereabouts, t=None):
         if joined:
             put("with", "with " + " and ".join(_name(c) for c in joined), who=joined)
         for other in gone:
-            theirs = _their_now(other, t)
+            theirs = _their_now(other, t, viewer=cid)
             if started or snap["doing"].lower() != (last.get("doing") or "").lower():
                 text = f"headed off from {_name(other)}" + (f", who's now {theirs}" if theirs else "")
             else:

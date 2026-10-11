@@ -1368,12 +1368,19 @@
   function renderTabs() {
     var nav = el['messages-tabs'];
     if (!nav) return;
+    // A tab for someone who's gone is dropped — but only once who's there is known: filtered on
+    // the first paint, before contacts and groups had loaded, every saved tab went.
+    var known = { dm: Object.keys(state.contacts).length > 0, group: !!state.groupsLoaded };
     state.tabs = state.tabs.filter(function (tb) {
+      if (!known[tb.kind === 'dm' ? 'dm' : 'group']) return true;
+      return tb.kind === 'dm' ? !!state.contacts[tb.id] : !!state.groups[tb.id];
+    });
+    var showing = state.tabs.filter(function (tb) {
       return tb.kind === 'dm' ? !!state.contacts[tb.id] : !!state.groups[tb.id];
     });
     nav.innerHTML = '';
-    nav.hidden = state.tabs.length < 2;
-    state.tabs.forEach(function (tb) {
+    nav.hidden = showing.length < 2;
+    showing.forEach(function (tb) {
       var isDm = tb.kind === 'dm', contact = isDm && state.contacts[tb.id], group = !isDm && state.groups[tb.id];
       var tab = document.createElement('div');
       tab.className = 'messages__tab';
@@ -1808,6 +1815,7 @@
     return fetch('/api/groups').then(function (r) { return r.json(); }).then(function (d) {
       state.groups = {};
       (d.groups || []).forEach(function (g) { state.groups[g.id] = g; });
+      state.groupsLoaded = true;
       Object.keys(state.unread).forEach(function (key) {
         if (key.indexOf('g:') === 0 && !state.groups[key.slice(2)]) delete state.unread[key];
       });
@@ -2390,6 +2398,38 @@
     if (ConsoleTones.message) ConsoleTones.message();
   }
 
+  // A case over: how it went, in a line, coloured by how it's graded — click to see it on the map.
+  function notifyCase(e) {
+    var card = document.createElement('div');
+    card.className = 'toast toast--case';
+    card.dataset.grade = e.grade || '';
+    var icon = document.createElement('span');
+    icon.className = 'bubble__avatar toast__case';
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+                     'stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.4 3.1 8.3 7.5 9.5 4.4-1.2 7.5-5.1 7.5-9.5V6z"/>' +
+                     (e.grade === 'success' ? '<path d="m8.5 12 2.4 2.4 4.6-4.8"/>' : e.grade === 'failure'
+                       ? '<path d="m9.5 9.5 5 5m0-5-5 5"/>' : '<path d="M9 12h6"/>') + '</svg>';
+    var words = document.createElement('div');
+    var who = document.createElement('span');
+    who.className = 'toast__name';
+    var names = (e.team || []).map(function (id) { return id === 'bruce' ? 'You' : (state.contacts[id] || {}).name || id; });
+    who.textContent = e.kind + ' · ' + e.place + (e.grade ? ' · ' + e.grade : '');
+    var line = document.createElement('span');
+    line.className = 'toast__text';
+    line.textContent = (names.length ? names.join(' and ') + ': ' : '') + (e.line || '');
+    words.appendChild(who);
+    words.appendChild(line);
+    card.appendChild(icon);
+    card.appendChild(words);
+    card.addEventListener('click', function () {
+      dismissToast(card);
+      if (!(window.GothamMap && GothamMap.isOpen())) document.getElementById('map-open').click();
+      setTimeout(function () { if (window.GothamMap && GothamMap.showReport) GothamMap.showReport(e.id); }, 600);
+    });
+    showToast(card, 'case:' + e.id, 9000);
+    if (ConsoleTones.message) ConsoleTones.message();
+  }
+
   /* One toast per thread — a newer message replaces the older — and three at
      most on screen, the oldest going first. */
   function showToast(card, key, ms) {
@@ -2689,7 +2729,15 @@
     }
     if (event.removed) {
       if (state.ringingId === event.removed) { state.ringingId = null; ConsoleTones.stopRinging(); }
+      var last = state.connectedId && !state.party.length && !state.ringingId && !state.groupRinging.length;
       if (state.connectedId === event.removed) state.connectedId = state.party[0] || null;
+      if (last) {
+        // The last of them gone — Tim went with Dick, who'd hung up — and nobody's ringing: the call's
+        // over, the server's already said so. Ring off here too, without telling it again.
+        hangUp({ quiet: true });
+        renderDirectory();
+        return;
+      }
       ConsoleSystem.say('drop', event.removed);
     }
     var wasAlone = el.seats.hidden;          // one-to-one until now
@@ -2738,7 +2786,7 @@
     state.hangUpWhenQuiet = false;
     // A switch tells the server by connecting to someone else, so the call it
     // ends can be remembered as cut short rather than simply over.
-    if (!opts.switching && !opts.refused) send({ type: 'disconnect' });
+    if (!opts.switching && !opts.refused && !opts.quiet) send({ type: 'disconnect' });
     state.connectedId = null;
     state.ringingId = null;
     state.party = [];
@@ -2784,14 +2832,12 @@
     // Nothing on the line means nothing to render. Without this, hanging up
     // mid-reply leaves the rest of the turn still arriving: sentences queue,
     // audio plays, and a contact you just cut off keeps talking.
-    // Texts arrive whether or not anyone is on a call.
-    var conversational = ['notice', 'text_sent', 'text_read', 'text_typing', 'text_idle', 'text_reaction',
-                          'text_reply', 'presence', 'call_incoming', 'call_unanswered',
-                          'call_refused', 'group_created', 'group_deleted', 'group_sent',
-                          'group_message', 'group_read', 'group_typing', 'group_idle',
-                          'group_updated', 'group_reaction', 'cases', 'scanner']
-                          .indexOf(event.type) === -1;
-    if (!state.connectedId && conversational) return;
+    // Only the call's own events need a call: texts, mail, the map and everyone's dots arrive
+    // whether or not anyone's on the line (a list of what's allowed through dropped every new kind).
+    var callOnly = ['state', 'message', 'reply_start', 'sentence', 'reply_end', 'speak', 'party',
+                    'call_ending', 'turn_complete', 'room', 'picked_up', 'contact_changed', 'transcript',
+                    'sources'].indexOf(event.type) !== -1;
+    if (!state.connectedId && callOnly) return;
 
     switch (event.type) {
       case 'state':
@@ -2913,6 +2959,10 @@
         setBruce(event.bruce);
         break;
 
+      case 'case_closed':
+        notifyCase(event);
+        break;
+
       case 'mail':
         // Something in his mail: the count, a card for it (not spam), and the folder if it's open.
         setMailCount(event.unread || 0);
@@ -3028,8 +3078,13 @@
         if (!text) { setState('idle'); return; }
         // Flagged as spoken so the server can reject it if it is the contact's
         // own voice arriving back through the microphone.
+        // Whether their voice could have got into the take: hands-free, while it played. Held to talk, the
+        // voice stops the moment he presses — so "Yes, bring the car around" after "Shall I bring the car
+        // around?" is him agreeing, not an echo.
         send({ type: 'prompt', text: text, spoken: true, talked_over: state.talkedOver,
+               overlapped: state.mode === 'ambient' && !!state.takeHeardVoice,
                confidence: typeof data.confidence === 'number' ? data.confidence : 1 });
+        state.takeHeardVoice = false;
         state.talkedOver = null;
       })
       .catch(function () { setState('idle'); });
@@ -3156,18 +3211,34 @@
         if (!start) return;
         start = null;
         root.classList.remove('is-dragging');
+        clearCardOfCallbar();
         try { localStorage.setItem('gm-call-pos', root.dataset.saved || 'null'); } catch (e) { /* private window */ }
       });
     });
     root._place = place;
   }
 
+  // The map's person card lives where the call's card sits by default: lifted clear of it, so
+  // Message, Call, Go to and Lift aren't underneath the call.
+  function clearCardOfCallbar() {
+    var map = document.getElementById('map-view'), bar = callbar && callbar.root;
+    if (!map) return;
+    var lift = 0;
+    if (bar && !bar.hidden) {
+      var r = bar.getBoundingClientRect(), m = map.getBoundingClientRect();
+      if (r.left - m.left < 320 && r.bottom > m.bottom - 300) lift = Math.max(0, Math.round(m.bottom - r.top));
+    }
+    map.style.setProperty('--call-clear', lift + 'px');
+  }
+
   function renderCallbar() {
     var bar = callbarEl();
     if (!bar) return;
-    var covered = (window.GothamMap && GothamMap.isOpen()) || (window.Codex && Codex.isOpen());
+    var covered = (window.GothamMap && GothamMap.isOpen()) || (window.Codex && Codex.isOpen()) ||
+                  (window.Mail && Mail.isOpen());
     var live = covered && state.connectedId;
     bar.root.hidden = !live;
+    clearCardOfCallbar();
     if (!live) { bar.line.textContent = ''; return; }
     try {
       var at = JSON.parse(bar.root.dataset.saved || 'null');
@@ -3287,6 +3358,9 @@
       if (document.documentElement.dataset.phase !== 'live') return;
       if (e.defaultPrevented) return;         // a picker or a field already dealt with it
       var typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+      // A dialog or the personnel file up: the views' letters stay put behind it.
+      var over = !!document.querySelector('.modal:not([hidden])') || !el.dossier.hidden;
+      if (over && e.key !== 'Escape' && !PTT_CODES[e.code]) return;
       if (!typing && (e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !e.altKey && window.Codex) {
         e.preventDefault();
         if (Codex.isOpen()) Codex.close(); else Codex.open();
@@ -3315,6 +3389,8 @@
         if (modal) { modal.hidden = true; return; }
         if (!el.dossier.hidden) { el.dossier.hidden = true; return; }
         if (typing) { e.target.blur(); return; }
+        if (window.Mail && Mail.isOpen()) { Mail.close(); return; }
+        if (window.Codex && Codex.isOpen()) { Codex.close(); return; }
         if (window.GothamMap && GothamMap.isOpen()) { if (!GothamMap.escape()) GothamMap.close(); return; }
         interruptHim();
         return;
@@ -3330,6 +3406,9 @@
       if (inBox && t === el.input && !t.value.trim()) inBox = false;
       if (inBox && !t.offsetParent) inBox = false;
       if (inBox) return;
+      // Tabbed to a button, Space presses it ("End call" ended nothing and opened the mic). Clicked
+      // with the mouse, the button keeps focus but Space is still the mic.
+      if (t && t.closest && t.closest('button, [role="button"]') && t.matches(':focus-visible')) return;
       if (state.mode !== 'ptt' || !state.connectedId) return;
       e.preventDefault();
       if (state.muted) {
@@ -3413,10 +3492,14 @@
     ConsoleMic.on('onLevel', function (level) {
       if (state.viz) state.viz.setLevel(level);
       if (callbar && callbar.viz) callbar.viz.setLevel(level);
+      if (ConsoleAudio.isPlaying) state.takeHeardVoice = true;      // their voice was in the room during his take
     });
     ConsoleMic.on('onUtterance', submitAudio);
     // Hands-free: he's started speaking — listen, and read ahead while he does.
-    ConsoleMic.on('onSpeechStart', function () { setState('listening'); readAhead(); });
+    ConsoleMic.on('onSpeechStart', function () {
+      state.takeHeardVoice = !!ConsoleAudio.isPlaying;
+      setState('listening'); readAhead();
+    });
     ConsoleMic.on('onSpeechEnd', function () {
       if (document.documentElement.dataset.state === 'listening') setState('idle');
     });

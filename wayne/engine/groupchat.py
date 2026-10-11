@@ -306,6 +306,11 @@ _ASKS = re.compile(r"(?i)\b(say|tell|post|ask|text|write|put|send|message|drop|r
                    r"respond|announce|share|let (them|everyone|the others|the group) know)\b")
 # A chat, said as a chat: "the group", "the GC", "the chat with you and Randy", "in it".
 _A_CHAT = re.compile(r"(?i)\b(group ?chat|the group|gc|the chat|chat with|group with|in (it|there)|that chat)\b")
+# Not asking them to do anything there: "don't tell the group", "what did Tim say in the chat?",
+# "tell me what's going on in it" — each of which used to send them off to post in it.
+_NOT_ASKING = re.compile(r"(?i)\b(don'?t|do not|never|no need to|not to)\b[^.?!]{0,24}\b(say|tell|post|text|mention|share|put)\b"
+                         r"|\btell me\b|\bwhat(?:'s| is| was| did| does| do)\b[^.?!]*\b(say|said|saying|post|posted|going on|"
+                         r"happening|up to)\b|\bdid (?:\w+ )?(?:say|post|mention)\b")
 # Talking to a room, not to one person.
 _TO_A_ROOM = re.compile(r"(?i)\b(you guys|guys|y'?all|you all|you two|you lot|everyone|everybody|folks|team)\b")
 
@@ -318,7 +323,7 @@ def meant_group(text, contact, directory):
     when he isn't asking for anything in a chat.
     """
     groups = store.groups_with(contact.id)
-    if not groups or not _ASKS.search(text or ""):
+    if not groups or not _ASKS.search(text or "") or _NOT_ASKING.search(text or ""):
         return None
     lowered = text.lower()
     named = [g for g in groups if g.name and g.name.lower().strip(" .!") in lowered]
