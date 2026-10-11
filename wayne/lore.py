@@ -92,6 +92,15 @@ def known_to(contact_id):
     return out
 
 
+def spoken_names():
+    """Every name of it someone might say aloud — people, what they're called, places — for hearing it right."""
+    out = []
+    for person in people():
+        out += [person["name"], person.get("alias") or ""]
+    out += [v["name"] for v in venues()]
+    return [n for n in out if n]
+
+
 def facts():
     """Its facts: [{text, known_by}] — known_by as the operator profile's world has it."""
     return [f for f in load().get("facts") or [] if isinstance(f, dict) and f.get("text")]

@@ -5593,24 +5593,34 @@ def _speech_hint():
     Capitalised words survive because a name is what Whisper actually gets wrong
     and what a hint genuinely fixes. Prose is what does the damage.
     """
-    # The configured hints too. Building this list per request used to replace
-    # them entirely, so names added to WAYNE_WHISPER_HINTS were never used.
-    parts = wayne_operator.whisper_hints() + [
-        h.strip() for h in config.WHISPER_HINT_PROMPT.split(",") if h.strip()]
+    # Most likely first, since a hint that runs long is cut from the end: whoever's on the line, the names just said
+    # on it, the city's own additions (see wayne.lore) — a name the decoder had never met was heard three wrong ways
+    # on one call for want of it — then the cast and the configured hints. Building this list per request used to replace
+    # the configured ones entirely, so names added to WAYNE_WHISPER_HINTS were never used.
+    from .. import lore
+    parts = []
+    on_call = [m.contact for m in console.call.members] if console.call else []
     contact = console.contact
-    if contact:
-        parts += [contact.name, contact.full_name]
-    if console.recent_speech:
-        spoken = console.recent_speech[-1][1] or ""
+    for c in on_call or ([contact] if contact else []):
+        parts += [c.name, c.full_name]
+    for _, said in list(console.recent_speech)[-3:]:
         # Mid-sentence capitals: proper nouns, minus whatever starts a sentence.
-        parts += re.findall(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-zA-Z'’-]{2,}", spoken)[:6]
+        parts += re.findall(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-zA-Z'’-]{2,}(?:\s[A-Z][a-zA-Z'’-]{2,})?", said or "")[:6]
+    parts += lore.spoken_names() + ["Evelyn", "Gotham City FC"]
+    parts += wayne_operator.whisper_hints() + [h.strip() for h in config.WHISPER_HINT_PROMPT.split(",") if h.strip()]
     seen, unique = set(), []
     for part in parts:
         key = (part or "").strip().lower()
         if key and key not in seen:
             seen.add(key)
             unique.append(part.strip())
-    return ", ".join(unique)[:200]
+    # About a hundred and fifty of the decoder's tokens: costs nothing measurable (0.13s a take either way).
+    hint = ""
+    for name in unique:
+        if len(hint) + len(name) + 2 > 600:
+            break
+        hint = f"{hint}, {name}" if hint else name
+    return hint
 
 
 # Hearing him has a thread of its own. On the shared pool it queued behind every model call waiting its turn

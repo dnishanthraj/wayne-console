@@ -7,6 +7,33 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-11
+
+### Fixed
+
+- **Names are heard right.** Whisper is given a list of names to expect,
+  and that list was capped at 200 characters and filled with the main cast,
+  so new names never made it in: one new name was heard three different
+  wrong ways on a single call. The list now runs to about 600 characters,
+  most likely first:
+  - whoever's on the line;
+  - names said in the last few lines;
+  - your own Gotham's people and places (see `data/lore.json`);
+  - then the cast.
+
+  On test clips, names came out right in 7 of 8 with the list and 2 of 8
+  without, at the same 0.13 s a take. A model four times larger did no
+  better and took 0.49 s.
+- **One thought is one turn.** A pause mid-sentence used to split it in
+  two, and the second half was answered on its own: a lone "and" got "if
+  you're testing my hearing…". Now:
+  - a take that ends on "and", "so", "to" or "um" waits a beat for the rest;
+  - a take that starts as the rest of the last one ("to keep asking you for
+    interviews"), before their answer has begun, is joined to it, and the
+    answer begun on the first half is remembered as never said.
+- **Speech recognition on the CPU is quicker:** twice the threads, and no
+  time spent placing words on a timeline nobody reads.
+
 ## [1.4.1] - 2026-10-11
 
 ### Changed

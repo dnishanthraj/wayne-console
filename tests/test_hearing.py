@@ -130,3 +130,15 @@ def test_on_a_call_he_is_heard_on_the_cpu_and_its_confidence_is_read(monkeypatch
     text, confidence = stt.transcribe_audio(speech, on_cpu=True)
     assert used == ["cpu"] and text == "Where's Dick?"
     assert confidence < 1.0                      # the segments were read for it — not found empty the second time
+
+
+def test_the_names_to_listen_for_put_the_citys_own_first_and_fit():
+    import json
+
+    from wayne import paths
+    (paths.DATA_DIR / "lore.json").write_text(json.dumps({"people": [{"id": "x", "name": "Testa Quill", "alias": "TQ"}],
+                                                         "places": [{"name": "Quill's Diner", "kind": "diner",
+                                                                     "x": 100, "y": 60}]}))
+    hint = web._speech_hint()
+    assert hint.index("Testa Quill") < hint.index("Alfred")           # a name nobody's model knows, before the cast
+    assert "TQ" in hint and "Quill's Diner" in hint and len(hint) <= 600

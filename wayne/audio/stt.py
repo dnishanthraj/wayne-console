@@ -34,7 +34,7 @@ _backend_lock = threading.Lock()
 # own copy of the model (faster-whisper, int8), which nothing else is using; off one, MLX on the GPU is quicker.
 _cpu = None
 _cpu_lock = threading.Lock()
-_CPU_THREADS = 4
+_CPU_THREADS = 8                        # the cores Ollama isn't using: half a second off a take
 
 
 # Whisper loops when it is unsure, emitting the same clause over and over:
@@ -195,6 +195,7 @@ def transcribe_audio(audio, hint=None, on_cpu=False):
             },
             initial_prompt=hint or WHISPER_HINT_PROMPT,
             condition_on_previous_text=False,
+            without_timestamps=True,           # a turn, not subtitles: no time spent placing words
         )
         # It decodes as it's read: read once, here. Read twice — the text, then the confidence — the second read
         # found nothing, and every take on the CPU came back fully confident.

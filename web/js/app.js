@@ -3358,6 +3358,7 @@
         break;
 
       case 'speak':
+        if (state.lastPrompt) state.lastPrompt.answered = true;     // their answer's begun: his next take is new
         ConsoleAudio.enqueue(event.audio_id, event.text, event.index, event.words, event.speaker);
         break;
 
@@ -3606,6 +3607,19 @@
 
   /* --- speech in ---------------------------------------------------------- */
 
+  /* He hadn't finished. A take that ends on "and", "so", "to", "um" waits a beat for the rest of the thought; and one
+     that starts as the rest of the last ("to keep asking you for interviews") before their answer's begun is joined
+     to it. One thought, one turn: a lone "and" was answered on its own ("if you're testing my hearing…"). */
+  var CONTINUES = /^\W*(and|but|or|so|to|because|'cause|cause|like|with|for|of|then|which|who|that|if|when|unless|than)\b/i;
+  var UNFINISHED = /\b(and|but|or|so|to|because|like|with|for|of|the|a|an|um|uh|er|my|your|his|her|their|if|when|that|than)\W*$/i;
+  var HOLD_MS = 1400, JOIN_MS = 6000;
+
+  function sendHeld() {
+    var held = state.heldTake;
+    state.heldTake = null;
+    if (held) { clearTimeout(held.timer); sendTake(held.text, held.confidence); }
+  }
+
   function submitAudio(pcm) {
     if (!state.connectedId) return;
     setState('transcribing');
@@ -3617,24 +3631,45 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var text = (data.text || '').trim();
-        if (!text) { setState('idle'); return; }
+        if (!text) { if (state.heldTake) sendHeld(); else setState('idle'); return; }
         ConsoleMic.heardHim();          // it was words: how loud he was is how loud he is
-        // Flagged as spoken so the server can reject it if it is the contact's
-        // own voice arriving back through the microphone.
-        // Whether their voice could have got into the take: hands-free, while it played. Held to talk, the
-        // voice stops the moment he presses — so "Yes, bring the car around" after "Shall I bring the car
-        // around?" is him agreeing, not an echo.
-        state.heSpokeAt = Date.now();
-        clearCaption();
-        send({ type: 'prompt', text: text, spoken: true, talked_over: state.talkedOver,
-               overlapped: state.mode === 'ambient' && !!state.takeHeardVoice,
-               // Live mic, and the take ended on a pause shorter than an ordinary one: someone came in on it.
-               cut_in: state.mode === 'ambient' && ConsoleMic.endedBy === 'cut',
-               confidence: typeof data.confidence === 'number' ? data.confidence : 1 });
-        state.takeHeardVoice = false;
-        state.talkedOver = null;
+        var confidence = typeof data.confidence === 'number' ? data.confidence : 1;
+        if (state.heldTake) {
+          // The rest of what he'd started: the held words and these, as one.
+          clearTimeout(state.heldTake.timer);
+          text = state.heldTake.text + ' ' + text;
+          confidence = Math.min(confidence, state.heldTake.confidence);
+          state.heldTake = null;
+        } else if (state.lastPrompt && !state.lastPrompt.answered && CONTINUES.test(text) &&
+                   Date.now() - state.lastPrompt.at < JOIN_MS) {
+          // The turn begun on the first half gives way to the whole — remembered as cut off before a word of it.
+          send({ type: 'interrupt', heard_upto: 0 });
+          text = state.lastPrompt.text + ' ' + text;
+        }
+        if (state.mode === 'ambient' && UNFINISHED.test(text)) {
+          state.heldTake = { text: text, confidence: confidence, timer: setTimeout(sendHeld, HOLD_MS) };
+          return;
+        }
+        sendTake(text, confidence);
       })
-      .catch(function () { setState('idle'); });
+      .catch(function () { if (state.heldTake) sendHeld(); else setState('idle'); });
+  }
+
+  function sendTake(text, confidence) {
+    // Flagged as spoken so the server can reject it if it is the contact's own voice arriving back through the
+    // microphone. Whether their voice could have got into the take: hands-free, while it played. Held to talk, the
+    // voice stops the moment he presses — so "Yes, bring the car around" after "Shall I bring the car around?" is
+    // him agreeing, not an echo.
+    state.heSpokeAt = Date.now();
+    state.lastPrompt = { text: text, at: Date.now(), answered: false };
+    clearCaption();
+    send({ type: 'prompt', text: text, spoken: true, talked_over: state.talkedOver,
+           overlapped: state.mode === 'ambient' && !!state.takeHeardVoice,
+           // Live mic, and the take ended on a pause shorter than an ordinary one: someone came in on it.
+           cut_in: state.mode === 'ambient' && ConsoleMic.endedBy === 'cut',
+           confidence: confidence });
+    state.takeHeardVoice = false;
+    state.talkedOver = null;
   }
 
   /* --- live mic -------------------------------------------------------------
@@ -4132,9 +4167,13 @@
     // Hands-free: he's started speaking — listen, and read ahead while he does.
     ConsoleMic.on('onSpeechStart', function () {
       state.takeHeardVoice = !!ConsoleAudio.isPlaying;
+      // Words held for the rest of the thought: here it comes — wait for it, not the clock.
+      if (state.heldTake) { clearTimeout(state.heldTake.timer); state.heldTake.timer = null; }
       setState('listening'); readAhead();
     });
     ConsoleMic.on('onSpeechEnd', function () {
+      // And if what he said next comes to nothing (too little voice to send), the held words go after a beat.
+      if (state.heldTake && !state.heldTake.timer) state.heldTake.timer = setTimeout(sendHeld, HOLD_MS + 1200);
       if (document.documentElement.dataset.state === 'listening') setState('idle');
     });
     ConsoleMic.on('onBargeIn', function () {
