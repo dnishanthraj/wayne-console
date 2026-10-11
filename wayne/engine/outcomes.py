@@ -130,6 +130,33 @@ def work(case, team=None):
     return base * max(0.5, min(1.35, pace)) * (1 + 0.4 * outnumbered({**case, "team": crew}))
 
 
+def course(case, team=None):
+    """
+    How this one runs, read off how it's going to end (the odds and the roll decide uses): a team well on top of
+    it finishes early — a clean sweep; one that's losing it can lose it fast — the crew bolts, the hostage-taker
+    panics, it turns before anyone's ready; a close one drags. (kind, how long against the usual): "clean"
+    0.55–0.75, "collapse" 0.5–0.75, "drag" 1.15–1.3, "even" 1.0. Seeded, like the ending: the same answer for the
+    same case and team — and a new one when someone joins and the odds move.
+    """
+    from . import cases, incidents
+    crew = list(team) if team is not None else cases.team(case)
+    if not crew or case["kind"] in incidents.MOVING:
+        return "even", 1.0
+    c = {k: v for k, v in case.items() if k != "due"}       # everyone on it counts, as they will once there
+    c["team"] = crew
+    ending = decide(c)
+    if ending["how"] == "too late":
+        return "even", 1.0                                   # over before they got there: nothing to run
+    p, r, pace = ending["chance"], _roll(case, "end"), _roll(case, "pace")
+    if ending["grade"] == "success" and r < p * 0.55:
+        return "clean", 0.55 + 0.2 * pace
+    if ending["grade"] != "success" and r >= p + (1 - p) * 0.55:
+        return "collapse", 0.5 + 0.25 * pace
+    if abs(r - p) < 0.08:
+        return "drag", 1.15 + 0.15 * pace
+    return "even", 1.0
+
+
 def arrival(case):
     """When the first of them got there (or will)."""
     members = case.get("members") or {}

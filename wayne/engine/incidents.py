@@ -877,26 +877,88 @@ def _setting(report):
     return f" Where it is: {report['place']} — {bio[:220]}" if bio else ""
 
 
+# How it's going, as the street sees it — from the case's own clock and course (cases.phase), so the log, the
+# comms and how it ends all tell the same story: a clean sweep reads like one, a fight going badly reads like that.
+_STREET = {
+    ("arriving", ""): "they've only just got there — most people haven't noticed yet",
+    ("in it", "clean"): "it's going their way, fast — the street watched them take it apart",
+    ("in it", ""): "it's under way — {doing}",
+    ("gone wrong", "collapse"): "it's slipping away from them — people running, the ones they came for getting clear",
+    ("gone wrong", ""): "it's gone bad for them — more of them than dispatch said, or one of them hurt",
+    ("wrapping up", "collapse"): "it fell apart — what's left is the mess",
+    ("wrapping up", ""): "it's settling — suspects down or cuffed, the scene being secured",
+}
+
+
+def _street_view(case, now):
+    """How it's going, in a line a witness or an officer could give."""
+    from . import cases
+    key, _how = cases.phase(case, now)
+    way = case.get("course", "")
+    line = _STREET.get((key, way)) or _STREET.get((key, ""), "")
+    violent = any(word in case["kind"].lower() for word in cases._VIOLENT)
+    return key, line.format(doing="a fight" if violent else "a search, questions, a scene being worked")
+
+
+# Who's speaking on comms, by the names the log would know them by (the log never quotes it: this is to agree with).
+_ON_COMMS = {"bruce": "Batman", "nightwing": "Nightwing", "robin": "Robin", "batgirl": "Batgirl",
+             "orphan": "the girl in black", "redhood": "the Red Hood", "batwing": "Batwing"}
+
+
+def _comms_heard(case, seen_ids, limit=6):
+    """What the ones on scene said to each other on the case's comms — never heard on the street, but what the street
+    saw agrees with it. '' if there's no channel or nothing said."""
+    try:
+        from ..memory import groups as group_store
+    except Exception:
+        return ""
+    found = next((g for g in group_store.all_groups() if (g.meta() or {}).get("case") == case["id"]), None)
+    if found is None:
+        return ""
+    lines = []
+    for m in found.recent(30):
+        sender = m.get("from") or m.get("sender") or ""
+        sender = "bruce" if sender == "me" else sender
+        if sender in seen_ids and m.get("text"):
+            lines.append(f"{_ON_COMMS.get(sender, sender)}: {str(m['text']).strip()[:160]}")
+    return " | ".join(lines[-limit:]).rstrip(".")
+
+
 def _case_view(report, now):
-    """Who from the family is on it, as the street saw them — and how far it's got: '' if nobody."""
+    """
+    Who from the family is on it, as the street saw them — and how far it's got, and how it's going for them: ''
+    if nobody. What they said on comms is there for the log to agree with (never quoted: nobody on the street
+    hears it).
+    """
     from . import cases
     case = cases.for_report(report["id"])
     if not case:
         return "", ""
     members = case.get("members") or {}
-    seen = []
+    seen, seen_ids = [], []
     for cid in cases.team(case):
         m = members.get(cid) or {}
         arrived = m.get("joined", case["opened_at"]) + m.get("travel", 9) * 60
         if arrived <= now and cid in SEEN_AS:
             seen.append(f"{SEEN_AS[cid]} (from {time.strftime('%H:%M', time.localtime(arrived))})")
+            seen_ids.append(cid)
     result = case.get("result") or {}
     ended = case.get("outcome", "") if case["status"] == "closed" else ""
-    key = f"{'+'.join(cases.team(case))}:{len(seen)}:{result.get('how', '')}"
+    phase, going = _street_view(case, now) if seen and not ended else ("", "")
+    key = f"{'+'.join(cases.team(case))}:{len(seen)}:{phase}:{result.get('how', '')}"
     view = ""
     if seen:
         view = (" Witnesses and the first officers saw the vigilantes on scene: " + "; ".join(seen)
-                + " — the log can say so, the way a witness or a wary officer would, never with anyone's real name.")
+                + " — the log can say so, the way a witness or a wary officer would, never with anyone's real name. "
+                "Witnesses name the ones the street knows by their street names — the Bat, Batman, Nightwing, Robin, "
+                "Batgirl, the Red Hood — sometimes unsure (\"is that... Batman?\"), sometimes in awe or fear "
+                "(\"holy shit, it's the Bat\"); the ones the street doesn't know have no name, only what was seen.")
+        if going:
+            view += f" How it's going for them right now: {going} — what witnesses say is in step with that."
+        heard = _comms_heard(case, seen_ids)
+        if heard:
+            view += (f" What they said to each other on their comms (nobody on the street hears it — but what's seen "
+                     f"agrees with it, never quotes it): {heard}.")
     if ended:
         view += f" How it ended: {ended} ({result.get('how', '')})."
     return view, key

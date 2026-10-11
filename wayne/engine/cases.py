@@ -148,13 +148,19 @@ def assign(report, contact_id, by="him", travel=0):
         case["members"][contact_id] = {"by": by, "travel": round(travel, 1), "joined": now, "status": "assigned"}
         from . import outcomes
         if first:
-            case.update({"assignee": contact_id, "by": by, "status": "assigned", "updated_at": now,
-                         "travel": round(travel, 1), "due": now + (travel + outcomes.work(case, [contact_id])) * 60})
+            # How long it takes is who's on it — and how it's going to go: a clean sweep's over early, a case
+            # that's slipping away can be lost fast, a close one drags (outcomes.course).
+            way, pace = outcomes.course(case, [contact_id])
+            case.update({"assignee": contact_id, "by": by, "status": "assigned", "updated_at": now, "course": way,
+                         "travel": round(travel, 1),
+                         "due": now + (travel + outcomes.work(case, [contact_id]) * pace) * 60})
         else:
             # Another pair of hands — a better one, faster: the work left is as long as it takes this
-            # team, and no sooner than they can get there.
+            # team, and no sooner than they can get there. The odds move with them, and so does its course.
+            way, pace = outcomes.course(case, case["team"])
+            case["course"] = way
             began = case.get("updated_at", now) if case["status"] == "on scene" else now
-            left = outcomes.work(case, case["team"]) - (now - began) / 60
+            left = outcomes.work(case, case["team"]) * pace - (now - began) / 60
             if case["status"] == "on scene":
                 # Under way already: help can only bring the end closer. Pushed back for Cass's twenty minutes
                 # out, a case wrapping up went back to "gone wrong" and its bar ran backwards.
@@ -339,14 +345,25 @@ def phase(case, now=None):
     span = max(60.0, case.get("due", now) - case["updated_at"])
     f = (now - case["updated_at"]) / span
     violent = any(word in case["kind"].lower() for word in _VIOLENT)
+    way = case.get("course", "even")
     if f < 0.18:
         return "arriving", "just got there — taking it in, quiet, before anyone knows you're there"
-    if f < 0.68:
-        if goes_wrong(case):
+    if way == "collapse" and f < 0.85:
+        # Losing it, and fast: there's still a moment where help could turn it (cases.assign re-reads the odds).
+        if f >= 0.3:
+            return "gone wrong", ("it's slipping away from you — they're bolting, or it's turning bad fast; you're "
+                                  "losing it and could use help")
+    if f < (0.6 if way == "clean" else 0.68):
+        if goes_wrong(case) and way != "clean":
             return "gone wrong", ("it's gone bad — more of them than dispatch said, or someone's hurt; you're in it "
                                   "and could use help")
+        if way == "clean" and f >= 0.3:
+            return "in it", ("in the thick of it — and on top of it: it's going your way" if violent else
+                             "in the thick of it — and it's coming together fast")
         return ("in it", "in the thick of it — fighting" if violent else
                 "in the thick of it — searching, asking, piecing it together")
+    if way == "collapse":
+        return "wrapping up", "it's over, and not the way you wanted — what's left to do is pick up the pieces"
     return "wrapping up", "it's settling — cuffs on or the scene secured, GCPD on the way, catching your breath"
 
 

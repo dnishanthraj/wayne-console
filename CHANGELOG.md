@@ -5,6 +5,26 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-11
+
+### Changed
+
+- **Cases run as long as they would.** Who's on a case already set how long
+  it takes. Now the way it's going to end does too. A team well on top of it
+  finishes early, a clean sweep. One that's losing it can lose it fast: the
+  crew bolts, the hostage-taker panics, it turns before anyone's ready. A
+  close one drags on. A collapse has a moment where it's slipping away and
+  they could use help, and backup arriving re-reads the odds and can turn
+  it. The comms, the map and the ending all agree, because they come from
+  the same odds.
+- **Witnesses see what's really happening.** The incident log follows how
+  the case is going for the family (going their way, gone bad, falling
+  apart, settling) and agrees with what was said on comms, including a live
+  comms call, without quoting it. Bystanders name the masks they'd know,
+  sometimes unsure ("is that... Batman?"), sometimes in awe or fear ("holy
+  shit, it's the Bat"). The ones the street doesn't know get no name, just
+  what was seen. The log grows as the case moves on.
+
 ## [0.33.0] - 2026-10-11
 
 ### Added
