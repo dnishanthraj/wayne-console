@@ -5,6 +5,31 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-11
+
+### Added
+
+- **Being turned away is noticed.** Declining someone's call, not picking up,
+  or reading their text and never answering puts them a little out once,
+  unremembered. A second time the same day it stings and stays with them,
+  at their own pace (Jason cools fast, Alfred barely).
+- **Plans you make are yours to keep.** A plan with the family ("Ralli's,
+  Friday at eight?") goes in your diary like any engagement, with the
+  reminder and Go. Turn up and everyone who came is a little warmer ("an
+  evening with him"). Don't, and whoever went and waited remembers it.
+- **A romance's turns are remembered.** Getting together, starting to see
+  each other, things cooling, a break-up (or drifting apart without one)
+  become milestones they carry for weeks, for Selina and you or Dick and
+  Barbara alike.
+- **Group chats count.** A stretch of a group chat you spoke in is read once
+  it's settled. A cutting joke, being stood up for, a fight between two of
+  them moves their bonds, with you or with each other, in their words. Most
+  stretches change nothing.
+- **When GCPD turns on the masks.** With the department hostile, the Mayor's
+  task force is out. Batman's cases go a little worse with one eye on the
+  roofs behind him, and heading out to one, Barbara at her screens or
+  Alfred warns you, once a night.
+
 ## [0.27.0] - 2026-10-11
 
 ### Added

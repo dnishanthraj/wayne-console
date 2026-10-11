@@ -125,6 +125,13 @@ def add(plan, made_in=""):
         plan = {**plan, "id": uuid.uuid4().hex[:10], "made_in": made_in, "made": time.time(), "answers": {}}
         rows.append(plan)
         _save(rows)
+    try:
+        # His too: in the diary, where being there is what counts (engine.engagements).
+        from . import engagements
+        engagements.agree(plan["what"], plan.get("where", ""), plan["at"], ", ".join(plan["who"]), f"plan:{plan['id']}",
+                          source="plan", plan=plan["id"])
+    except Exception:
+        pass
     events.add("plan.made", f"Bruce asked {', '.join(plan['who'])} to {plan['what']}{_place(plan)}, "
                f"{time.strftime('%A %-d %B at %H:%M', time.localtime(plan['at']))}",
                data={"plan": plan["id"], "at": plan["at"], "until": plan["until"], "who": plan["who"]},

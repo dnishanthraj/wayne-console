@@ -89,6 +89,36 @@ class GroupChats:
             await self._read_plan(group, body)
         for member in group.members:
             self._read_later(group, member)
+        self._appraise_later(group)
+
+    def _appraise_later(self, group, delay=150):
+        """
+        Once the replies to what he said have settled, the stretch is read for anything that would stay with them
+        (initiative.group_afterthought) — once in a while per chat, never mid-burst.
+        """
+        last = self.__dict__.setdefault("_appraised", {})
+        if time.time() - last.get(group.id, 0) < 8 * 60:
+            return
+        last[group.id] = time.time()
+
+        async def appraise():
+            await asyncio.sleep(delay)
+            fresh = store.of(group.id)
+            if fresh is None or (fresh.meta() or {}).get("archived"):
+                return
+            msgs = fresh.recent(24)
+            if msgs and time.time() - msgs[-1]["at"] < 60:
+                await asyncio.sleep(90)                  # still going: let it settle
+                msgs = fresh.recent(24)
+            await self._call_first()
+            reader = self.directory.get("alfred") or next(iter(self.directory), None)
+            if reader is None:
+                return
+            moved = await asyncio.to_thread(initiative.group_afterthought, fresh, msgs, self.directory, reader.model,
+                                            reader.options)
+            if moved:
+                log.info("group %s, read: %d bond(s) moved", group.id, len(moved))
+        self._spawn(appraise())
 
     async def _read_plan(self, group, body):
         asked = [(m, self.directory.get(m).name) for m in group.members if self.directory.get(m)]

@@ -279,7 +279,15 @@ def chance(case, gone_wrong=False, backup=False, late=False):
         p -= 0.05 if backup else 0.18          # it went bad; help coming made the difference
     if late:
         p -= 0.1                               # by the time they got there it was half over
+    if "bruce" in members and hunted():
+        p -= 0.08                              # the task force is out for Batman too: one eye on the roofs behind him
     return max(floor, 0.05, min(0.95, p))
+
+
+def hunted(t=None):
+    """Whether GCPD are after the masks — the department hostile or worse: the Mayor's task force out (engine.bonds)."""
+    from . import bonds
+    return bonds.standing(bonds.GCPD, bonds.ME, t)[0] in ("hostile", "estranged")
 
 
 GRADES = ("success", "partial", "failure")

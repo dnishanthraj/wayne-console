@@ -140,9 +140,14 @@ def nudge(a, b, warmth=0.0, trust=0.0, tension=0.0, romance=0.0, why="", weight=
     if tension:
         sore = mine.get("cools", 1.0) if tension > 0 else mine.get("warms", 1.0)
         now["tension"] = max(0.0, min(10.0, now["tension"] + tension * sore))
+    was = None if now.get("romance") is None else now["romance"]
     if romance and now.get("romance") is not None:
         now["romance"] = max(-100.0, min(100.0, now["romance"] + romance))
-    _space().put(_key(a, b), {**now, "at": t, "day": day, "moved": moved})
+    # How far it's ever got — for knowing a fall from it for what it is (see _milestone).
+    peak = max(kept.get("peak", was if was is not None else -100.0), now.get("romance") or -100.0)
+    if was is not None and now.get("romance") is not None:
+        peak = _milestone(a, b, was, now["romance"], now["tension"], t, peak)
+    _space().put(_key(a, b), {**now, "at": t, "day": day, "moved": moved, "peak": peak})
     if why:
         from ..store import events
         events.add("bond", why, at=t, actor=a,
@@ -151,6 +156,34 @@ def nudge(a, b, warmth=0.0, trust=0.0, tension=0.0, romance=0.0, why="", weight=
                    links=tuple(links) + ((("contact", b),) if b not in (ME, GCPD) else ()),
                    audience=tuple(audience) or (a,))
     return now
+
+
+def _milestone(a, b, before, after, hurt, t, peak):
+    """
+    A romance crossing a line — together, or not any more — is something they'd remember, in their words: kept as
+    its own event (weight 3), so it's on their mind for weeks and colours everything. Falling under 40 after it's
+    been 55 or more is the end of it — a break-up with a fresh hurt, drifting apart without one — and then the
+    high-water mark starts again from there. Returns that mark.
+    """
+    from ..store import events
+    other = _contact(b)
+    them = "him" if b == ME else (other.name if other else b)
+    you_and = f"you and {'Bruce' if b == ME else them}"
+    line = None
+    if before < 70 <= after:
+        line, flag = f"{you_and} are together now", "together"
+    elif before < 55 <= after:
+        line, flag = f"{you_and} started seeing each other", "seeing"
+    elif before >= 40 > after and peak >= 55:
+        line, flag = (f"{you_and} broke up", "breakup") if hurt >= 4 else (f"{you_and} drifted apart", "apart")
+        peak = after
+    elif before >= 55 > after:
+        line, flag = f"things cooled between {you_and}", "cooled"
+    if line:
+        events.add("bond", line, at=t, actor=a,
+                   data={"toward": b, "romance": after - before, "weight": 3, "milestone": flag},
+                   links=((("contact", b),) if b not in (ME, GCPD) else ()), audience=(a,))
+    return peak
 
 
 def memories(a, b, t=None, most=3):
@@ -272,6 +305,20 @@ def effects(contact, t=None):
         cues += ["softly", "playful"]
     return {"answer": max(0.15, min(1.05, answer)), "quiet": quiet, "reach": reach, "hides": hides,
             "shares": shares, "cues": cues, "hurt": hurt}
+
+
+def turned_away(contact, how, times, t=None):
+    """
+    He didn't take their call, or left their texts unanswered: once is nothing much — a little put out, unremembered;
+    again, the same day, it stings, and it's remembered. How it lands is theirs (their profile's pace).
+    """
+    t = t or time.time()
+    what = {"declined": "he declined your call", "missed": "he didn't pick up when you rang",
+            "on_read": "he read your text and never answered"}.get(how, "he didn't answer")
+    if times <= 1:
+        return nudge(contact.id, ME, warmth=-0.4, tension=0.3 if how != "missed" else 0.15, t=t)
+    return nudge(contact.id, ME, warmth=-1.0 * min(times, 4), tension=0.6 * min(times, 4), t=t, weight=min(2, times - 1),
+                 why=f"{what} — {times} times today" if how != "on_read" else f"{what}, again")
 
 
 def woken(contact, t=None):

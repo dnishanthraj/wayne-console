@@ -179,6 +179,62 @@ def _felt(session, found):
                         weight=int(abs(w)))
 
 
+def group_afterthought(group, messages, book, model_name, options):
+    """
+    A stretch of a group chat he was in, read once it's settled: did anything pass between any of them — him and one
+    of them, or two of them — that would stay with them? Most stretches change nothing. Each one that did moves
+    that one's bond (engine.bonds), in their words, at their pace. Returns what moved.
+    """
+    from . import bonds
+    names = {m: book.get(m).name for m in group.members if book.get(m)}
+    lines = []
+    for m in messages[-24:]:
+        if m.get("kind") == "system" or not m.get("text"):
+            continue
+        who = operator.name() if m.get("from") == "me" else names.get(m.get("from"), m.get("from"))
+        lines.append(f"{who}: {m['text']}")
+    if len(lines) < 3:
+        return []
+    him = operator.name()
+    instruction = (
+        f"Here is a stretch of a group chat between {him} and " + ", ".join(names.values()) + ":\n\n" + "\n".join(lines)
+        + "\n\nDid anything happen in it that would stay with any of them — kindness or cruelty, being stood up for or "
+        "shown up, an apology, a fight, a joke that cut, being ignored? Toward " + him + " or toward one another. Most "
+        "stretches change nothing: then an empty list. Judge each as they would, by their nature. JSON only: "
+        '{"felt": [{"who": "first name", "toward": "' + him + '" or a first name, "warmth": -3 to 3, "sore": -3 to 3, '
+        '"remember": "the moment in one line, from their side — e.g. he made fun of you in front of everyone" or null}]}')
+    try:
+        reply = model.ask(model_name, [{"role": "user", "content": instruction}],
+                          {**options, "temperature": 0, "num_predict": 220}, fmt="json", purpose="a group chat, read")
+        found = json.loads(reply).get("felt") or []
+    except Exception:
+        return []
+    moved = []
+    for f in found[:4]:
+        if not isinstance(f, dict):
+            continue
+        who = book.find(str(f.get("who") or ""))
+        toward_name = str(f.get("toward") or "")
+        toward = bonds.ME if toward_name.lower() in (him.lower(), "bruce", "him", operator.full_name().lower()) else \
+            (book.find(toward_name).id if book.find(toward_name) else None)
+        if who is None or who.id not in group.members or toward is None or toward == who.id:
+            continue
+        try:
+            warmth = max(-3.0, min(3.0, float(f.get("warmth") or 0)))
+            sore = max(-3.0, min(3.0, float(f.get("sore") or 0)))
+        except (TypeError, ValueError):
+            continue
+        remember = f.get("remember") if isinstance(f.get("remember"), str) else ""
+        remember = "" if remember.strip().lower() in ("", "null", "none") else remember.strip()[:160]
+        weight = int(round(max(abs(warmth), abs(sore))))
+        if not weight:
+            continue
+        bonds.nudge(who.id, toward, warmth=warmth * (3 if toward == bonds.ME else 2.5), tension=sore * 1.2,
+                    why=remember, weight=max(1, weight))
+        moved.append((who.id, toward, warmth, sore))
+    return moved
+
+
 def apply(session, found, present=(), by="text", exchanges=()):
     """Record what the afterthought found."""
     if not isinstance(found, dict):

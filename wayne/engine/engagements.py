@@ -81,10 +81,11 @@ def answer(message, accept, now=None):
     return row
 
 
-def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None):
+def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None, source="mail", plan=None):
     """
-    A meeting agreed in a letter's thread — dinner with Vicki, Batman and Jim on a roof — in the diary. One per
-    thread and time: agreeing again is the same meeting. Returns the row.
+    A meeting agreed in a letter's thread — dinner with Vicki, Batman and Jim on a roof — or a plan he made with
+    the family (`plan`: engine.plans), in the diary. One per thread and time: agreeing again is the same meeting.
+    Returns the row.
     """
     rows = _rows()
     found = next((e for e in rows.list() if e.get("thread") == thread and abs(e["at"] - at) < 1800), None)
@@ -92,8 +93,8 @@ def agree(what, where, at, with_, thread, as_="bruce", message=None, now=None):
         return found
     row = {"id": uuid.uuid4().hex[:10], "message": message, "thread": thread, "what": str(what)[:120],
            "where": str(where)[:80], "venue": _venue(where), "host": str(with_)[:80], "with": str(with_)[:80],
-           "dress": "", "at": at, "until": at + (MEETING if as_ == "batman" else LENGTH), "as": as_, "source": "mail",
-           "status": "accepted", "answered_at": now or time.time()}
+           "dress": "", "at": at, "until": at + (MEETING if as_ == "batman" else LENGTH), "as": as_, "source": source,
+           "status": "accepted", "answered_at": now or time.time(), **({"plan": plan} if plan else {})}
     rows.put(row["id"], row)
     return row
 
@@ -194,6 +195,20 @@ def _consequences(e):
     remember either way (engine.bonds). Bruce Wayne's evenings answer in letters (see inbox).
     """
     from . import bonds
+    if e.get("plan"):
+        # A plan he made with them: whoever came, came for him — an evening together warms; waiting for a man who
+        # never shows stays with them.
+        from . import plans
+        plan = next((p for p in plans.all_plans() if p["id"] == e["plan"]), None)
+        for cid in (plan or {}).get("who") or []:
+            if not plans.going(plan, cid):
+                continue
+            if e["status"] == "attended":
+                bonds.nudge(cid, bonds.ME, warmth=2.5, trust=1, why=f"an evening with him: {e['what']}", weight=1)
+            else:
+                bonds.nudge(cid, bonds.ME, warmth=-2.5, trust=-2, tension=1.5, weight=2,
+                            why=f"he never showed for {e['what']} — you went, and waited")
+        return
     if not _gordon(e):
         return
     if e["status"] == "attended":

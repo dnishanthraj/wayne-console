@@ -2142,6 +2142,7 @@ class Console(GroupChats):
         case = cases.assign({**report, "x": goal[0], "y": goal[1]}, "bruce", by="him", travel=minutes)
         case = self._chase_after(case, report, cut, "bruce", trip["end"] if trip else time.time() + 600) or case
         await self._case_comms(case)
+        self._warn_of_the_hunt(report)
         await self.broadcast({"type": "cases"})
         await self.broadcast({"type": "bruce", "bruce": batman.state()})
         log.info("bruce on case %s (%s at %s), %.0f min out", report["id"], report["kind"], report["place"], minutes)
@@ -3347,6 +3348,11 @@ class Console(GroupChats):
             last = TextLog(contact.id).last() or {}
             # Their phone shows whether he's opened it, as anyone's does.
             seen = f"read {describe_gap(now - last['seen_at'])}" if last.get("seen_at") else "not opened"
+            if last.get("seen_at"):
+                # Read and left: noticed — and a second time today, remembered (engine.bonds).
+                chased = sum(1 for m in TextLog(contact.id).page(limit=30)
+                             if m.get("origin") == "chase" and now - m["at"] < 86400)
+                bonds.turned_away(contact, "on_read", chased + 1)
             self._spawn(self._send_unprompted(contact, seen, "chase"))
         elif impulses:
             contact = random.choice(impulses)
@@ -3406,6 +3412,22 @@ class Console(GroupChats):
     async def _system(self, event, contact_id=""):
         """A moment for the Batcomputer to say out loud — the page plays it, never over a call (see system_voice)."""
         await self.broadcast({"type": "system", "event": event, "contact": contact_id or ""})
+
+    def _warn_of_the_hunt(self, report):
+        """
+        The department's turned on the masks — the Mayor's task force out, orders to bring them in on sight (see
+        outcomes.hunted): him heading out to a call, Barbara at her screens or Alfred says so, once a night.
+        """
+        from ..engine import outcomes
+        night = time.strftime("%Y-%m-%d", time.localtime(time.time() - 6 * 3600))
+        if not outcomes.hunted() or getattr(self, "_hunt_warned", None) == night:
+            return
+        self._hunt_warned = night
+        who = self.directory.get("batgirl") if self._at_their_screens("batgirl") else self.directory.get("alfred")
+        if who is not None and who.id not in self._members():
+            self._spawn(self._later(random.uniform(20, 60), self._send_unprompted(who, (
+                f"he's heading out to the {report['kind'].lower()} at {report['place']} — and GCPD's task force is out "
+                "tonight with orders to bring the masks in on sight; warn him, your way"), "impulse")))
 
     async def _diary_tick(self, now):
         """
@@ -3629,9 +3651,13 @@ class Console(GroupChats):
         contact = self.directory.get(incoming["id"]) if incoming else None
         if contact is None:
             return
-        entry = TextLog(contact.id).add("them", "", kind=f"{how}_call")
+        log_ = TextLog(contact.id)
+        entry = log_.add("them", "", kind=f"{how}_call")
         await self.broadcast({"type": "call_unanswered", "speaker": contact.id,
                               "how": how, "message": entry})
+        # He didn't take it: once is nothing much; again today, it stings (engine.bonds).
+        today = sum(1 for m in log_.page(limit=40) if m.get("kind") == f"{how}_call" and time.time() - m["at"] < 86400)
+        bonds.turned_away(contact, how, today)
         if random.random() < (contact.initiative or {}).get("react", 0.6):
             await asyncio.sleep(random.uniform(6, 30) if how == "declined" else random.uniform(20, 80))
             await self._send_unprompted(contact, incoming["about"], how)
