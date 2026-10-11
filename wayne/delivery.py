@@ -64,7 +64,16 @@ _NARRATION = re.compile(r"[A-Za-z][a-z' ,-]*")
 _SPEECH = re.compile(r"\b(i|i'm|i'll|i've|i'd|me|my|mine|you|your|you're|yours|we|us|our|let's)\b", re.I)
 _SPACES = re.compile(r"\s{2,}")
 _STAGE_VERB = re.compile(r"^(sigh|laugh|chuckl|yawn|groan|grunt|scoff|snort|clear|cough|paus|exhal|inhal|whisper|"
-                         r"mutter|smil|grin|gasp|sniff|swallow|gulp|shrug|nod)", re.I)
+                         r"mutter|smil|grin|gasp|sniff|swallow|gulp|shrug|nod|lean|roll|rub|shak|look|glanc|turn|"
+                         r"sit|stand|pac|walk|wav|cross|tap|point|star(e|ing)|blink|wink|frown|wince|rais|lower|"
+                         r"fold|stretch|shift|step|reach|hesitat|sip|drink|typ|scratch|adjust|tilt|hum|cri(es|ed)|"
+                         r"sob|shout|yell|scream|murmur|beat\b|long pause|silence)", re.I)
+# Things a body does that make no sound: shown nowhere, and never handed to the voice — "[nods]" performed is a
+# voice saying something odd, and read out it's the word "nods".
+_SILENT = re.compile(r"^(nod|shrug|lean|roll|look|glanc|turn|sit|stand|pac|walk|wav|cross|rub|tap|point|star(e|ing)|"
+                     r"blink|wink|frown|rais|lower|fold|stretch|shift|step|reach|scratch|adjust|tilt|smil|grin)", re.I)
+_PRONOUN = re.compile(r"^(he|she|they|i|you|we)\s+", re.I)
+_EDGE_PUNCT = re.compile(r"^[\s.,!?…;:\"'-]+|[\s.,!?…;:\"'-]+$")
 
 
 def supported(model=None):
@@ -84,12 +93,19 @@ def _tidy(text):
 
 
 def _direction(inside):
-    """The bracket's contents as a direction (lower case, one space), or None if it's words someone said."""
-    words = " ".join(inside.split())
+    """
+    The bracket's contents as a direction (lower case, one space), or None if it's words someone said. A
+    direction is still one with its full stop in ("[Sighs.]"), with someone doing it ("[He sighs.]"), or when it
+    opens on what they do ("[laughs softly, shaking my head]") — read as words, each of those was spoken aloud.
+    """
+    words = _EDGE_PUNCT.sub("", " ".join(inside.split()))
     if not words:
         return ""
-    if _ANY_CUE.fullmatch(f"[{words}]"):
-        return words.lower()
+    bare = _PRONOUN.sub("", words)
+    if _ANY_CUE.fullmatch(f"[{bare}]") or _ANY_CUE.fullmatch(f"[{words}]"):
+        return bare.lower()
+    if _STAGE_VERB.match(bare) and len(bare.split()) <= 20:
+        return bare.lower()
     if _NARRATION.fullmatch(words) and not _SPEECH.search(words) and len(words.split()) <= 12:
         return words.lower()
     return None
@@ -103,8 +119,10 @@ def _performable(cue, model=None, strict=False):
     or an aside as an action.
     """
     words = cue.replace(",", " ").split()
-    if words and words[0] in ("he", "she", "they"):
+    if words and words[0] in ("he", "she", "they", "i"):
         words = words[1:]                       # "[he sighs heavily]" is a sigh
+    if words and _SILENT.match(" ".join(words)):
+        return None                             # a nod, a shrug: nothing to hear
     for n in (len(words), 2, 1):
         if " ".join(words[:n]) in CUES or " ".join(words[:n]) in SITUATIONAL:
             return " ".join(words[:n])
@@ -161,9 +179,9 @@ def _marked(text):
 
 
 def clean(text):
-    """The words alone, for the screen, memory and the guards."""
+    """The words alone, for the screen, memory and the guards — a bracketed aside that's words, without its brackets."""
     def drop(match):
-        return " " if _direction(match.group(1)) is not None else match.group(0)
+        return " " if _direction(match.group(1)) is not None else match.group(1)
     return _tidy(_BRACKETED.sub(drop, _marked(text or "")))
 
 

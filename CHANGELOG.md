@@ -5,6 +5,51 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-11
+
+### Changed
+
+- **They talk like people on the phone.** Calls sounded scripted because the
+  sample exchanges that teach each voice were polished one-liners, and every
+  turn came out as a quip. Now, built on how people actually talk on calls
+  (natural conversation runs six to ten disfluencies per hundred words, and
+  phone pick-ups are bare):
+  - **Bare pick-ups.** "Yeah?", "Hey!", "Sir?", "Ah — hello, Mr. Wayne.",
+    "Hey, handsome.", "Gordon.", "Bruce. Go." A pick-up is kept to its first
+    few words, so no more opening monologues. Each one still avoids
+    repeating the last.
+  - **A rule for talk, not writing.** Contractions, fragments, plain answers
+    first; now and then the filler they'd actually use, a false start, a
+    correction mid-sentence; a reaction before the answer ("wait, what?");
+    the clever line as the exception. No lines only people in books say,
+    and none of the ones everyone's heard a thousand times.
+  - **Each of them has a way of talking.** Alfred never says "um", "like" or
+    "yeah"; "Quite.", "Indeed." and a pause do that work. Dick goes "dude",
+    "wait wait wait", and laughs mid-sentence. Tim says "um" and "okay so",
+    and corrects himself. Jason says "yeah", "nah", "the hell", swears
+    without noticing, and goes quiet when it matters. Barbara types while
+    she talks. Lucius starts with "Well," and never rushes. Jim says "Ten
+    minutes. Ten." These are habits, not something in every line.
+  - **Their sample calls are rewritten to sound spoken.** Same personalities,
+    fewer zingers, and each now shows a plain reaction to shocking news.
+- **Quieter rooms.** The ambience under a call is about 40% quieter, and its
+  sounds never play louder than the room they're in.
+
+### Fixed
+
+- **Dick stopped mid-reply for no reason.** Between sentences, a sound of
+  what he was doing (a landing, a breath) played and his voice waited for
+  it, up to 2.6 seconds, at most sentence breaks for an acrobat. Now it's a
+  third as often and a short beat at most.
+- **Stage directions in the subtitles, and read aloud.** "[Sighs.]",
+  "[He sighs.]", "[Long pause.]", "[laughs softly, shaking my head]",
+  "*rolls eyes*" and long directions were taken for words: shown on screen,
+  and spoken as "Sighs." by the voice. Now they're recognised with their
+  punctuation, a pronoun, or an action word up front. Sounds are performed
+  (a sigh is a sigh) and never shown. Silent actions (a nod, a shrug, rolled
+  eyes, leaning back) go entirely, since there's nothing to hear. A
+  bracketed aside that really is words is shown without its brackets.
+
 ## [0.34.3] - 2026-10-11
 
 ### Added

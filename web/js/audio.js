@@ -159,7 +159,8 @@
      a person's ring moves with a horn behind them; and a muted line carries no
      room at all. Straight to the speakers, never into the voice's analyser. */
   var beds = {};
-  var BED_IDLE = 0.07, BED_TALKING = 0.12, BED_BEHIND = 0.045;   // × how loud the place is
+  // Under the voice, not beside it: the room was loud enough that a horn behind Dick read as part of the call.
+  var BED_IDLE = 0.045, BED_TALKING = 0.075, BED_BEHIND = 0.03;   // × how loud the place is
   var lastLine = {};
 
   var buffers = {};
@@ -229,7 +230,7 @@
         node.connect(pan);
         node = pan;
       }
-      var peak = (cue.gain || 1) * 1.5;            // a shade above the room it's in
+      var peak = (cue.gain || 1) * 1.0;            // as loud as the room it's in, never above it
       if (cue.sweep) {
         // Coming, here, gone.
         g.gain.setValueAtTime(peak * 0.35, now);
@@ -302,19 +303,21 @@
     level(id, entry.talking);
   }
 
-  /* Between two of their sentences, maybe a sound of what they're doing — the bag, a landing — and a beat for
-     it, as a voice would stop for it. Only mid-reply, never before the first word. */
+  /* Between two of their sentences, now and then, a sound of what they're doing — the bag, a landing — and a
+     short beat for it. Rarely: at the catalogue's rates (up to most sentence breaks for an acrobat) and with a
+     wait as long as the sound, Dick stopped mid-reply for no reason anyone could hear. Only mid-reply. */
+  var CUT_RATE = 0.3, CUT_BEAT_MS = 650;
   function cutIn(speaker) {
     var ids = Object.keys(beds);
     var entry = beds[speaker] || (ids.length === 1 ? beds[ids[0]] : null);
     var mid = Date.now() - (lastLine[speaker || ''] || 0) < 1800;
     if (!entry || entry.muted || !mid || !entry.cuts.length) return Promise.resolve();
     var roll = Math.random(), sum = 0;
-    var cut = entry.cuts.filter(function (c) { sum += c.p; return roll < sum; })[0];
+    var cut = entry.cuts.filter(function (c) { sum += c.p * CUT_RATE; return roll < sum; })[0];
     if (!cut) return Promise.resolve();
     return buffer(cut.file).then(function (decoded) {
-      playCue(entry, { file: cut.file, gain: 0.9, pan: 0 });
-      return new Promise(function (resolve) { setTimeout(resolve, Math.min(2600, decoded.duration * 800)); });
+      playCue(entry, { file: cut.file, gain: 0.7, pan: 0 });
+      return new Promise(function (resolve) { setTimeout(resolve, Math.min(CUT_BEAT_MS, decoded.duration * 400)); });
     }).catch(function () {});
   }
 

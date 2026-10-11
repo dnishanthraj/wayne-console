@@ -995,6 +995,9 @@ class ContactSession:
                 cleaned = guards.strip_forbidden_address(
                     generated, self.contact.forbidden_address)
                 cleaned = guards.strip_presence(cleaned).strip()
+                if not incoming:
+                    # He rang them: they pick up — a word or two — and the talking starts after.
+                    cleaned = guards.pickup(cleaned)
                 cues = self.__dict__.setdefault("_opening_cues", deque(maxlen=3))
                 cleaned, opened = guards.spare_opening_cue(cleaned, cues)
                 if cleaned:
@@ -2946,6 +2949,10 @@ class ContactSession:
     def _voice_notes(self):
         """How their voice is on this line — their range, and the moment's — and whether he's muted: notes for a call turn."""
         notes = []
+        if getattr(self.contact, "speaking", ""):
+            # How they talk out loud — theirs, the same every turn, so the read-ahead keeps it.
+            notes.append(f"How you talk on the phone — habits, not something in every line, and never the same "
+                         f"words twice running: {self.contact.speaking}.")
         if delivery.supported() and getattr(self.contact, "voice_range", ""):
             # The same every turn (it's theirs), so the read-ahead keeps it: what something landing sounds like.
             notes.append(f"When something lands — news, a scare, a joke, a hurt — it's heard: {self.contact.voice_range}.")

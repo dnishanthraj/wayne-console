@@ -72,6 +72,25 @@ LENGTH_GUIDANCE = (
     "on how much or how little he says; answer what's going on."
 )
 
+# Speech, not writing. Every line came out finished and clever — a quip with its
+# punctuation done — which is how people write dialogue and never how they talk on
+# the phone. Measured, natural conversation runs six to ten disfluencies in a
+# hundred words: two or three fillers, a false start, pauses; a reaction comes
+# before the answer; most of it is plain. How much of that is theirs is in their
+# own note (some barely do it at all).
+SPEECH_REALISM = (
+    "You're talking on the phone, not writing lines. Real talk is unpolished: "
+    "contractions, fragments, plain short answers; now and then the filler you'd "
+    "actually use, a false start, a correction halfway through a sentence; a "
+    "reaction before the answer when something surprises you; a word said twice "
+    "when you're rattled or sure; a sentence left hanging once the point's made. "
+    "Most of what anyone says on a call is ordinary — the clever line is the "
+    "exception. Answer plainly first. Never say anything only people in books "
+    "say, and none of the lines everyone's heard a thousand times (\"to what do "
+    "I owe the pleasure\", \"is this a this kind of thing or a that kind of "
+    "thing\")."
+)
+
 
 # A standing instruction, so it lives in the cached prefix rather than being
 # re-read every turn. Gating a lookup behind keywords meant that questions
@@ -384,7 +403,7 @@ def standing_directives(contact, texting=False):
                  CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, TEXT_LENGTH, TEXT_FEELING]
     else:
         parts = [SPEECH_CONSTRAINT, PRESENCE_DIRECTIVE, GROUNDING_DIRECTIVE,
-                 CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, LENGTH_GUIDANCE]
+                 CHARACTER_DIRECTIVE, REGISTER_DIRECTIVE, LENGTH_GUIDANCE, SPEECH_REALISM]
         if delivery.supported():
             parts.insert(1, VOICE_DIRECTIVE)
     if contact.can_search:

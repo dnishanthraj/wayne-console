@@ -166,6 +166,9 @@ class Contact:
     # How their feelings sound on a call — Alfred cold and quiet where Jason boils over — with the cues that are
     # theirs (see session._voice_notes). Offered every call turn the voice can perform it.
     voice_range: str = ""
+    # How they talk on the phone, out loud: the fillers they use and never use, how they react, how they pick up —
+    # Alfred's "Quite." where Dick says "dude" (see session._voice_notes). Offered every call turn.
+    speaking: str = ""
     # What to keep in mind when a particular person is on the call or in the chat, by their id — Barbara, with
     # her father there: he doesn't know she's Batgirl.
     around: dict = field(default_factory=dict)
@@ -354,6 +357,7 @@ def _load_profile(path):
         rare_address=tuple(raw.get("rare_address", [])),
         patience=int(raw.get("patience_ms", 0) or 0),
         voice_range=str(raw.get("voice_range", "")),
+        speaking=str(raw.get("speaking", "")),
         around=dict(raw.get("around", {})),
         sees_work=str(raw.get("sees_work", "")),
         calls_in=dict(raw.get("calls_in", {})),

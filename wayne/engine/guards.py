@@ -537,6 +537,23 @@ def apply(text, prompt, max_sentences, already_greeted, forbidden_address=(), fa
     return cap_length(text, max_sentences)
 
 
+def pickup(text, most_words=6):
+    """
+    How someone answers the phone: the first sentence of it — and the next, only while it's all still a few words
+    ("Hey, B. What's up?"). Told "a word or two", a model picked up with a paragraph about the dog.
+    """
+    sentences = [s_.strip() for s_ in split_sentences(text or "") if s_.strip()]
+    if not sentences:
+        return (text or "").strip()
+    kept, words = [sentences[0]], len(sentences[0].split())
+    for sentence in sentences[1:]:
+        words += len(sentence.split())
+        if words > most_words:
+            break
+        kept.append(sentence)
+    return " ".join(kept)
+
+
 # A sigh or a laugh before the first word: a moment now and then, a tic when it's every reply (Jim sighed into
 # nearly every answer, Alfred laughed into his).
 _OPENING_CUE = re.compile(r"^\s*\[\s*(sighs?|exhales?|laughs?|chuckles?|scoffs?|snorts?|groans?)\s*\]\s*", re.I)

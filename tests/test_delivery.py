@@ -96,7 +96,8 @@ def test_asterisks_and_parentheses_are_cues_or_just_words(monkeypatch):
 def test_words_in_brackets_stay_words(monkeypatch):
     monkeypatch.setattr(delivery.config, "ELEVENLABS_MODEL", "eleven_v4_turbo")
     line = "[Rust, if you want rigour,] but it's worth it."
-    assert delivery.clean(line) == line
+    # Shown as it's said: the words, without brackets nobody hears.
+    assert delivery.clean(line) == "Rust, if you want rigour, but it's worth it."
     # Said as words: v4 would otherwise take the brackets for direction and drop them.
     assert delivery.voiced(line) == "Rust, if you want rigour, but it's worth it."
 

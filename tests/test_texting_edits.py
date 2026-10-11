@@ -189,3 +189,44 @@ def test_each_of_them_has_their_own_range_on_a_call(monkeypatch):
     assert not any("lands" in n for n in ContactSession(directory().get("alfred"))._voice_notes())
     for cue in ("angry", "softly", "quietly", "worried", "excited", "frustrated", "tired", "chuckles"):
         assert delivery._performable(cue, "eleven_v4_turbo") == cue                   # every one is performed
+
+
+def test_on_a_call_they_talk_rather_than_write(monkeypatch):
+    from wayne import delivery
+    from wayne.engine import prompting
+    from wayne.engine.session import ContactSession
+    monkeypatch.setattr(delivery, "supported", lambda model=None: False)
+    alfred, dick = directory().get("alfred"), directory().get("nightwing")
+    said = " ".join(ContactSession(alfred)._voice_notes())
+    assert "How you talk on the phone" in said and "never 'um'" in said                # his, not everyone's
+    assert "'dude'" in " ".join(ContactSession(dick)._voice_notes())
+    assert prompting.SPEECH_REALISM in prompting.standing_directives(dick)                # on a call
+    assert prompting.SPEECH_REALISM not in prompting.standing_directives(dick, texting=True)
+    for contact in directory():
+        fresh = contact.boot_prompts.get("fresh", "")
+        # A pick-up, the way they answer — not a crafted opening line.
+        assert "one line" not in fresh.lower() and "one sentence" not in fresh.lower() and "'" in fresh, contact.id
+
+
+def test_stage_directions_never_reach_the_subtitles_or_get_read_out():
+    from wayne import delivery
+    v4 = "eleven_v4_turbo"
+    for line, shown, voiced in (
+            ("[Sighs.] Fine.", "Fine.", "[sighs] Fine."),                       # its full stop in
+            ("[He sighs.] Fine.", "Fine.", "[sighs] Fine."),                    # someone doing it
+            ("[laughs softly, shaking my head] No way.", "No way.", "[laughs] No way."),
+            ("[Long pause.] Okay.", "Okay.", "Okay."),
+            ("*rolls eyes* fine", "fine", "fine"),                               # silent: nowhere
+            ("[nods] okay", "okay", "okay"),
+            ("[laughs!] no", "no", "[laughs] no")):
+        assert delivery.clean(line) == shown, line
+        assert delivery.voiced(line, v4) == voiced, line
+    assert delivery.clean("I *really* mean it") == "I really mean it"            # emphasis, not a direction
+    assert delivery.clean("[Rust, if you want rigour,] but it's worth it") == "Rust, if you want rigour, but it's worth it"
+
+
+def test_a_pick_up_is_a_word_or_two():
+    from wayne.engine import guards
+    assert guards.pickup("Hey! Just catching my breath, Haley's eating everything. What's up?") == "Hey!"
+    assert guards.pickup("Hey, B. What's up?") == "Hey, B. What's up?"
+    assert guards.pickup("Ah — hello, Mr. Wayne. To what do I owe the pleasure?") == "Ah — hello, Mr. Wayne."
