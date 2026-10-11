@@ -5,6 +5,24 @@ Versioning is informal pre-1.0 — breaking changes can land in a minor bump.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-11
+
+### Added
+
+- **Bruce Wayne has a day.** Each morning it's written into the diary, a
+  chairman's day: the board and a briefing with Lucius at Wayne Tower, a
+  lunch where a deal or a favour is, a Foundation visit, a fitting. It's
+  lighter at weekends, fitted around whatever's already there, in places on
+  the map. Nights are Batman's, and yours.
+- **Your icon follows the diary.** A little before each thing, you set off
+  for it on your own, as Bruce Wayne in the car or Batman to a meeting, and
+  head home when the day's done. It waits if you're in the middle of a case
+  or on your way somewhere you chose.
+- **Leaving early is noticed.** Go somewhere else mid-event (or take a case
+  as Batman) and the diary logs it as left early, and what for. Hosts notice
+  ("you slipped out"), Vicki wants to know where you went, and family who
+  came to a plan feel it a little.
+
 ## [0.30.0] - 2026-10-11
 
 ### Added

@@ -3203,6 +3203,8 @@ class Console(GroupChats):
                 or self.turn_lock.locked()):
             return
         now = time.time()
+        if await self._write_bruces_day(now):
+            return
         backoff = self._plan_backoff
         waiting = [c for c in self.directory if not presence.of(c).has_plan() and backoff.get(c.id, 0) <= now]
         if not waiting or not await asyncio.to_thread(_model_loaded, waiting[0].model):
@@ -3221,6 +3223,28 @@ class Console(GroupChats):
                 backoff[contact.id] = now + 10 * 60      # try again later, and the others meanwhile
         finally:
             self._writing_lines = False
+
+    async def _write_bruces_day(self, now):
+        """His own day, sketched once each morning (engine.engagements.write_day). True if it was written now."""
+        import datetime as _dt
+
+        from ..engine import engagements
+        today = _dt.date.fromtimestamp(now)
+        if time.localtime(now).tm_hour < 5 or engagements.has_day(today) or \
+                getattr(self, "_day_tried", (None, 0))[0] == today and now - self._day_tried[1] < 1800:
+            return False
+        writer = self.directory.get("alfred")
+        if writer is None or not await asyncio.to_thread(_model_loaded, writer.model):
+            return False
+        self._day_tried = (today, now)
+        self._writing_lines = True
+        try:
+            made = await asyncio.to_thread(engagements.write_day, writer.model, writer.options, today, now)
+        finally:
+            self._writing_lines = False
+        if made:
+            log.info("Bruce's day: %d things", len(made))
+        return bool(made)
 
     def _plans_so_far(self, contact):
         """
@@ -3466,6 +3490,18 @@ class Console(GroupChats):
         """
         from ..engine import batman, engagements
         engagements.watch(now)
+        # The map follows the diary: off to the next thing in time — unless he's in the middle of a case, or on his
+        # way somewhere he chose — and home when the day's done.
+        state = batman.state(now)
+        free = not batman.committed(now) and not state.get("route")
+        for e in engagements.due_to_go(now):
+            if free:
+                await asyncio.to_thread(engagements.go, e["id"], now)
+                log.info("off to %s (%s), as the diary has it", e["what"], e["where"])
+        if free and engagements.day_done(now) and state.get("where") != batman.HOME and \
+                time.localtime(now).tm_hour < 20 and getattr(self, "_went_home", "") != time.strftime("%Y-%m-%d"):
+            self._went_home = time.strftime("%Y-%m-%d")
+            await asyncio.to_thread(batman.go, batman.HOME, None, None, "", now, False)
         for e in engagements.reminders(now):
             await self.broadcast({"type": "engagement_soon", "engagement": e})
             alfred = self.directory.get("alfred")

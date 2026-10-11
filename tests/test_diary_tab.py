@@ -63,3 +63,69 @@ def test_calling_off_a_family_plan_is_said_where_it_was_made_and_stings_a_little
     asyncio.run(console.cancel_engagement(row["id"]))
     assert said == [("fam2", "Something's come up — I can't make dinner at Antonio's. Sorry.")]
     assert "called off dinner at Antonio's" in bonds.memories("nightwing", bonds.ME, clock())[0]["text"]
+
+
+def test_his_day_is_sketched_around_whats_there_in_real_hours(clock, monkeypatch):
+    import json
+
+    from wayne.engine import model
+    today = datetime.date.fromtimestamp(clock())
+    engagements.add("lunch with Clark", "The Regency", time_at(today, 12, 30), time_at(today, 14, 0))
+    sketch = {"day": [{"what": "Board briefing with Lucius", "where": "Wayne Tower", "from": "09:30", "to": "11:00",
+                       "with": "Lucius and the board"},
+                      {"what": "a clash", "where": "Wayne Tower", "from": "13:00", "to": "13:30"},     # over lunch: no
+                      {"what": "a 3am thing", "where": "Wayne Tower", "from": "03:00", "to": "04:00"},  # not his hours
+                      {"what": "Foundation visit", "where": "Gotham Public Library", "from": "15:00", "to": "16:30"}]}
+    monkeypatch.setattr(model, "ask", lambda *a, **k: json.dumps(sketch))
+    made = engagements.write_day("m", {}, today, clock())
+    assert [m["what"] for m in made] == ["Board briefing with Lucius", "Foundation visit"]
+    assert all(m["source"] == "routine" for m in made) and engagements.has_day(today)
+
+
+def time_at(day, hh, mm):
+    import time as _t
+    return _t.mktime((day.year, day.month, day.day, hh, mm, 0, 0, 0, -1))
+
+
+def test_the_map_follows_the_diary_once_and_leaving_early_is_noted(clock, monkeypatch):
+    from wayne.engine import batman, cases
+    row = engagements.add("the Mayor's gala", "Gotham Opera House", clock() + 15 * 60, clock() + 3 * 3600)
+    assert [e["id"] for e in engagements.due_to_go(clock())] == [row["id"]]
+    assert engagements.due_to_go(clock()) == []                                   # once
+    venue = row["venue"]
+    monkeypatch.setattr(batman, "position", lambda t=None: (venue[0], venue[1]))
+    clock.at(row["at"] + 600)
+    engagements.watch(clock())
+    assert engagements._rows().get(row["id"])["present"]
+    monkeypatch.setattr(batman, "position", lambda t=None: (venue[0] + 30, venue[1]))   # gone, early
+    monkeypatch.setattr(cases, "active", lambda who: {"kind": "Armed robbery", "place": "Ace Chemicals",
+                                                     "status": "on scene", "members": {}})
+    clock.at(row["at"] + 1800)
+    engagements.watch(clock())
+    assert engagements._rows().get(row["id"])["left_for"] == "Armed robbery at Ace Chemicals"
+    clock.at(row["until"] + 60)
+    assert engagements.settle(clock())[0]["status"] == "left"
+
+
+def test_the_console_takes_him_there_unless_hes_in_the_middle_of_something(clock, monkeypatch):
+    import wayne.frontends.web as web
+    from wayne.engine import batman
+    console = web.Console.__new__(web.Console)
+    console.directory = __import__("wayne.contacts", fromlist=["directory"]).directory()
+    console._members = lambda: []
+    console._spawn = lambda coroutine: coroutine.close()        # Alfred's reminder text: not this test's business
+    went = []
+
+    async def broadcast(event):
+        return None
+    console.broadcast = broadcast
+    monkeypatch.setattr(engagements, "go", lambda eid, now=None: went.append(eid) or {})
+    monkeypatch.setattr(batman, "state", lambda t=None: {"where": "Wayne Manor"})
+    monkeypatch.setattr(batman, "committed", lambda t=None: "")
+    row = engagements.add("lunch with Clark", "The Regency", clock() + 10 * 60, clock() + 3600)
+    asyncio.run(console._diary_tick(clock()))
+    assert went == [row["id"]]
+    monkeypatch.setattr(batman, "committed", lambda t=None: "in the middle of a case")
+    engagements.add("a fitting", "Hart & Sons Tailors", clock() + 12 * 60, clock() + 3600)
+    asyncio.run(console._diary_tick(clock()))
+    assert went == [row["id"]]                                                      # on a case: it waits for him

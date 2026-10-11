@@ -540,7 +540,8 @@ def _engagement_letter(model, options, event, now):
     if event.get("kind") != "engagement":
         return None
     from . import engagements
-    went = event.get("status") == "attended"
+    went = event.get("status") in ("attended", "left")
+    early = event.get("status") == "left"
     convo = thread(event.get("thread", ""))
     theirs = next((m for m in convo if m.get("folder") != "sent"), None)
     host = event.get("host") or (theirs or {}).get("from") or "the host"
@@ -568,21 +569,27 @@ def _engagement_letter(model, options, event, now):
         story = str((evening or {}).get("story") or "").strip()
         if story:
             engagements.remember(event.get("id"), story)
+    if went:
+        how = ("he came — a thank-you, warm or formal as they are"
+               + (f", touching on what happened: {story}" if story else ", with one specific thing about the evening")
+               + (" — though he slipped out early, and they noticed; they say so as they would." if early else "."))
+    else:
+        how = ("he accepted and never came — his chair empty all evening; they write as they would: gracious, "
+               "wounded, pointed or amused.")
     found = _ask(model, options, _context(now) + f"Write one short email to Bruce Wayne from {host}, the morning after "
-                 f"{event.get('what')}" + (f" at {event['where']}" if event.get("where") else "") + ": "
-                 + (("he came — a thank-you, warm or formal as they are" + (f", touching on what happened: {story}"
-                     if story else ", with one specific thing about the evening") + ".")
-                    if went else "he accepted and never came — his chair empty all evening; they write as they would: "
-                    "gracious, wounded, pointed or amused.") + _FACTS_ONLY + " " + _MAIL_SHAPE, "an after-note")
+                 f"{event.get('what')}" + (f" at {event['where']}" if event.get("where") else "") + ": " + how
+                 + _FACTS_ONLY + " " + _MAIL_SHAPE, "an after-note")
     made = None
     if found and found.get("subject"):
         made = deliver(host, found["subject"], found.get("body", ""), folder="inbox", kind="letter", name=host,
                        address=(theirs or {}).get("address"), thread=event.get("thread"), key=f"after:{event.get('id')}")
-    if not went and "vicki" not in host.lower() and _draw("vicki", event.get("id")) < 0.4:
+    if (not went or early) and "vicki" not in host.lower() and _draw("vicki", event.get("id")) < 0.4:
         nosy = _ask(model, options, _context(now) + "Write one short, teasing email to Bruce Wayne from Vicki Vale, the "
-                    f"Gotham Gazette's investigative reporter (they dated once; she still suspects him of something): "
-                    f"he stood up {event.get('what')} last night and she wants to know where he was — flirtatious, "
-                    "sharp, fishing." + _FACTS_ONLY + " " + _MAIL_SHAPE, "Vicki's note")
+                    "Gotham Gazette's investigative reporter (they dated once; she still suspects him of something): "
+                    + (f"he slipped out of {event.get('what')} early last night" if early else
+                       f"he stood up {event.get('what')} last night")
+                    + " and she wants to know where he went — flirtatious, sharp, fishing." + _FACTS_ONLY + " "
+                    + _MAIL_SHAPE, "Vicki's note")
         if nosy and nosy.get("subject"):
             made = deliver("Vicki Vale", nosy["subject"], nosy.get("body", ""), folder="inbox", kind="letter",
                            name="Vicki Vale", address="vvale@gothamgazette.com", key=f"vicki-after:{event.get('id')}") or made

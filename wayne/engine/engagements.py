@@ -115,6 +115,18 @@ def watch(now=None):
         here = here or batman.position(now)
         if here and ((here[0] - e["venue"][0]) ** 2 + (here[1] - e["venue"][1]) ** 2) ** 0.5 <= PRESENT_RADIUS:
             _rows().put(e["id"], {**e, "present": True, "present_at": now})
+    # There, and then gone well before the end — somewhere else he chose, or a case: leaving early, and why.
+    for e in _rows().list():
+        if (e["status"] != "accepted" or not e.get("present") or e.get("left_at") or not e.get("venue")
+                or not (e["at"] <= now < e["until"] - 600)):
+            continue
+        here = here or batman.position(now)
+        if here and ((here[0] - e["venue"][0]) ** 2 + (here[1] - e["venue"][1]) ** 2) ** 0.5 > PRESENT_RADIUS * 2:
+            from . import cases
+            case = cases.active("bruce")
+            where = batman.state(now).get("where") or ""
+            _rows().put(e["id"], {**e, "left_at": now, "left_for": f"{case['kind']} at {case['place']}" if case
+                                  else (where if where != e.get("where") else "")})
 
 
 def reminders(now=None):
@@ -205,13 +217,16 @@ def _consequences(e):
                 continue
             if e["status"] == "attended":
                 bonds.nudge(cid, bonds.ME, warmth=2.5, trust=1, why=f"an evening with him: {e['what']}", weight=1)
+            elif e["status"] == "left":
+                bonds.nudge(cid, bonds.ME, warmth=0.5, tension=0.8, weight=1,
+                            why=f"he came to {e['what']} — and slipped out early")
             else:
                 bonds.nudge(cid, bonds.ME, warmth=-2.5, trust=-2, tension=1.5, weight=2,
                             why=f"he never showed for {e['what']} — you went, and waited")
         return
     if not _gordon(e):
         return
-    if e["status"] == "attended":
+    if e["status"] in ("attended", "left"):
         bonds.nudge("gordon", bonds.ME, warmth=2, trust=4, why=f"Batman came to {e['what']}, as he said he would",
                     weight=1)
         bonds.nudge(bonds.GCPD, bonds.ME, warmth=1, trust=1)
@@ -236,16 +251,20 @@ def settle(now=None):
             continue
         case = _was_out(e["at"], e["until"])
         came = e.get("present") if e.get("venue") else not case
-        e = {**e, "status": "attended" if came else "missed", "settled_at": now,
+        # Gone before most of it was done: left early (the case that took him, or wherever he went).
+        early = came and e.get("left_at") and (e["left_at"] - e["at"]) < 0.6 * (e["until"] - e["at"])
+        e = {**e, "status": "left" if early else "attended" if came else "missed", "settled_at": now,
              **({"kept_away_by": f"{case['kind']} at {case['place']}"} if case and not came else {})}
         rows.put(e["id"], e)
         try:
             _consequences(e)
         except Exception:
             pass
-        inbox.queue({"kind": "engagement", "id": e["id"], "status": e["status"], "what": e["what"], "where": e["where"],
-                     "host": e["host"], "thread": e["thread"], "as": e.get("as", "bruce"), "with": e.get("with", ""),
-                     "kept_away_by": e.get("kept_away_by", "")})
+        if e.get("source") != "routine":
+            inbox.queue({"kind": "engagement", "id": e["id"], "status": e["status"], "what": e["what"],
+                         "where": e["where"], "host": e["host"], "thread": e["thread"], "as": e.get("as", "bruce"),
+                         "with": e.get("with", ""), "kept_away_by": e.get("kept_away_by", ""),
+                         "left_for": e.get("left_for", "")})
         settled.append(e)
     for e in rows.list():
         if e.get("until", 0) < now - _KEEP_DAYS * 86400:
@@ -389,3 +408,96 @@ def cancel(engagement_id, now=None):
 
 def delete(engagement_id):
     _rows().drop(engagement_id)
+
+
+# --- his own day, and the map following it ------------------------------------------------------------------
+# Bruce Wayne's day is a chairman's: the board and the briefings at Wayne Tower, lunches where the deals are, the
+# Foundation's causes, a fitting, a photograph, and now and then a gala — written once a day by the model, from
+# what Gotham's doing and what's already in the diary, in places that are on the map. Nights are Batman's, and
+# his. The map follows the diary on its own: to each thing in time (go), home when the day's done — unless he's
+# somewhere else he chose, which is leaving, and noted (watch).
+
+AUTO_LEAD = 25 * 60        # setting off this long before
+_HOME_AFTER = 20 * 60      # after the day's last thing, home — if nothing else is soon
+
+
+def has_day(day):
+    """Whether his own day is already written for `day` (a date)."""
+    lo = time.mktime((day.year, day.month, day.day, 0, 0, 0, 0, 0, -1))
+    return any(e.get("source") == "routine" and lo <= e["at"] < lo + 86400 for e in _rows().list())
+
+
+def write_day(model_name, options, day, now=None):
+    """
+    His day, sketched: a few things between nine and seven (lighter at weekends), around whatever's already in the
+    diary, in real places. Background (engine.model). Returns the rows written, or [].
+    """
+    import json
+
+    from . import gazette, inbox
+    from . import model as llm
+    now = now or time.time()
+    lo = time.mktime((day.year, day.month, day.day, 0, 0, 0, 0, 0, -1))
+    already = [e for e in _rows().list() if lo <= e["at"] < lo + 86400 and e["status"] == "accepted"]
+    busy = "; ".join(f"{time.strftime('%H:%M', time.localtime(e['at']))}–{time.strftime('%H:%M', time.localtime(e['until']))} "
+                     f"{e['what']}" for e in sorted(already, key=lambda e: e["at"])) or "nothing yet"
+    papers = "; ".join(f"“{i['headline']}”" for i in (gazette.today(day) or [])[:3])
+    weekend = day.weekday() >= 5
+    instruction = (
+        f"It's {day.strftime('%A %-d %B %Y')}. Bruce Wayne is chairman of Wayne Enterprises (Lucius Fox runs it day to "
+        "day) and the face of the Wayne Foundation — to Gotham, a charming, not very serious billionaire. Sketch his "
+        f"day: {'two or three' if weekend else 'three to five'} things between 09:00 and 19:00 — the board, a briefing "
+        "with Lucius at Wayne Tower, a lunch where a deal or a favour is, a Foundation visit, a fitting, a photograph, a "
+        "charity's committee — specific, with who it's with. Already in his diary that day (keep clear of it): "
+        f"{busy}." + (f" This morning's papers: {papers}." if papers else "") + " "
+        + inbox._real_places() + 'JSON only: {"day": [{"what": "...", "where": "a place from the list, by its exact '
+        'name", "from": "HH:MM", "to": "HH:MM", "with": "who, in a few words", "notes": "a line, or empty"}]}')
+    try:
+        reply = llm.ask(model_name, [{"role": "user", "content": instruction}],
+                        {**options, "temperature": 0.7, "num_predict": 420}, fmt="json", purpose="Bruce's day")
+        sketch = json.loads(reply).get("day") or []
+    except Exception:
+        return []
+    made = []
+    for item in sketch[:5]:
+        if not isinstance(item, dict) or not str(item.get("what") or "").strip():
+            continue
+        try:
+            hh, mm = (int(x) for x in str(item.get("from") or "").split(":")[:2])
+            eh, em = (int(x) for x in str(item.get("to") or "").split(":")[:2])
+        except ValueError:
+            continue
+        at = time.mktime((day.year, day.month, day.day, hh, mm, 0, 0, 0, -1))
+        until = time.mktime((day.year, day.month, day.day, eh, em, 0, 0, 0, -1))
+        if until <= at or not (8 <= hh <= 20) or any(e["at"] < until and at < e["until"] for e in already + made):
+            continue
+        made.append(add(item["what"], item.get("where", ""), at, until, "bruce", item.get("with", ""),
+                        item.get("notes", ""), now=now, source="routine"))
+    return made
+
+
+def due_to_go(now=None):
+    """
+    What he should be setting off for now, on his own: the next thing in the diary, a little before it starts, not
+    already gone for and not over. Marked as gone for. [rows]
+    """
+    now = now or time.time()
+    out = []
+    for e in sorted(_rows().list(), key=lambda e: e["at"]):
+        if (e["status"] != "accepted" or e.get("auto_went") or e.get("present") or not e.get("venue")
+                or not (e["at"] - AUTO_LEAD <= now < e["until"] - 600)):
+            continue
+        e = {**e, "auto_went": now}
+        _rows().put(e["id"], e)
+        out.append(e)
+    return out[:1]
+
+
+def day_done(now=None):
+    """Whether his day's over for now: the last thing ended a while ago and nothing's coming soon."""
+    now = now or time.time()
+    rows = [e for e in _rows().list() if e["status"] in ("accepted", "attended", "left") and e.get("source") != "plan"]
+    ended = [e for e in rows if e["until"] <= now]
+    soon = [e for e in rows if e["status"] == "accepted" and now < e["until"] and e["at"] < now + 90 * 60]
+    return bool(ended) and not soon and now - max(e["until"] for e in ended) > _HOME_AFTER \
+        and now - max(e["until"] for e in ended) < _HOME_AFTER + 600
