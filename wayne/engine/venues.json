@@ -429,6 +429,48 @@
 "y": 74.25
 },
 {
+"name": "Ladder 9",
+"kind": "fire",
+"area": "Burnley",
+"x": 49.57,
+"y": 48.96
+},
+{
+"name": "Engine 7",
+"kind": "fire",
+"area": "Crime Alley",
+"x": 68.99,
+"y": 47.47
+},
+{
+"name": "Ladder 21",
+"kind": "fire",
+"area": "Chinatown",
+"x": 27.87,
+"y": 96.77
+},
+{
+"name": "Engine 30",
+"kind": "fire",
+"area": "Coventry",
+"x": 45.05,
+"y": 59.9
+},
+{
+"name": "Engine 14",
+"kind": "fire",
+"area": "Tricorner",
+"x": 29.46,
+"y": 124.36
+},
+{
+"name": "Engine 58",
+"kind": "fire",
+"area": "Cherry Hills",
+"x": 44.34,
+"y": 21.68
+},
+{
 "name": "Gotham Heights High",
 "kind": "school",
 "area": "Upper West Side",
@@ -462,6 +504,55 @@
 "area": "Bristol",
 "x": 3.35,
 "y": 26.71
+},
+{
+"name": "New Town High",
+"kind": "school",
+"area": "Burnley",
+"x": 58.75,
+"y": 44.39
+},
+{
+"name": "PS 41",
+"kind": "school",
+"area": "Chinatown",
+"x": 33.56,
+"y": 97.04
+},
+{
+"name": "Narrows Community School",
+"kind": "school",
+"area": "Tricorner",
+"x": 22.56,
+"y": 122.62
+},
+{
+"name": "Chinatown Elementary",
+"kind": "school",
+"area": "The Narrows",
+"x": 19.38,
+"y": 39.51
+},
+{
+"name": "Burnley Middle School",
+"kind": "school",
+"area": "Burnside",
+"x": 103.11,
+"y": 78.56
+},
+{
+"name": "Tricorner High",
+"kind": "school",
+"area": "New Town",
+"x": 70.49,
+"y": 36.43
+},
+{
+"name": "Burnside Academy of the Arts",
+"kind": "school",
+"area": "Crime Alley",
+"x": 69.56,
+"y": 40.57
 },
 {
 "name": "Third Wave",
@@ -875,6 +966,454 @@
 "area": "Chinatown",
 "x": 20.57,
 "y": 97.27
+},
+{
+"name": "Corner Deli",
+"kind": "shop",
+"area": "Crime Alley",
+"x": 64.06,
+"y": 45.99
+},
+{
+"name": "24 Hour Mini Mart",
+"kind": "shop",
+"area": "The Narrows",
+"x": 19.64,
+"y": 31.51
+},
+{
+"name": "Sunrise Bodega",
+"kind": "shop",
+"area": "Burnley",
+"x": 56.01,
+"y": 41.18
+},
+{
+"name": "Ramirez Deli & Grocery",
+"kind": "shop",
+"area": "The Bowery",
+"x": 65.49,
+"y": 50.0
+},
+{
+"name": "Lucky's Bodega",
+"kind": "shop",
+"area": "Robinsville",
+"x": 74.89,
+"y": 35.95
+},
+{
+"name": "Quick Stop",
+"kind": "shop",
+"area": "Tricorner",
+"x": 22.61,
+"y": 124.3
+},
+{
+"name": "GCPD 14th Precinct",
+"kind": "police",
+"area": "Burnley",
+"x": 52.64,
+"y": 50.14
+},
+{
+"name": "GCPD 17th Precinct",
+"kind": "police",
+"area": "Crime Alley",
+"x": 70.87,
+"y": 41.27
+},
+{
+"name": "GCPD 21st Precinct",
+"kind": "police",
+"area": "Chinatown",
+"x": 23.45,
+"y": 96.65
+},
+{
+"name": "GCPD 8th Precinct",
+"kind": "police",
+"area": "Coventry",
+"x": 45.9,
+"y": 57.69
+},
+{
+"name": "GCPD 9th Precinct",
+"kind": "police",
+"area": "Upper West Side",
+"x": 15.83,
+"y": 83.54
+},
+{
+"name": "GCPD 2nd Precinct",
+"kind": "police",
+"area": "New Town",
+"x": 63.43,
+"y": 34.0
+},
+{
+"name": "GCPD 5th Precinct",
+"kind": "police",
+"area": "Burnside",
+"x": 110.12,
+"y": 53.01
+},
+{
+"name": "GCPD 24th Precinct",
+"kind": "police",
+"area": "City Hall District",
+"x": 82.04,
+"y": 94.37
+},
+{
+"name": "Chinatown Library",
+"kind": "library",
+"area": "Burnley",
+"x": 49.24,
+"y": 45.38
+},
+{
+"name": "Coventry Library",
+"kind": "library",
+"area": "Coventry",
+"x": 43.54,
+"y": 58.44
+},
+{
+"name": "Tricorner Library",
+"kind": "library",
+"area": "Chinatown",
+"x": 24.82,
+"y": 96.6
+},
+{
+"name": "Burnside Public Library",
+"kind": "library",
+"area": "Burnside",
+"x": 112.89,
+"y": 50.84
+},
+{
+"name": "Burnley Branch Library",
+"kind": "library",
+"area": "Tricorner",
+"x": 33.85,
+"y": 115.78
+},
+{
+"name": "Hollis Foods",
+"kind": "market",
+"area": "Burnley",
+"x": 58.66,
+"y": 39.63
+},
+{
+"name": "Good Neighbor Market",
+"kind": "market",
+"area": "Coventry",
+"x": 50.59,
+"y": 61.95
+},
+{
+"name": "Corrigan's Market",
+"kind": "market",
+"area": "The Bowery",
+"x": 65.7,
+"y": 47.57
+},
+{
+"name": "City Fresh",
+"kind": "market",
+"area": "Tricorner",
+"x": 33.19,
+"y": 116.1
+},
+{
+"name": "Harbor Foods",
+"kind": "market",
+"area": "Upper West Side",
+"x": 35.14,
+"y": 89.36
+},
+{
+"name": "Delancey Foods",
+"kind": "market",
+"area": "New Town",
+"x": 67.29,
+"y": 37.59
+},
+{
+"name": "Greenway Grocers",
+"kind": "market",
+"area": "Robinsville",
+"x": 85.51,
+"y": 36.33
+},
+{
+"name": "Valu-Mart",
+"kind": "market",
+"area": "Burnside",
+"x": 109.11,
+"y": 71.24
+},
+{
+"name": "Kovac Bros. Grocery",
+"kind": "market",
+"area": "The Narrows",
+"x": 21.96,
+"y": 30.01
+},
+{
+"name": "Bodner's Supermarket",
+"kind": "market",
+"area": "Cherry Hills",
+"x": 43.52,
+"y": 24.4
+},
+{
+"name": "Kessler's Chemist",
+"kind": "pharmacy",
+"area": "Crime Alley",
+"x": 71.01,
+"y": 43.54
+},
+{
+"name": "Doane's Drugs",
+"kind": "pharmacy",
+"area": "Burnley",
+"x": 58.2,
+"y": 50.64
+},
+{
+"name": "Lindqvist Drugs",
+"kind": "pharmacy",
+"area": "Chinatown",
+"x": 30.86,
+"y": 108.81
+},
+{
+"name": "Gotham Rx",
+"kind": "pharmacy",
+"area": "Upper West Side",
+"x": 27.12,
+"y": 81.79
+},
+{
+"name": "Mercy Pharmacy",
+"kind": "pharmacy",
+"area": "Fashion District",
+"x": 70.42,
+"y": 85.51
+},
+{
+"name": "Apothecary 1902",
+"kind": "pharmacy",
+"area": "University District",
+"x": 23.33,
+"y": 69.83
+},
+{
+"name": "Night Owl Pharmacy",
+"kind": "pharmacy",
+"area": "Burnside",
+"x": 112.35,
+"y": 58.36
+},
+{
+"name": "Corner Rx",
+"kind": "pharmacy",
+"area": "Coventry",
+"x": 39.55,
+"y": 54.48
+},
+{
+"name": "Harbor Gas & Go",
+"kind": "fuel",
+"area": "Ironworks",
+"x": 4.03,
+"y": 94.18
+},
+{
+"name": "24/7 Fuel Stop",
+"kind": "fuel",
+"area": "Ironworks",
+"x": -6.52,
+"y": 96.85
+},
+{
+"name": "Kane Fuel",
+"kind": "fuel",
+"area": "Kane Heights",
+"x": 6.86,
+"y": 58.97
+},
+{
+"name": "Pyramid Gas",
+"kind": "fuel",
+"area": "Robinsville",
+"x": 84.71,
+"y": 58.06
+},
+{
+"name": "Ironworks Truck Stop",
+"kind": "fuel",
+"area": "New Town",
+"x": 57.92,
+"y": 32.22
+},
+{
+"name": "Comet Gas",
+"kind": "fuel",
+"area": "Bristol",
+"x": 9.94,
+"y": 33.03
+},
+{
+"name": "Bristol Service Station",
+"kind": "fuel",
+"area": "Burnside",
+"x": 100.43,
+"y": 51.03
+},
+{
+"name": "Cobblepot Trust",
+"kind": "bank",
+"area": "Diamond District",
+"x": 52.07,
+"y": 99.02
+},
+{
+"name": "First Gotham Savings",
+"kind": "bank",
+"area": "Diamond District",
+"x": 43.21,
+"y": 86.83
+},
+{
+"name": "Gotham Federal Credit Union",
+"kind": "bank",
+"area": "Upper East Side",
+"x": 59.04,
+"y": 58.71
+},
+{
+"name": "Mercantile Bank of Gotham",
+"kind": "bank",
+"area": "Fashion District",
+"x": 66.17,
+"y": 92.99
+},
+{
+"name": "Union Trust",
+"kind": "bank",
+"area": "Burnside",
+"x": 123.83,
+"y": 73.55
+},
+{
+"name": "Burnside Savings Bank",
+"kind": "bank",
+"area": "New Town",
+"x": 61.89,
+"y": 40.0
+},
+{
+"name": "Spin Cycle",
+"kind": "laundromat",
+"area": "The Narrows",
+"x": 21.7,
+"y": 33.18
+},
+{
+"name": "Wash & Fold 24",
+"kind": "laundromat",
+"area": "The Bowery",
+"x": 60.21,
+"y": 50.02
+},
+{
+"name": "Suds City",
+"kind": "laundromat",
+"area": "Burnley",
+"x": 45.89,
+"y": 42.73
+},
+{
+"name": "Bubbles Laundromat",
+"kind": "laundromat",
+"area": "Chinatown",
+"x": 20.4,
+"y": 101.35
+},
+{
+"name": "Clean Getaway",
+"kind": "laundromat",
+"area": "Robinsville",
+"x": 74.29,
+"y": 46.16
+},
+{
+"name": "Gotham Center Mall",
+"kind": "mall",
+"area": "New Town",
+"x": 62.86,
+"y": 32.58
+},
+{
+"name": "Otisburg Galleria",
+"kind": "mall",
+"area": "Otisburg",
+"x": 50.63,
+"y": 23.18
+},
+{
+"name": "Harbor Point Mall",
+"kind": "mall",
+"area": "Central Business District",
+"x": 119.02,
+"y": -15.92
+},
+{
+"name": "The Lyceum",
+"kind": "theatre",
+"area": "Diamond District",
+"x": 39.41,
+"y": 101.64
+},
+{
+"name": "The Palace Theatre",
+"kind": "theatre",
+"area": "Diamond District",
+"x": 46.19,
+"y": 96.86
+},
+{
+"name": "The Orpheum",
+"kind": "theatre",
+"area": "Fashion District",
+"x": 69.74,
+"y": 95.91
+},
+{
+"name": "Burnside Post Office",
+"kind": "post",
+"area": "Burnley",
+"x": 53.92,
+"y": 36.89
+},
+{
+"name": "Burnley Post Office",
+"kind": "post",
+"area": "Old Gotham",
+"x": 57.23,
+"y": 105.07
+},
+{
+"name": "Old Gotham Station Post Office",
+"kind": "post",
+"area": "Burnside",
+"x": 103.55,
+"y": 79.37
 }
 ]
 }

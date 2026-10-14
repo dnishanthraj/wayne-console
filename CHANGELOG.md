@@ -7,6 +7,39 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-15
+
+### Added
+
+- **Every landmark built as itself.** Over sixty places that stood among generic blocks now have their own
+  structures, among them:
+  - The Gotham Museum's Beaux-Arts front, the Gazette's tower and its lit name, the Superior Courthouse's dome, and
+    the Gotham Royal's Deco crown.
+  - The Sionis steel mill's furnaces and stacks, the naval yard's dry docks and crane, and working docks with sheds,
+    containers and cranes.
+  - The zoo, the aquarium, the planetarium, the botanical conservatory, and Haly's winter quarters.
+  - Precincts, firehouses, churches, a synagogue, the Rialto temple, Chinatown's arch, market halls, depots,
+    heliports, marinas, boathouses, and the cemeteries' chapels and stones.
+  - Amusement Mile's carousel, drop tower and pier.
+- **Bridges built as bridges.** Long spans hang from two towers, their cables and hangers lit like a necklace after
+  dark, and shorter ones carry a steel arch. The Burnside Bridge is green steel.
+- **A skyline.** Towers rise in setbacks: Deco crowns and needles in the old quarters, stepped glass with masts
+  downtown.
+- **The islands as places.** Blackgate is filled by its prison: the double perimeter, cell blocks off a central
+  spine, yards, the watch tower, the power house, staff houses, and the potter's field. Paris Island has its ruins
+  and the Cauldron's old headframe. Justice Island has the paved circle at the Statue's feet and paths to the shore.
+- **What a city of millions runs on, where people live:**
+  - 77 new places: eight more police precincts, five branch libraries, ten groceries, eight pharmacies, seven gas
+    stations, six banks, five laundromats, six corner bodegas, three malls, three theatres and three post offices.
+  - Six more firehouses and seven more schools.
+- **Four more traffic circles:** University, Robinson, Burnley and Broadway.
+
+### Fixed
+
+- **Every street joins the road beside it.** The short steps that joined dead ends to the network were computed but
+  never drawn, so streets stopped a few yards short of the avenue. They're drawn now, and joined from a little further
+  out.
+
 ## [1.5.0] - 2026-10-14
 
 ### Added

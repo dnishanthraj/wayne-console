@@ -346,22 +346,11 @@ def landmark_shapes(name, x, y):
         return [(rect(x, y, 1.45, 0.42), 0, 30), (rect(x + 0.25, y, 0.42, 1.05), 0, 30),
                 (square(x - 0.62, y - 0.16, 0.22), 0, 66), (square(x - 0.62, y + 0.16, 0.22), 0, 66),
                 (square(x + 0.25, y, 0.13), 30, 80)]
-    if name == "Blackgate Penitentiary":
-        yard = square(x, y, 2.0).difference(square(x, y, 1.3))
-        towers = [(square(x + dx, y + dy, 0.24), 0, 34) for dx in (-1, 1) for dy in (-1, 1)]
-        return [(yard, 0, 20), (square(x, y, 0.5), 0, 26)] + towers
     if name == "GCPD Central":
         return [(rect(x, y, 0.95, 0.72), 0, 58), (square(x + 0.2, y - 0.1, 0.3), 58, 67)]
     if name == "City Hall":
         return [(rect(x, y, 1.15, 0.72), 0, 22), (disc(x, y, 0.3), 22, 30), (disc(x, y, 0.26), 30, 35),
                 (disc(x, y, 0.19), 35, 39), (disc(x, y, 0.1), 39, 43), (disc(x, y, 0.03), 43, 50)]
-    if name == "Statue of Justice":
-        # Plinth, pedestal, the robe narrowing to the waist, shoulders, head —
-        # and the arm raised with the scales, the sword held low at her side.
-        return [(square(x, y, 0.62), 0, 8), (square(x, y, 0.36), 8, 22), (disc(x, y, 0.13), 22, 30),
-                (disc(x, y, 0.1), 30, 38), (rect(x, y, 0.2, 0.09), 38, 41), (disc(x, y, 0.045), 41, 45),
-                (rect(x + 0.1, y, 0.035, 0.035), 36, 52), (rect(x + 0.1, y, 0.12, 0.03), 52, 53.5),
-                (rect(x - 0.11, y + 0.02, 0.025, 0.025), 24, 37)]
     if name == "Cape Carmine Lighthouse":
         return [(disc(x, y, 0.15), 0, 6), (disc(x, y, 0.08), 6, 34), (disc(x, y, 0.11), 34, 39)]
     if name == "Iceberg Lounge":
@@ -907,8 +896,555 @@ def stagg_tower(x, y):
                                  (disc(0, 0, 0.13).difference(disc(0, 0, 0.1)), 184, 188, "~works")])}
 
 
+# --- the sweep (2026-10): every landmark left a generic block built as itself, the islands as places people use ---------
+#
+# Each takes the place's (x, y) and is turned to its district's grid. Sizes in units (one ~150 m): a wall 0.03 thick,
+# a house 0.1, a church nave 0.6, a stadium 2. Kinds as everywhere: ~old stone and brick, ~glass, ~works steel and
+# sheds, ~concrete, ~landmark lit stone, ~tank, ~stack, ~crane, ~frame bare steel, ~copper gone green, ~sign lit.
+
+def _row(n, x0, y0, dx, dy, w, h, base, top, kind):
+    return [(rect(x0 + i * dx, y0 + i * dy, w, h), base, top, kind) for i in range(n)]
+
+
+def stones(x0, y0, cols, rows, gap_x=0.11, gap_y=0.13):
+    """A burial ground's markers in their rows."""
+    return [(rect(x0 + i * gap_x, y0 + j * gap_y, 0.045, 0.022), 0, 1.3, "~rock") for i in range(cols) for j in range(rows)]
+
+
+def crane(x, y, angle, height=36, reach=0.8):
+    """A dockside crane: its legs, the boom out over the water."""
+    at = _local(x, y, angle)
+    return [(at(square(0, -0.08, 0.035)), 0, height, "~crane"), (at(square(0, 0.08, 0.035)), 0, height, "~crane"),
+            (at(rect(reach / 2, 0, reach, 0.05)), height, height + 3, "~crane")]
+
+
+def precinct(x, y, angle, scale=1.0, height=16):
+    """A station house: the old block, its garage, the radio mast on the roof."""
+    at, k = _local(x, y, angle), scale
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.6 * k, 0.4 * k), 0, height, "~old"), (rect(0.45 * k, 0.1 * k, 0.3 * k, 0.3 * k), 0, 6, "~concrete"),
+                                 (disc(-0.18 * k, -0.1 * k, 0.02), height, height + 16, "~frame")])}
+
+
+def firehouse(x, y, angle):
+    """The apparatus bays, the company's floors over them, the drill tower behind."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.36, 0.3), 0, 13, "~old"), (square(0.24, 0.12, 0.1), 0, 24, "~old")]),
+            "ground": [(at(rect(0, -0.24, 0.36, 0.16)), "plaza")]}
+
+
+def heliport(x, y, angle, pads=2, hangar=True):
+    """Pads on the pier, a hangar for the birds, a windsock's mast."""
+    at = _local(x, y, angle)
+    tiers = [(disc(-0.25 + 0.5 * i, 0, 0.13), 0, 0.6, "~pad") for i in range(pads)]
+    if hangar:
+        tiers += [(rect(0, 0.38, 0.6, 0.3), 0, 10, "~works"), (disc(0.42, -0.2, 0.012), 0, 9, "~frame")]
+    return {"tiers": _tiers(at, tiers), "ground": [(at(rect(0, 0.1, 1.2, 0.85)), "pier")]}
+
+
+def marina(x, y, angle, fingers=4, length=0.9, house=(0.35, 0.22, 8)):
+    """A walkway along the shore, finger piers off it, the clubhouse or harbourmaster's at its head."""
+    at = _local(x, y, angle)
+    ground = [(at(rect(0, 0, 0.12 + (fingers - 1) * 0.32, 0.1)), "pier")]
+    ground += [(at(rect(-((fingers - 1) * 0.16) + i * 0.32, -length / 2, 0.06, length)), "pier") for i in range(fingers)]
+    w, h, top = house
+    return {"tiers": _tiers(at, [(rect(0, 0.2, w, h), 0, top, "~house")]), "ground": ground}
+
+
+def warehouses(x, y, angle, n=3, w=0.5, d=1.0, cranes=2, boxes=True):
+    """A working waterfront: long sheds, containers in their stacks, cranes over the quay."""
+    at = _local(x, y, angle)
+    tiers = [(rect(-((n - 1) * (w + 0.12)) / 2 + i * (w + 0.12), 0, w, d), 0, 12, "~works") for i in range(n)]
+    if boxes:
+        for r_ in range(3):
+            for c in range(4):
+                tiers.append((rect(-0.55 + c * 0.36, d / 2 + 0.3 + r_ * 0.14, 0.32, 0.1), 0, (3, 6, 9, 6)[(r_ + c) % 4], "~container"))
+    out = _tiers(at, tiers)
+    for k in range(cranes):
+        out += crane(*at(Point(-0.5 + k * 1.0, d / 2 + 0.85)).coords[0], angle - 90, 34, 0.7)
+    return {"tiers": out, "ground": [(at(rect(0, d / 2 * 0.4, 2.2, d + 1.4)), "works")]}
+
+
+def church(x, y, angle, scale=1.0, tower=30, spire=42):
+    return gothic_church(x, y, angle, nave=0.75 * scale, tower=tower, spire=spire)
+
+
+def grand_museum(x, y, angle):
+    """The Gotham Museum of Antiquities and Art: the long Beaux-Arts front on Museum Mile, the central hall and its
+    steps, wings either end, the glass-roofed court behind."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0, 2.0, 0.55), 0, 26, "~old"), (rect(0, -0.1, 0.62, 0.9), 0, 34, "~landmark"),
+        (rect(-1.1, 0.25, 0.42, 1.05), 0, 24, "~old"), (rect(1.1, 0.25, 0.42, 1.05), 0, 24, "~old"),
+        (rect(0, 0.62, 1.8, 0.5), 0, 20, "~old"), (rect(0, 0.62, 1.2, 0.32), 20, 24, "~glass"),
+        (rect(0, -0.6, 0.9, 0.18), 0, 2, "~old")]), "ground": [(at(rect(0, -0.85, 2.2, 0.3)), "plaza")]}
+
+
+def newspaper(x, y, angle):
+    """The Gotham Gazette: the press hall at street level, the tower over it, the crown and the name lit on top."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0.1, 0.8, 0.6), 0, 26, "~old"), (square(0, -0.05, 0.42), 26, 92, "~old"),
+        (square(0, -0.05, 0.3), 92, 104, "~landmark"), (disc(0, -0.05, 0.1), 104, 112, "~landmark"),
+        (rect(0, -0.27, 0.36, 0.025), 96, 101, "~sign")])}
+
+
+def courthouse(x, y, angle):
+    """The Superior Courthouse: a temple of the law, its portico and steps, a dome over the rotunda."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0.05, 1.2, 0.75), 0, 26, "~old"), (rect(0, -0.42, 0.8, 0.18), 0, 24, "~old"),
+        (disc(0, 0.05, 0.27), 26, 33, "~landmark"), (disc(0, 0.05, 0.2), 33, 39, "~landmark"),
+        (disc(0, 0.05, 0.08), 39, 46, "~landmark"), (rect(0, -0.58, 0.9, 0.14), 0, 2, "~old")]),
+        "ground": [(at(rect(0, -0.8, 1.4, 0.3)), "plaza")]}
+
+
+def grand_hotel(x, y, angle):
+    """The Gotham Royal: the Deco palace of the galas, its setbacks up to a lit crown and a mast."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0, 0.85, 0.62), 0, 40, "~old"), (rect(0, 0, 0.56, 0.44), 40, 108, "~old"),
+        (rect(0, 0, 0.42, 0.32), 108, 128, "~old"), (square(0, 0, 0.2), 128, 140, "~landmark"),
+        (disc(0, 0, 0.02), 140, 168, "~frame")])}
+
+
+def steel_mill(x, y, angle):
+    """Sionis Steel: the blast furnaces and their stoves, the casting sheds, the stacks, the ore bins on the quay."""
+    at = _local(x, y, angle)
+    tiers = [(disc(-0.5, -0.3, 0.16), 0, 44, "~works"), (disc(-0.12, -0.3, 0.16), 0, 44, "~works")]
+    tiers += [(disc(-0.68 + i * 0.13, 0.05, 0.05), 0, 30, "~tank") for i in range(4)]
+    tiers += [(rect(0.55, 0.0, 0.9, 0.5), 0, 22, "~works"), (rect(0.1, 0.55, 1.6, 0.35), 0, 16, "~works")]
+    tiers += [(disc(0.95 + i * 0.16, -0.38, 0.055), 0, 58, "~stack") for i in range(3)]
+    tiers += [(rect(-0.6 + i * 0.3, 0.95, 0.24, 0.18), 0, 6, "~rock") for i in range(4)]
+    return {"tiers": _tiers(at, tiers), "ground": [(at(rect(0.1, 0.25, 2.3, 1.7)), "works")]}
+
+
+def brewery(x, y, angle):
+    """Koul Brau: the brick brewhouse and its tower, the fermenting tanks out back, cold for years."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.7, 0.4), 0, 18, "~old"), (square(-0.25, 0, 0.2), 0, 32, "~old")]
+                            + [(disc(0.1 + i * 0.16, 0.38, 0.065), 0, 14, "~tank") for i in range(4)])}
+
+
+def conservatory(x, y, angle, scale=1.0):
+    """A Victorian glasshouse: the domed palm house, its wings."""
+    at, k = _local(x, y, angle), scale
+    return {"tiers": _tiers(at, [(disc(0, 0, 0.3 * k), 0, 14, "~glass"), (disc(0, 0, 0.19 * k), 14, 20, "~glass"),
+                                 (disc(0, 0, 0.08 * k), 20, 23, "~glass"),
+                                 (rect(-0.6 * k, 0, 0.6 * k, 0.24 * k), 0, 10, "~glass"), (rect(0.6 * k, 0, 0.6 * k, 0.24 * k), 0, 10, "~glass")])}
+
+
+def planetarium(x, y, angle):
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0.12, 0.62, 0.4), 0, 10, "~old"), (disc(0, -0.05, 0.24), 10, 15, "~landmark"),
+                                 (disc(0, -0.05, 0.19), 15, 19, "~landmark"), (disc(0, -0.05, 0.11), 19, 21, "~landmark")])}
+
+
+def aquarium(x, y, angle):
+    """The aquarium on the Old Gotham waterfront: a long glass hall, its dome, the sea-lion pool."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 1.0, 0.45), 0, 14, "~glass"), (disc(0.3, 0, 0.24), 14, 20, "~glass"),
+                                 (disc(0.3, 0, 0.12), 20, 23, "~glass")]),
+            "ground": [(at(affinity.scale(Point(-0.35, 0.45).buffer(1.0), 0.32, 0.16)), "pool")]}
+
+
+def zoo(x, y, angle):
+    """The zoo: the aviary's net dome, the reptile house, the elephant barn, the gate, a pool for the sea lions."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [
+        (disc(-0.5, -0.2, 0.28), 0, 10, "~glass"), (disc(-0.5, -0.2, 0.16), 10, 14, "~glass"),
+        (rect(0.35, -0.25, 0.42, 0.24), 0, 8, "~old"), (rect(0.25, 0.4, 0.5, 0.3), 0, 9, "~works"),
+        (square(-0.05, -0.75, 0.06), 0, 9, "~old"), (square(0.25, -0.75, 0.06), 0, 9, "~old"), (rect(0.1, -0.75, 0.36, 0.06), 9, 11, "~old")]),
+        "ground": [(at(affinity.scale(Point(0.75, 0.0).buffer(1.0), 0.22, 0.14)), "pool")]}
+
+
+def circus_quarters(x, y, angle):
+    """Haly's winter quarters: the barns, the practice top, the trapeze rig left standing, the wagons in a row."""
+    at = _local(x, y, angle)
+    tiers = [(rect(-0.6, -0.35, 0.6, 0.28), 0, 8, "~works"), (rect(0.2, -0.45, 0.5, 0.26), 0, 7, "~works"),
+             (disc(0.3, 0.3, 0.32), 0, 7, "~stall-red"), (disc(0.3, 0.3, 0.2), 7, 11, "~stall-gold"), (disc(0.3, 0.3, 0.05), 11, 15, "~stall-red")]
+    tiers += [(square(-0.65 + dx, 0.25 + dy, 0.03), 0, 16, "~frame") for dx in (0, 0.5) for dy in (0, 0.3)]
+    tiers += [(rect(-0.4, 0.4, 0.56, 0.03), 15, 16, "~frame")]
+    tiers += [(rect(-0.75 + i * 0.17, 0.75, 0.12, 0.06), 0, 3, ("~stall-red", "~stall-gold")[i % 2]) for i in range(7)]
+    return {"tiers": _tiers(at, tiers), "ground": [(at(rect(0, 0.15, 1.8, 1.5)), "lot")]}
+
+
+def market_hall(x, y, angle, w=0.9, d=0.45):
+    """An iron-and-glass market hall: brick ends, the glass roof along its ridge."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, w, d), 0, 12, "~old"), (rect(0, 0, w * 0.92, d * 0.4), 12, 16, "~glass")])}
+
+
+def depot(x, y, angle, w=0.8, d=0.3, glass=False):
+    """A bus or tram depot: the shed's long roof on its posts, the yard."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, w, d), 0, 9, "~glass" if glass else "~works")]),
+            "ground": [(at(rect(0, d / 2 + 0.2, w + 0.2, 0.35)), "lot")]}
+
+
+def synagogue(x, y, angle):
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.45, 0.36), 0, 16, "~old"), (disc(0, 0, 0.14), 16, 21, "~copper"),
+                                 (disc(0, 0, 0.07), 21, 24, "~copper")])}
+
+
+def temple_house(x, y, angle):
+    """The Rialto: an old picture house turned temple, its marquee lit still, red roofs stacked over the hall."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.45, 0.36), 0, 14, "~old"), (rect(0, -0.2, 0.4, 0.04), 5, 6.5, "~sign"),
+                                 (rect(0, 0.04, 0.38, 0.3), 14, 16, "~stall-red"), (rect(0, 0.04, 0.24, 0.18), 16, 19, "~stall-red")])}
+
+
+def paifang(x, y, angle):
+    """A memorial gate across the street: two granite posts, the lintel and its roof."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(square(-0.2, 0, 0.05), 0, 10, "~old"), (square(0.2, 0, 0.05), 0, 10, "~old"),
+                                 (rect(0, 0, 0.58, 0.07), 10, 12, "~old"), (rect(0, 0, 0.66, 0.1), 12, 13.5, "~stall-red")])}
+
+
+def armory(x, y, angle):
+    """A red-brick armory: the drill hall, castellated towers at its corners."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.6, 0.36), 0, 14, "~old")]
+                            + [(square(dx, dy, 0.12), 0, 20, "~old") for dx in (-0.3, 0.3) for dy in (-0.18, 0.18)])}
+
+
+def boathouse(x, y, angle, pier=0.5):
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.4, 0.22), 0, 8, "~old"), (rect(0, 0, 0.3, 0.12), 8, 11, "~old")]),
+            "ground": [(at(rect(0, -0.11 - pier / 2, 0.08, pier)), "pier")]}
+
+
+def obelisk(x, y, height=34):
+    return {"tiers": [(square(x, y, 0.14), 0, 4, "~old"), (square(x, y, 0.06), 4, height, "~landmark"), (square(x, y, 0.025), height, height + 4, "~landmark")]}
+
+
+def plot(x, y, angle):
+    """A family burial ground: its low wall, the mausoleum, the old stones."""
+    at = _local(x, y, angle)
+    yard = rect(0, 0, 0.6, 0.45)
+    return {"tiers": _tiers(at, [(yard.exterior.buffer(0.015), 0, 1.5, "~wall"), (rect(-0.15, -0.08, 0.14, 0.18), 0, 6, "~old")]
+                            + stones(0.05, -0.12, 3, 3)), "ground": [(at(yard), "campus")]}
+
+
+def cemetery_works(x, y, angle):
+    """Gotham Cemetery: the chapel at its gate, mausoleums along the avenue, the stones in their rows."""
+    at = _local(x, y, angle)
+    tiers = [(rect(0, -0.6, 0.3, 0.5), 0, 12, "~old"), (square(0, -0.85, 0.12), 12, 22, "~old")]
+    tiers += _row(5, -0.6, 0.0, 0.3, 0, 0.14, 0.18, 0, 5, "~old")
+    tiers += stones(-0.7, 0.3, 13, 6)
+    return {"tiers": _tiers(at, tiers)}
+
+
+def potters_field(x, y, angle):
+    """The potter's field: numbered concrete markers in long rows, a fence, a shed for the city's crews."""
+    at = _local(x, y, angle)
+    yard = rect(0, 0, 1.3, 0.9)
+    return {"tiers": _tiers(at, [(yard.exterior.buffer(0.012), 0, 2, "~frame"), (rect(-0.55, -0.38, 0.14, 0.1), 0, 4, "~works")]
+                            + stones(-0.5, -0.25, 10, 5, 0.1, 0.12)), "ground": [(at(yard), "campus")]}
+
+
+def pier_works(x, y, angle, length=1.4, sheds=((0.3, 0.12, 5), (0.7, 0.1, 4))):
+    """A long pier out over the water, its sheds and its bait shop on it."""
+    at = _local(x, y, angle)
+    tiers = [(rect(0, -off, w, 0.12), 0, top, "~old") for off, w, top in sheds]
+    return {"tiers": _tiers(at, tiers), "ground": [(at(rect(0, -length / 2, 0.2, length)), "pier")]}
+
+
+def drop_tower(x, y):
+    """The Parachute Drop: the World's Fair's steel tower, its canopy arms at the top."""
+    return {"tiers": [(square(x, y, 0.07), 0, 76, "~frame"), (disc(x, y, 0.14), 70, 73, "~ride"), (disc(x, y, 0.04), 76, 80, "~ride")]}
+
+
+def carousel(x, y, angle):
+    """The boardwalk's carousel under its striped roof, the arcade hall beside it, the swing ride."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(disc(0, 0, 0.16), 0, 5, "~stall-gold"), (disc(0, 0, 0.1), 5, 7, "~stall-red"),
+                                 (rect(0.5, 0, 0.5, 0.22), 0, 7, "~stall"), (disc(-0.45, 0, 0.03), 0, 14, "~frame"),
+                                 (disc(-0.45, 0, 0.17), 12, 13, "~ride")])}
+
+
+def refinery_flea(x, y, angle):
+    """The old Cole Sugar refinery, the flea market in its shell: the brick block, its silos, the waterfront crane."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 1.0, 0.5), 0, 26, "~old")]
+                            + [(disc(-0.3 + i * 0.3, 0.45, 0.12), 0, 32, "~tank") for i in range(3)])}
+
+
+def clock_square(x, y, angle):
+    """Burnside Square: the plane trees round it, the old Savings Bank's clock tower on its corner."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(square(0.45, -0.3, 0.2), 0, 34, "~old"), (square(0.45, -0.3, 0.12), 34, 42, "~landmark")]),
+            "ground": [(at(rect(0, 0, 0.8, 0.6)), "plaza")]}
+
+
+def headframe(x, y):
+    """The Cauldron's old mine workings: a rusted headframe above the flooded shaft, its wheel."""
+    return {"tiers": [(square(x - 0.06, y, 0.025), 0, 22, "~frame"), (square(x + 0.06, y, 0.025), 0, 22, "~frame"),
+                      (rect(x, y, 0.16, 0.03), 22, 24, "~frame"), (disc(x, y, 0.08).difference(disc(x, y, 0.06)), 22, 23, "~frame"),
+                      (rect(x + 0.18, y + 0.08, 0.2, 0.14), 0, 4, "~rock")]}
+
+
+def ruins(x, y):
+    """Paris Island's dead buildings: roofless shells of brick, a collapsed chapel, the old ferry pier."""
+    shells = [(square(x + dx, y + dy, s).difference(square(x + dx, y + dy, s - 0.05)), 0, h, "~old")
+              for dx, dy, s, h in ((0, 0, 0.36, 9), (0.6, 0.15, 0.3, 7), (-0.5, 0.4, 0.26, 6), (0.3, 0.7, 0.4, 8))]
+    chapel = [(rect(x - 0.9, y - 0.3, 0.4, 0.18).difference(rect(x - 0.9, y - 0.3, 0.34, 0.12)), 0, 8, "~old"),
+              (square(x - 1.12, y - 0.3, 0.1), 0, 14, "~old")]
+    return {"tiers": shells + chapel}
+
+
+def clinic(x, y, angle):
+    """Leslie's clinic: three floors over a shopfront, the ambulance bay's canopy, the lamp she keeps lit."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.42, 0.3), 0, 12, "~old"), (rect(0, -0.2, 0.3, 0.1), 3, 4, "~concrete"),
+                                 (rect(0, -0.16, 0.12, 0.02), 9, 10, "~sign")])}
+
+
+def hangar(x, y, angle):
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, 0, 0.6, 0.5), 0, 10, "~works"), (rect(0, 0, 0.6, 0.3), 10, 14, "~works")]),
+            "ground": [(at(rect(0, -0.5, 0.8, 0.5)), "plaza")]}
+
+
+def locks(x, y, angle):
+    """The old lock and weir on the Kane: two walls of stone, the gates, the weir across."""
+    at = _local(x, y, angle)
+    return {"tiers": _tiers(at, [(rect(0, -0.08, 0.8, 0.04), 0, 3, "~rock"), (rect(0, 0.08, 0.8, 0.04), 0, 3, "~rock"),
+                                 (rect(-0.36, 0, 0.04, 0.16), 0, 4, "~frame"), (rect(0.36, 0, 0.04, 0.16), 0, 4, "~frame")])}
+
+
+def courts(x, y, angle):
+    return {"tiers": [], "ground": [(g, "pitch:" + k) for dx in (-0.25, 0.25) for g, k in pitch("court", x + dx, y, angle)]}
+
+
+def blackgate(x, y):
+    """
+    Blackgate Penitentiary filling its island as a maximum-security prison does: the double perimeter (the wall, the
+    fence outside it) with a tower at every corner and the gate facing the causeway; inside, the cell blocks off a
+    central spine with the watch tower at its middle and their yards between, the admin block by the gate, the chapel,
+    the infirmary, the power house and its stack, the exercise yard and its track; outside, the staff's houses, the
+    water tower and the helipad. (Drawn in absolute units: there's one of it.)
+    """
+    tiers, ground = [], []
+
+    def t(geom, base, top, kind):
+        tiers.append((geom, base, top, kind))
+
+    inner = box(65.7, 120.3, 72.3, 125.1)
+    wall = inner.exterior.buffer(0.04).difference(box(67.3, 120.0, 67.9, 120.6))       # the gate, toward the causeway
+    fence = inner.buffer(0.35, join_style="mitre").exterior.buffer(0.012).difference(box(67.2, 119.5, 68.0, 120.2))
+    t(wall, 0, 8, "~wall")
+    t(fence, 0, 4.5, "~frame")
+    for cx_, cy_ in ((65.7, 120.3), (72.3, 120.3), (65.7, 125.1), (72.3, 125.1), (69.0, 120.3), (69.0, 125.1)):
+        t(square(cx_, cy_, 0.2), 0, 22, "~concrete")
+        t(square(cx_, cy_, 0.28), 22, 25, "~concrete")
+    t(rect(67.6, 120.95, 1.3, 0.55), 0, 14, "~concrete")                                # admin and intake
+    t(rect(69.0, 122.75, 4.6, 0.26), 0, 10, "~concrete")                                # the spine
+    t(square(69.0, 122.75, 0.36), 0, 28, "~concrete")                                   # the watch tower at its heart
+    t(square(69.0, 122.75, 0.22), 28, 32, "~glass")
+    for i, bx in enumerate((67.2, 68.1, 69.9, 70.8, 71.7)):
+        north = i % 2 == 0
+        t(rect(bx, 122.75 + (-0.85 if north else 0.85), 0.42, 1.45), 0, 17, "~concrete")
+        ground.append((rect(bx + 0.45, 122.75 + (-0.85 if north else 0.85), 0.42, 1.2), "plaza"))
+    t(rect(66.5, 124.45, 0.9, 0.45), 0, 12, "~concrete")                                # infirmary
+    t(rect(71.5, 124.5, 0.8, 0.45), 0, 13, "~works")                                    # the power house
+    t(disc(71.95, 124.75, 0.06), 0, 42, "~stack")
+    t(rect(70.3, 121.0, 0.5, 0.3), 0, 11, "~old")                                       # the chapel
+    ground += [(g, "pitch:" + k) for g, k in pitch("track", 66.9, 122.8, 90)]
+    ground.append((inner.buffer(-0.06), "works"))
+    # outside the walls: the staff's row of houses by the landing, the water tower, the helipad
+    for i in range(6):
+        t(rect(62.9 + i * 0.32, 119.55, 0.22, 0.16), 0, 7, "~house")
+    t(disc(64.4, 124.4, 0.17), 18, 25, "~tank")
+    t(disc(64.4, 124.4, 0.035), 0, 18, "~frame")
+    t(disc(73.6, 121.3, 0.16), 0, 0.6, "~pad")
+    ground.append((LineString([(66.85, 117.7), (67.6, 119.4), (67.6, 120.4)]), "path"))
+    ground.append((box(62.4, 118.6, 76.0, 127.6).intersection(Polygon(chaikin([(61.7, 118.6), (61.2, 121.9), (62.7, 124.8),
+        (65.2, 127.2), (67.2, 128.3), (72.7, 127.6), (76.3, 123.4), (75.8, 119.5), (73.2, 118.5), (71.5, 117.2), (65.8, 116.8)], 2))
+        .buffer(-0.45)).difference(inner.buffer(0.5)).difference(box(62.6, 119.2, 65.0, 120.0)), "campus"))
+    return {"tiers": tiers, "ground": ground}
+
+
+def justice_grounds(x, y):
+    """Justice Island's grounds round the Statue: the paved circle at her feet, the paths out to the shore."""
+    plaza = Point(x, y).buffer(0.55).difference(Point(x, y).buffer(0.33))
+    paths = [LineString([(x, y), (x + dx, y + dy)]) for dx, dy in ((-1.1, -0.8), (1.0, -1.0), (-1.4, 0.9), (0.9, 1.2))]
+    tiers = [(square(x, y, 0.62), 0, 8, "~old"), (square(x, y, 0.36), 8, 22, "~old"), (disc(x, y, 0.13), 22, 30, "~landmark"),
+             (disc(x, y, 0.1), 30, 38, "~landmark"), (rect(x, y, 0.2, 0.09), 38, 41, "~landmark"), (disc(x, y, 0.045), 41, 45, "~landmark"),
+             (rect(x + 0.1, y, 0.035, 0.035), 36, 52, "~landmark"), (rect(x + 0.1, y, 0.12, 0.03), 52, 53.5, "~landmark"),
+             (rect(x - 0.11, y + 0.02, 0.025, 0.025), 24, 37, "~landmark")]
+    return {"tiers": tiers, "ground": [(plaza, "plaza")] + [(ln, "path") for ln in paths]}
+
+
+def bridge_tiers(line, name):
+    """
+    A bridge as a bridge. A long span (3 units, ~450 m, and more) hangs from two towers astride its deck: the main
+    cables slung tower to tower and down to their anchorages at either end, with hangers to the deck, lit like a
+    necklace after dark (~cable). A medium one carries a steel arch over its deck. A short one, or a causeway, has
+    nothing above the road. The Burnside Bridge is the borough's green steel; the rest are bare steel.
+    """
+    length = line.length
+    if "Causeway" in name or length < 1.4:
+        return []
+    steel = "~copper" if name.startswith("Burnside") else "~frame"
+    out = []
+
+    def at(d, side):
+        d = max(0.0, min(length, d))
+        a, b = line.interpolate(max(0.0, d - 0.03)), line.interpolate(min(length, d + 0.03))
+        tx, ty = b.x - a.x, b.y - a.y
+        n = math.hypot(tx, ty) or 1
+        p = line.interpolate(d)
+        return (p.x - ty / n * side, p.y + tx / n * side)
+
+    def strand(zs, side, kind, step):
+        ds = [k * step for k in range(int(length / step) + 1)] + [length]
+        for d0, d1 in zip(ds, ds[1:], strict=False):
+            z0, z1 = zs(d0), zs(d1)
+            if z0 is None or z1 is None:
+                continue
+            seg = LineString([at(d0, side), at(d1, side)]).buffer(0.011, cap_style=2)
+            out.append((seg, max(1.0, min(z0, z1) - 0.5), max(z0, z1) + 0.5, kind))
+
+    if length >= 3.0:
+        d1, d2, high = 0.22 * length, 0.78 * length, 40 + 6 * min(length, 10)
+        for d in (d1, d2):
+            left, right = at(d, 0.15), at(d, -0.15)
+            out += [(Point(left).buffer(0.045, 4), 0, high, steel), (Point(right).buffer(0.045, 4), 0, high, steel),
+                    (LineString([left, right]).buffer(0.03, cap_style=2), high - 7, high - 3, steel),
+                    (LineString([left, right]).buffer(0.03, cap_style=2), high * 0.5, high * 0.5 + 3, steel)]
+        mid, half = (d1 + d2) / 2, (d2 - d1) / 2
+
+        def cable(d):
+            if d <= d1:
+                return 5 + (high - 5) * (d / d1) ** 1.5
+            if d >= d2:
+                return 5 + (high - 5) * ((length - d) / (length - d2)) ** 1.5
+            return 11 + (high - 11) * ((d - mid) / half) ** 2
+        for side in (0.15, -0.15):
+            strand(cable, side, "~cable", 0.1)
+            for k in range(1, int((d2 - d1) / 0.35)):
+                d = d1 + k * 0.35
+                out.append((Point(at(d, side)).buffer(0.008, 3), 2, cable(d), "~cable"))
+    else:
+        rise = 14 + 5 * length
+
+        def arch(d):
+            s = d / length
+            return 3 + rise * math.sin(math.pi * s) if 0.04 <= s <= 0.96 else None
+        for side in (0.13, -0.13):
+            strand(arch, side, steel, 0.08)
+            for k in range(1, 6):
+                d = length * k / 6
+                out.append((Point(at(d, side)).buffer(0.008, 3), 2, arch(d) or 3, steel))
+    return out
+
+
+def skyline(piece, h, style, r):
+    """
+    One lot's building as Gotham builds it: most a single block, but a tower (70 m and up) in stages. The old
+    quarters' and the plain towers rise in Deco setbacks to a crown and, often, a needle; downtown's glass steps back
+    once or twice to a plant room, sometimes with a mast. [(footprint, base, top, kind)], its top tier last.
+    """
+    if h < 70 or piece.area < 0.03:
+        return [(piece, 0, h, style)]
+    deco = style in ("~old", "") or (style == "~lit" and r.random() < 0.5)
+    size = math.sqrt(piece.area)
+    if deco:
+        stages = [(0.0, 0.58), (0.1, 0.78), (0.19, 0.92), (0.28, 1.0)]
+    elif r.random() < 0.55:
+        stages = [(0.0, 0.86), (0.09, 0.95), (0.17, 1.0)]
+    else:
+        stages = [(0.0, 0.94), (0.22, 1.0)]
+    out, base = [], 0
+    for inset, share in stages:
+        g = piece if not inset else piece.buffer(-inset * size, join_style="mitre")
+        if g.is_empty or g.geom_type != "Polygon" or g.area < 0.008:
+            break
+        top = round(h * share)
+        if top > base:
+            out.append((g, base, top, style))
+            base = top
+    if r.random() < (0.45 if deco else 0.22):
+        c = out[-1][0].centroid
+        out.append((Point(c.x, c.y).buffer(0.02 if deco else 0.013, 5), base, round(base + h * (0.17 if deco else 0.1)), "~frame"))
+    return out
+
+
 COMPLEXES = {
     "Arkham Asylum": arkham_island,
+    # The sweep (2026-10): every landmark that was a generic block, built as itself
+    "Wayne Family Plot": lambda x, y: plot(x, y, 0),
+    "Memorial Island": lambda x, y: obelisk(x, y, 34),
+    "Bristol Boat Club": lambda x, y: marina(x, y, 10, fingers=3, length=0.7, house=(0.5, 0.25, 8)),
+    "Gotham Cemetery": lambda x, y: cemetery_works(x, y, 0),
+    "Sionis Steel Mill": lambda x, y: steel_mill(x, y, -4),
+    "Thompkins Clinic": lambda x, y: clinic(x, y, -14),
+    "Wayne Botanical Garden": lambda x, y: conservatory(x, y, 0, 1.1),
+    "Saul Erdel Planetarium": lambda x, y: planetarium(x, y, 0),
+    "Gotham Museum": lambda x, y: grand_museum(x, y, -13),
+    "Janus Cosmetics": lambda x, y: {"tiers": _tiers(_local(x, y, -13), [
+        (rect(0, 0.25, 0.9, 0.5), 0, 18, "~glass"), (square(0, -0.15, 0.46), 0, 96, "~glass"), (square(0, -0.15, 0.34), 96, 108, "~glass"),
+        (rect(0, -0.39, 0.3, 0.025), 100, 104, "~sign")])},
+    "Gotham Zoo": lambda x, y: zoo(x, y, -10),
+    "Gotham Gazette": lambda x, y: newspaper(x, y, -10),
+    "Gotham Superior Courthouse": lambda x, y: courthouse(x, y, 20),
+    "Gotham Marina": lambda x, y: marina(x, y, 35, fingers=5, length=1.0, house=(0.36, 0.22, 7)),
+    "Tricorner Naval Yard": lambda x, y: {"tiers": _tiers(_local(x, y, -25), [
+        (rect(-0.7, 0.4, 1.0, 0.5), 0, 24, "~works"), (rect(0.5, 0.4, 0.9, 0.5), 0, 22, "~works")])
+        + crane(*_local(x, y, -25)(Point(0.1, -0.3)).coords[0], 65, 54, 1.0),
+        "ground": [(_local(x, y, -25)(rect(-0.45, -0.45, 1.3, 0.26)), "pool"), (_local(x, y, -25)(rect(0.65, -0.45, 1.1, 0.24)), "pool"),
+                   (_local(x, y, -25)(rect(0, 0, 2.6, 1.6)), "works")]},
+    "Gotham Docks": lambda x, y: warehouses(x, y, -25, n=3),
+    "Waterloo Docks": lambda x, y: warehouses(x, y, 0, n=4),
+    "Blüdhaven Precinct": lambda x, y: precinct(x, y, 0, 1.15, 20),
+    "Haly's Circus Winter Quarters": lambda x, y: circus_quarters(x, y, 0),
+    "Gotham Aquarium": lambda x, y: aquarium(x, y, 0),
+    "Gotham Royal Hotel": lambda x, y: grand_hotel(x, y, 6),
+    "Trigate Night Market": lambda x, y: {**night_market(x, y), "tiers": [t_ for t_ in night_market(x, y)["tiers"] if t_[3] != "~gate"]},
+    "Engine 33": lambda x, y: firehouse(x, y, -14),
+    "Coventry Cold Storage": lambda x, y: {"tiers": _tiers(_local(x, y, 0), [(rect(0, 0, 1.1, 0.5), 0, 18, "~concrete"),
+                                                                             (rect(0.3, 0, 0.3, 0.2), 18, 22, "~works")])},
+    "Coventry Market Hall": lambda x, y: market_hall(x, y, 0),
+    "Blackgate Potter's Field": lambda x, y: potters_field(x, y, 0),
+    "The Cauldron": lambda x, y: headframe(x - 0.6, y - 0.1),
+    "Burnside Square": lambda x, y: clock_square(x, y, 4),
+    "Burnside Flea": lambda x, y: refinery_flea(x, y, 4),
+    "Justice Island Armory": lambda x, y: armory(x, y, 0),
+    "Justice Island Ferry Pier": lambda x, y: pier_works(x, y, 135, length=0.9, sheds=((0.2, 0.12, 4),)),
+    "Ironworks Rail Yard": lambda x, y: {"tiers": _tiers(_local(x, y, -4), [(rect(0, 0, 0.9, 0.3), 0, 11, "~works"),
+                                                                            (square(0.6, -0.3, 0.1), 0, 9, "~old")])},
+    "Old Koul Brau Brewery": lambda x, y: brewery(x, y, -4),
+    "68th Street Courts": lambda x, y: courts(x, y, 18),
+    "Congregation Tifereth Israel": lambda x, y: synagogue(x, y, 28),
+    "Chinatown Veterans' Arch": lambda x, y: paifang(x, y, 35),
+    "Chinatown Bus Depot": lambda x, y: depot(x, y, 35),
+    "Rialto Buddhist Temple": lambda x, y: temple_house(x, y, 35),
+    "Kane Heights Country Club": lambda x, y: {"tiers": _tiers(_local(x, y, 8), [(rect(0, 0, 0.6, 0.3), 0, 10, "~house"),
+                                                                                (rect(0.2, 0.1, 0.25, 0.15), 10, 13, "~house")])},
+    "Kane River Locks": lambda x, y: locks(x, y, 8),
+    "St. Faustina Church": lambda x, y: church(x, y, 10, 0.8, 22, 32),
+    "The Parachute Drop": lambda x, y: drop_tower(x, y),
+    "The Mile Pier": lambda x, y: pier_works(x, y, -6, length=1.8),
+    "The Boardwalk": lambda x, y: carousel(x, y, -6),
+    "Robinsville Station": lambda x, y: {"tiers": _tiers(_local(x, y, 30), [(rect(0, 0, 0.6, 0.08), 3, 4, "~deck"),
+                                                                           (rect(0, 0.12, 0.14, 0.1), 0, 4.5, "~house")])},
+    "East End Heliport": lambda x, y: heliport(x, y, 20, 2, False),
+    "GCPD Air Support Unit": lambda x, y: heliport(x, y, 20, 2, True),
+    "Robinson Park Boathouse": lambda x, y: boathouse(x, y, 0),
+    "Hangar 9": lambda x, y: hangar(x, y, 0),
+    "GCPD 12th Precinct": lambda x, y: precinct(x, y, -25),
+    "GCPD Harbor Patrol": lambda x, y: {**boathouse(x, y, 0, 0.8), "tiers": boathouse(x, y, 0, 0.8)["tiers"]
+                                        + [(disc(x + 0.15, y, 0.02), 8, 22, "~frame")]},
+    "Martha Wayne Foundation": lambda x, y: {"tiers": [(rect(x, y, 0.3, 0.26), 0, 14, "~old"), (rect(x, y, 0.26, 0.22), 14, 17, "~copper")]},
+    "St. Joseph Church": lambda x, y: church(x, y, 28, 0.85, 32, 44),
+    "Sacred Heart Convalescent Home": lambda x, y: {"tiers": _tiers(_local(x, y, 6), [
+        (rect(0, -0.25, 0.7, 0.18), 0, 14, "~old"), (rect(-0.26, 0.05, 0.18, 0.5), 0, 14, "~old"), (rect(0.26, 0.05, 0.18, 0.5), 0, 14, "~old"),
+        (square(0, -0.25, 0.1), 14, 24, "~old")]), "ground": [(_local(x, y, 6)(rect(0, 0.12, 0.34, 0.34)), "campus")]},
+    "Gotham Children's Museum": lambda x, y: {"tiers": _tiers(_local(x, y, -13), [(rect(0, 0, 0.55, 0.36), 0, 12, "~glass"),
+                                                                                  (disc(0.2, -0.1, 0.1), 12, 16, "~ride")])},
+    "Statue of Justice": justice_grounds,
+    "Blackgate Penitentiary": blackgate,
     "GCN Studios": gcn_studios,
     "GBS Tower": gbs_tower,
     "Gotham Convention Center": convention_center,
@@ -1504,10 +2040,10 @@ def connections(lines, land, islands, blocked):
             continue
         here = Point(x, y)
         best = None
-        for idx in tree.query(here.buffer(0.5)):
+        for idx in tree.query(here.buffer(0.7)):
             seg = noded[int(idx)]
             d = seg.distance(here)
-            if d > 0.02 and d < 0.5 and (best is None or d < best[0]):
+            if d > 0.02 and d < 0.7 and (best is None or d < best[0]):
                 best = (d, seg)
         if best:
             q = shapely.ops.nearest_points(here, best[1])[1]
@@ -1959,7 +2495,7 @@ def build():
     park_names.append("Wayne Estate")
     # The islands nobody builds on: Arkham's grounds, Paris Island gone to woods,
     # the lawns round the Statue — planted, not bare.
-    for isle in ("Paris Island", "Justice Island", "Blackgate Isle"):
+    for isle in ("Paris Island", "Justice Island"):
         if areas.get(isle) is not None:
             parks.append(areas[isle].buffer(-0.22).difference(water_cut))
             park_names.append("")
@@ -2181,8 +2717,10 @@ def build():
     # The spurs and the island drives are roads to draw; a dead end's step to the
     # road beside it is too short to see — it joins the network, not the map.
     named += [(ln, c, "") for ln, c in joins if c in ("drive", "street") and ln.length > 1.2 or c == "drive"]
-    unseen_joins = [ln for ln, c in joins if not (c in ("drive", "street") and ln.length > 1.2 or c == "drive")]
-    print(f"{len(joins)} joins in the road network ({len(joins) - len(unseen_joins)} drawn)")
+    # The rest drawn too, as streets: a street that stopped a few yards short of the avenue looked broken at street
+    # level (the blocks are cut round them like any street's, below).
+    streets += [(ln, "street") for ln, c in joins if not (c in ("drive", "street") and ln.length > 1.2 or c == "drive")]
+    print(f"{len(joins)} joins in the road network, all drawn")
     for s, c in streets:
         add(s, "road", c=c)
     for s in lanes:
@@ -2194,6 +2732,8 @@ def build():
         add(line, "road", **props)
     for line, name in bridges:
         add(line, "road", c="bridge", n=name)
+        for shape_, base_, top_, kind_ in bridge_tiers(line, name):      # towers, cables, arches: the bridge as a bridge
+            building(shape_, top_, kind_, base=base_)
 
     # Below and around it: the subway, the Narrows monorail and Blüdhaven's metro — the network people ride
     # (wayne.engine.transit), so every station is on its line. Each stretch of track once for every line that
@@ -2522,7 +3062,7 @@ def build():
     reserved.append(ground_block.buffer(0.05))
     # Arkham behind its wall, a gate where the drive comes in; Blackgate's outer fence.
     for pl in src["places"]:
-        if pl["name"] not in ("Arkham Asylum", "Blackgate Penitentiary"):
+        if pl["name"] not in ():          # (Arkham's and Blackgate's walls and gates are their complexes' own now)
             continue
         foot = unary_union([t[0] for t in landmark_shapes(pl["name"], *footprint_at(pl))])
         arkham_ = pl["name"] == "Arkham Asylum"
@@ -2728,9 +3268,12 @@ def build():
                     style = ("~lit" if r.random() < 0.14 else "~works" if g.get("industrial")
                              else "~glass" if name in GLASS and h >= 40 else "~old" if name in OLD_QUARTERS
                              else "~house" if suburb else "")
-                    building(piece.simplify(0.04), h, style)
+                    stages = skyline(piece.simplify(0.04), h, style,           # its own dice: the district's stay as they were
+                                     random.Random(round(piece.centroid.x * 997 + piece.centroid.y * 7919)))
+                    for shape_, base_, top_, kind_ in stages:
+                        building(shape_, top_, kind_, base=base_)
                     lots.append((name, piece.centroid, h, piece.area))
-                    roofs[id(lots[-1][1])] = piece
+                    roofs[id(lots[-1][1])] = stages[-1][0] if stages[-1][3] != "~frame" else stages[-2][0]
                     count += 1
                     if suburb and r.random() < 0.7:
                         # A tree in the yard, behind the house.
@@ -2949,10 +3492,15 @@ def build():
                    "Kane Heights": 1, "University District": 1}),
         "church": (["St. Aidan's", "Our Lady of the Harbor", "St. Swithin's", "Holy Trinity", "St. Jude's",
                     "Grace Chapel"], {"Old Gotham": 2, "Tricorner": 1, "Coventry": 1, "Burnley": 1, "Bristol": 1}),
-        "fire": (["Engine 9", "Engine 23", "Ladder 4", "Engine 41", "Ladder 17"],
-                 {"Old Gotham": 1, "New Town": 1, "Upper West Side": 1, "Robinsville": 1, "Burnside": 1}),
-        "school": (["Gotham Heights High", "Robinson High", "PS 117", "St. Mary's School", "Cherry Hills Prep"],
-                   {"Upper West Side": 1, "Coventry": 1, "Cherry Hills": 1, "Kane Heights": 1, "Bristol": 1}),
+        "fire": (["Engine 9", "Engine 23", "Ladder 4", "Engine 41", "Ladder 17", "Engine 7", "Ladder 21", "Engine 14",
+                  "Engine 58", "Ladder 9", "Engine 30"],
+                 {"Old Gotham": 1, "New Town": 1, "Upper West Side": 1, "Robinsville": 1, "Burnside": 1, "Burnley": 1,
+                  "Crime Alley": 1, "Chinatown": 1, "Coventry": 1, "Tricorner": 1, "Cherry Hills": 1}),
+        "school": (["Gotham Heights High", "Robinson High", "PS 117", "St. Mary's School", "Cherry Hills Prep", "PS 41",
+                    "Burnley Middle School", "Chinatown Elementary", "Tricorner High", "Narrows Community School",
+                    "Burnside Academy of the Arts", "New Town High"],
+                   {"Upper West Side": 1, "Coventry": 1, "Cherry Hills": 1, "Kane Heights": 1, "Bristol": 1, "Burnley": 1,
+                    "Chinatown": 1, "Tricorner": 1, "The Narrows": 1, "Burnside": 1, "New Town": 1, "Crime Alley": 1}),
         # And how people live between the work and the night: coffee, the gym,
         # a film, a room for the night, something to buy.
         "cafe": (["Common Grounds", "The Daily Grind", "Kettle & Crow", "Grindhouse Coffee", "Perk", "The Roastery",
@@ -2977,9 +3525,41 @@ def build():
                         "Tricorner": 1, "City Hall District": 1, "Upper West Side": 1, "Cherry Hills": 1, "Bristol": 1,
                         "Waterloo Docks": 1, "Halyard Square": 1, "Central Business District": 1, "Port's Park": 1}),
         "shop": (["Vintage Vault", "Gotham Books", "The Record Room", "Ellison's Jewelers", "Rook & Pawn",
-                  "Bluebird Boutique", "Madame Lacroix", "Second Story Books", "Hart & Sons Tailors"],
+                  "Bluebird Boutique", "Madame Lacroix", "Second Story Books", "Hart & Sons Tailors", "Lucky's Bodega",
+                  "Quick Stop", "Ramirez Deli & Grocery", "24 Hour Mini Mart", "Corner Deli", "Sunrise Bodega"],
                  {"Fashion District": 3, "Burnside": 2, "Diamond District": 1, "Upper East Side": 1, "Old Gotham": 1,
-                  "Chinatown": 1}),
+                  "Chinatown": 1, "Crime Alley": 1, "The Narrows": 1, "Burnley": 1,
+                  "The Bowery": 1, "Robinsville": 1, "Tricorner": 1}),
+        # And what a city of millions runs on, where its people live (2026-10): the precincts and branch libraries,
+        # groceries, pharmacies, banks, laundromats and corner bodegas, gas stations out where people drive, malls,
+        # the Theater District's houses, post offices. (Kept like every venue: the last build's stay where they were.)
+        "police": (["GCPD 2nd Precinct", "GCPD 5th Precinct", "GCPD 8th Precinct", "GCPD 9th Precinct", "GCPD 14th Precinct",
+                    "GCPD 17th Precinct", "GCPD 21st Precinct", "GCPD 24th Precinct"],
+                   {"Burnley": 1, "Crime Alley": 1, "Chinatown": 1, "Coventry": 1, "Upper West Side": 1, "New Town": 1,
+                    "Burnside": 1, "City Hall District": 1}),
+        "library": (["Burnley Branch Library", "Coventry Library", "Chinatown Library", "Burnside Public Library",
+                     "Tricorner Library"], {"Burnley": 1, "Coventry": 1, "Chinatown": 1, "Burnside": 1, "Tricorner": 1}),
+        "market": (["Corrigan's Market", "Hollis Foods", "Greenway Grocers", "Delancey Foods", "City Fresh",
+                    "Bodner's Supermarket", "Harbor Foods", "Kovac Bros. Grocery", "Good Neighbor Market", "Valu-Mart"],
+                   {"Burnley": 1, "Coventry": 1, "The Bowery": 1, "Tricorner": 1, "Upper West Side": 1, "New Town": 1,
+                    "Robinsville": 1, "Burnside": 1, "The Narrows": 1, "Cherry Hills": 1}),
+        "pharmacy": (["Doane's Drugs", "Gotham Rx", "Mercy Pharmacy", "Kessler's Chemist", "Night Owl Pharmacy",
+                      "Lindqvist Drugs", "Corner Rx", "Apothecary 1902"],
+                     {"Crime Alley": 1, "Burnley": 1, "Chinatown": 1, "Upper West Side": 1, "Fashion District": 1,
+                      "University District": 1, "Burnside": 1, "Coventry": 1}),
+        "fuel": (["Pyramid Gas", "Kane Fuel", "Harbor Gas & Go", "24/7 Fuel Stop", "Comet Gas", "Bristol Service Station",
+                  "Ironworks Truck Stop"],
+                 {"Ironworks": 2, "Kane Heights": 1, "Robinsville": 1, "New Town": 1, "Bristol": 1, "Burnside": 1}),
+        "bank": (["First Gotham Savings", "Cobblepot Trust", "Gotham Federal Credit Union", "Mercantile Bank of Gotham",
+                  "Burnside Savings Bank", "Union Trust"],
+                 {"Diamond District": 2, "Upper East Side": 1, "Fashion District": 1, "Burnside": 1, "New Town": 1}),
+        "laundromat": (["Suds City", "Spin Cycle", "Clean Getaway", "Wash & Fold 24", "Bubbles Laundromat"],
+                       {"The Narrows": 1, "The Bowery": 1, "Burnley": 1, "Chinatown": 1, "Robinsville": 1}),
+        "mall": (["Gotham Center Mall", "Otisburg Galleria", "Harbor Point Mall"],
+                 {"New Town": 1, "Otisburg": 1, "Central Business District": 1}),
+        "theatre": (["The Lyceum", "The Palace Theatre", "The Orpheum"], {"Diamond District": 2, "Fashion District": 1}),
+        "post": (["Burnley Post Office", "Old Gotham Station Post Office", "Burnside Post Office"],
+                 {"Burnley": 1, "Old Gotham": 1, "Burnside": 1}),
     }
     by_district = {}
     for lot in lots:
@@ -3389,7 +3969,7 @@ def build():
     # The network for getting about: every road but the railways, the bridges, the ferries.
     graph = road_graph([(ln, c) for ln, c, _ in named if c != "rail"] + [(s_, "secondary") for s_ in secondary]
                        + [(s_, c) for s_, c in streets] + [(s_, "lane") for s_ in lanes]
-                       + [(ln, "bridge") for ln, _ in bridges] + [(ln, "street") for ln in unseen_joins],
+                       + [(ln, "bridge") for ln, _ in bridges],             # (the joins are streets now: in `streets`)
                        [(f["name"], f.get("stops") or [f["line"][0], f["line"][-1]]) for f in src.get("ferries", [])],
                        src["places"], land)
     ROADS.write_text(json.dumps(graph, ensure_ascii=False, separators=(",", ":")))
