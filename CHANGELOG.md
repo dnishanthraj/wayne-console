@@ -7,6 +7,47 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-14
+
+### Added
+
+- **Arkham Island, drawn as itself.** Built after Batman: Arkham Asylum's island, turned so its main gate meets the
+  Arkham Bridge from Burnley, instead of a wooded park with a few wings in it:
+  - Intensive Treatment at the heart, behind the forecourt.
+  - The Penitentiary's castellated cell blocks on the channel shore, with the docks below them.
+  - The Medical Facility out on the western point.
+  - The Mansion, the walled cemetery and the Botanical Gardens' glasshouses along the south.
+  - A wall round it all inside the cliffs, walls between the three yards, and guard towers at the gates and corners.
+  - Lawns, paved yards, and rocky shores below.
+  - New places on it: the Penitentiary, the Medical Facility, the docks and Dead Man's Point.
+- **35 more places from the lore**, from the comics, the Arkham games, Gotham Knights, The Batman and Gotham. In
+  Gotham:
+  - Gotham Square Garden, an arena drawn as one.
+  - The Gotham Natural History Museum.
+  - Wonder Tower.
+  - Grant Park, a green of its own by City Hall.
+  - Panessa Studios, Cobblepot Steel, the Novick Building, the Post Office and the Martha Wayne Art Gallery.
+  - Finnigan's, Noonan's, Rags 'n Tatters, Bat Burger and more.
+
+  In Burnside, its museum. In Blüdhaven, its stadium, Byke Beach, RABE Memorial Hospital, its Natural History
+  Museum and two parks.
+
+### Changed
+
+- **Places where canon has them.** Jim's apartment is in Tricorner, by the 12th Precinct, as the map's own Tricorner
+  text already said. The Stock Exchange is in the Financial District, and Gotham Heights is round the university.
+  The words that said otherwise are corrected, including thirteen venues whose descriptions named the wrong
+  district.
+
+### Fixed
+
+- **Venues stay put from one build to the next.** Venues were drawn onto random lots on every build, so one new
+  landmark anywhere reshuffled them all: building Arkham moved 46 of them to other districts. Each venue now keeps
+  its name, district and spot, unless its spot has since been built over, in which case it moves to the nearest lot
+  in its own district. Only a new name is drawn a lot.
+- **The after-dark test samples a month instead of six days.** Six days of daytime is about forty calls, few enough
+  for chance to outweigh the hour.
+
 ## [1.4.2] - 2026-10-11
 
 ### Fixed

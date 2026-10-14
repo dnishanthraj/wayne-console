@@ -49,7 +49,8 @@ VENUES = ROOT / "wayne" / "engine" / "venues.json"
 
 # Districts with docks and wharves along them keep their edge hard; elsewhere a
 # strip of waterfront park runs along the shore.
-NO_WATERFRONT = {"Tricorner", "Amusement Mile", "Chinatown", "City Hall District", "Robinsville"}
+# Arkham Island: its cliffs and rocks, below the asylum's wall.
+NO_WATERFRONT = {"Tricorner", "Amusement Mile", "Chinatown", "City Hall District", "Robinsville", "Arkham Island"}
 # Districts with almost nothing built: parkland, asylum grounds, an abandoned funfair.
 SPARSE = {"Arkham Island", "Paris Island", "Blackgate Isle"}
 # What a district's buildings are like, beyond how tall: the old quarters'
@@ -345,11 +346,6 @@ def landmark_shapes(name, x, y):
         return [(rect(x, y, 1.45, 0.42), 0, 30), (rect(x + 0.25, y, 0.42, 1.05), 0, 30),
                 (square(x - 0.62, y - 0.16, 0.22), 0, 66), (square(x - 0.62, y + 0.16, 0.22), 0, 66),
                 (square(x + 0.25, y, 0.13), 30, 80)]
-    if name == "Arkham Asylum":
-        return [(rect(x, y - 0.55, 1.7, 0.42), 0, 24), (rect(x - 0.65, y + 0.05, 0.4, 1.2), 0, 20),
-                (rect(x + 0.65, y + 0.05, 0.4, 1.2), 0, 20), (square(x, y - 0.55, 0.3), 24, 46),
-                (rect(x - 1.7, y + 0.9, 0.55, 0.32), 0, 12), (rect(x + 1.6, y + 0.95, 0.5, 0.34), 0, 10),
-                (square(x, y + 1.3, 0.38), 0, 16)]
     if name == "Blackgate Penitentiary":
         yard = square(x, y, 2.0).difference(square(x, y, 1.3))
         towers = [(square(x + dx, y + dy, 0.24), 0, 34) for dx in (-1, 1) for dy in (-1, 1)]
@@ -767,6 +763,142 @@ def transmitter(x, y):
     return {"tiers": _tiers(at, tiers)}
 
 
+def arkham_island(x, y):
+    """
+    Arkham Asylum as Batman: Arkham Asylum drew its island, turned a quarter so its gate meets the Arkham Bridge
+    from Burnley (the game's north is our east), and filling it as the institution does: through the main gate into
+    the forecourt, Intensive Treatment at the heart; the Penitentiary's castellated cell blocks on the channel shore,
+    the docks below them; the Medical Facility out on the western point; along the south the Mansion, the walled
+    cemetery and the Botanical Gardens (their own complexes, below). A wall round it all inside the cliffs, walls
+    between its three yards, a guard tower at every gate and corner, the staff's blocks, the laundry and the water
+    tower; the forecourt and courtyards paved, lawns between. (Its places stand where these do: gotham.json. Drawn
+    in absolute units: there's one of it.)
+    """
+    tiers, ground = [], []
+
+    def t(geom, base, top, kind):
+        tiers.append((geom, base, top, kind))
+
+    def turned(geom, cx, cy, deg):
+        return affinity.rotate(geom, deg, origin=(cx, cy))
+
+    # the perimeter: inside the cliffs, open at the main gate and at the docks
+    rim = Polygon(chaikin([(33.5, 41.1), (31.7, 42.9), (29.9, 43.7), (28.0, 46.3), (27.9, 48.4), (29.0, 51.1),
+                           (32.3, 51.6), (39.2, 50.9), (43.0, 51.3), (43.1, 48.4), (41.4, 45.2), (37.8, 42.4)], 3))
+    wall = rim.exterior.buffer(0.035).difference(box(42.2, 47.08, 43.4, 47.72)).difference(Point(30.9, 43.45).buffer(0.32))
+    # between the yards: the North (the gate, the forecourt, Intensive Treatment), the West (the Penitentiary,
+    # the docks, the Medical Facility) and the East (the Mansion, the cemetery, the Gardens), gated at the towers
+    inner = [LineString([(36.0, 46.15), (43.0, 46.15)]), LineString([(36.0, 48.7), (43.3, 48.7)]),
+             LineString([(36.0, 46.15), (36.0, 48.7)]), LineString([(36.0, 48.3), (32.4, 48.75), (27.7, 49.3)])]
+    walls = unary_union([wall] + [ln.buffer(0.03) for ln in inner]).intersection(rim.buffer(0.04))
+    walls = walls.difference(box(38.95, 45.9, 39.45, 46.4)).difference(box(38.95, 48.45, 39.45, 48.95))
+    t(walls, 0, 7, "~wall")
+    for gx, gy in [(39.2, 46.15), (39.2, 48.7), (33.3, 41.35), (29.2, 44.4), (28.1, 48.9), (31.8, 51.5), (42.8, 50.7),
+                   (42.25, 46.15), (42.75, 48.7), (37.3, 42.75)]:
+        t(square(gx, gy, 0.17), 0, 20, "~old")                    # the towers, and their lookouts
+        t(square(gx, gy, 0.25), 20, 23.5, "~old")
+    # the main gate: two piers, the gatehouse, the broken old building in the forecourt
+    t(square(42.62, 46.98, 0.22), 0, 12, "~old")
+    t(square(42.62, 47.82, 0.22), 0, 12, "~old")
+    t(rect(42.28, 46.7, 0.38, 0.26), 0, 7, "~old")
+    t(rect(41.2, 46.6, 0.5, 0.3), 0, 8, "~old")
+    # Intensive Treatment: the old factory block at the heart, its tower, the wings either side, the wing behind
+    # and the portico facing the gate
+    t(rect(37.6, 47.42, 2.2, 1.3), 0, 24, "~old")
+    t(square(37.6, 47.42, 0.5), 24, 40, "~old")
+    t(square(37.6, 47.42, 0.18), 40, 48, "~landmark")
+    t(rect(37.6, 46.56, 1.5, 0.34), 0, 16, "~old")
+    t(rect(37.6, 48.28, 1.5, 0.34), 0, 16, "~old")
+    t(rect(36.32, 47.42, 0.5, 0.9), 0, 18, "~old")
+    t(rect(38.86, 47.42, 0.28, 0.7), 0, 11, "~old")
+    # the Penitentiary: the castellated outer range round its cell blocks, turrets at the corners, the Visitor
+    # Center at its front, all on the diagonal; a paved yard round it
+    cx, cy, d = 34.4, 43.6, -45
+    t(turned(square(cx, cy, 2.5).difference(square(cx, cy, 1.9)), cx, cy, d), 0, 18, "~old")
+    for dx, dy in ((-1.25, -1.25), (1.25, -1.25), (-1.25, 1.25), (1.25, 1.25)):
+        t(turned(square(cx + dx, cy + dy, 0.34), cx, cy, d), 0, 28, "~old")
+    t(turned(rect(cx, cy, 1.4, 0.56), cx, cy, d), 0, 22, "~old")
+    t(turned(rect(cx, cy, 0.46, 1.3), cx, cy, d), 0, 20, "~old")
+    t(turned(rect(cx, cy + 1.62, 1.0, 0.4), cx, cy, d), 0, 12, "~old")
+    pen = turned(square(cx, cy, 2.5), cx, cy, d)
+    ground.append((pen.buffer(0.32).difference(pen).intersection(rim), "plaza"))
+    # the docks: the dog-legged pier, its shack, the boathouse
+    ground.append((LineString([(30.75, 43.55), (30.2, 43.0), (29.75, 42.95)]).buffer(0.07, cap_style=2), "pier"))
+    t(rect(29.85, 42.95, 0.18, 0.12), 0, 4, "~works")
+    t(rect(31.15, 43.85, 0.5, 0.32), 0, 9, "~works")
+    # the Medical Facility, the newest building, out on the rocky western point
+    mx, my = 29.3, 47.0
+    t(turned(rect(mx, my, 1.9, 0.72), mx, my, 45), 0, 22, "~concrete")
+    t(turned(rect(mx + 0.45, my, 0.66, 1.3), mx, my, 45), 0, 17, "~concrete")
+    t(disc(mx - 0.55, my + 0.55, 0.07), 0, 32, "~stack")
+    # the institution's own: staff blocks by the north lawn, the laundry on the West's courtyard, the water tower
+    t(rect(36.05, 44.55, 0.7, 0.36), 0, 14, "~old")
+    t(rect(36.75, 44.0, 0.36, 0.6), 0, 12, "~old")
+    t(rect(33.3, 47.3, 0.9, 0.42), 0, 10, "~old")
+    t(disc(30.6, 48.55, 0.16), 18, 24, "~tank")
+    t(disc(30.6, 48.55, 0.035), 0, 18, "~works")
+    # the cemetery between the Mansion and the Gardens, walled, down to the bay: its chapel and its stones
+    yard = box(37.0, 49.55, 38.65, 50.65)
+    t(yard.exterior.buffer(0.02), 0, 2.5, "~wall")
+    t(rect(37.4, 49.78, 0.26, 0.4), 0, 9, "~old")
+    for i in range(6):
+        for j in range(4):
+            t(rect(37.75 + i * 0.13, 49.95 + j * 0.16, 0.05, 0.025), 0, 1.4, "~rock")
+    # grounds: the forecourt and the West's courtyard paved, paths between; lawns everywhere else inside the walls
+    forecourt = box(39.45, 46.35, 42.3, 48.5)
+    court = box(31.3, 45.7, 33.4, 46.85).buffer(0.25, quad_segs=4)
+    ground.append((forecourt, "plaza"))
+    ground.append((court.intersection(rim), "plaza"))
+    built = unary_union([g for g, _b, top, k in tiers if k != "~rock"]).buffer(0.18)
+    lawn = rim.buffer(-0.12).difference(unary_union([forecourt.buffer(0.1), court.buffer(0.1), pen.buffer(0.32), built]))
+    ground += [(g, "campus") for g in polys_of(lawn) if g.area > 0.08]
+    ground.append((LineString([(42.3, 47.4), (38.95, 47.4)]), "path"))
+    ground.append((LineString([(39.2, 46.15), (37.0, 45.1), (35.7, 44.75)]), "path"))
+    ground.append((LineString([(39.2, 48.7), (37.6, 49.25), (35.4, 49.35)]), "path"))
+    ground.append((LineString([(33.4, 46.3), (31.8, 44.4), (31.15, 44.0)]), "path"))
+    return {"tiers": tiers, "ground": ground}
+
+
+def arkham_mansion(x, y):
+    """
+    The island's oldest house, along its south shore: the long main range, its two wings round a courtyard, the
+    round tower at the corner, the clock tower over the door and the stairs up to it (the game's, turned with it).
+    """
+    at = _local(x, y, 0)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0, 3.2, 0.55), 0, 17, "~old"), (rect(-1.35, 0.6, 0.5, 0.75), 0, 15, "~old"),
+        (rect(1.35, 0.6, 0.5, 0.75), 0, 15, "~old"), (disc(-1.62, -0.3, 0.26), 0, 28, "~old"),
+        (disc(-1.62, -0.3, 0.15), 28, 34, "~landmark"), (square(0, -0.3, 0.3), 0, 36, "~old"),
+        (square(0, -0.3, 0.13), 36, 45, "~landmark"), (rect(0, -0.5, 0.6, 0.14), 0, 2, "~old")]
+        + [(square(dx, 0, 0.07), 17, 21, "~old") for dx in (-1.0, -0.5, 0.5, 1.0)])}
+
+
+def arkham_gardens(x, y):
+    """The Victorian glasshouses: the long range along the east shore, the domed house at its end, the wing west
+    to the stairs down to the cemetery."""
+    at = _local(x, y, 0)
+    return {"tiers": _tiers(at, [
+        (rect(0, 0, 0.44, 1.5), 0, 13, "~glass"), (rect(0, 0, 0.2, 1.5), 13, 16, "~glass"),
+        (disc(0, 0.92, 0.4), 0, 15, "~glass"), (disc(0, 0.92, 0.27), 15, 20, "~glass"), (disc(0, 0.92, 0.12), 20, 24, "~glass"),
+        (rect(-0.95, -0.55, 1.5, 0.34), 0, 12, "~glass"), (rect(-1.8, -0.55, 0.22, 0.34), 0, 3, "~old")])}
+
+
+def arena(x, y):
+    """Gotham Square Garden: the round arena over Union Station, its ring roof and the drum above it."""
+    return {"tiers": [(disc(x, y, 0.82), 0, 24, "~concrete"), (disc(x, y, 0.7), 24, 30, "~concrete"),
+                      (disc(x, y, 0.4), 30, 33, "~concrete")]}
+
+
+def museum(x, y, angle=0, scale=1.0, dome=True):
+    """A museum of the old kind: the hall, its colonnade, the dome over the rotunda."""
+    at = _local(x, y, angle)
+    k = scale
+    tiers = [(rect(0, 0, 1.3 * k, 0.8 * k), 0, 22, "~old"), (rect(0, -0.48 * k, 0.9 * k, 0.16 * k), 0, 18, "~old")]
+    if dome:
+        tiers += [(disc(0, 0, 0.24 * k), 22, 30, "~landmark"), (disc(0, 0, 0.13 * k), 30, 36, "~landmark")]
+    return {"tiers": _tiers(at, tiers)}
+
+
 def stagg_tower(x, y):
     """Stagg Enterprises: a glass tower with a mooring mast on its roof, for the airship."""
     at = _local(x, y, 6)
@@ -776,6 +908,7 @@ def stagg_tower(x, y):
 
 
 COMPLEXES = {
+    "Arkham Asylum": arkham_island,
     "GCN Studios": gcn_studios,
     "GBS Tower": gbs_tower,
     "Gotham Convention Center": convention_center,
@@ -834,10 +967,30 @@ COMPLEXES = {
         (disc(0, 0, 0.022), 126, 176, "~works")])},
     "New Town Bus Terminal": lambda x, y: {"tiers": _tiers(_local(x, y, -22), [
         (rect(0, 0, 1.5, 0.6), 0, 18, "~works"), (rect(0.92, 0, 0.32, 0.5), 6, 8, "~deck")])},
-    "Arkham Mansion": lambda x, y: {"tiers": [(rect(x, y, 0.85, 0.36), 0, 16, "~old"), (rect(x + 0.35, y + 0.3, 0.3, 0.4), 0, 14, "~old"),
-                                              (square(x - 0.3, y - 0.1, 0.18), 0, 28, "~old"), (square(x - 0.3, y - 0.1, 0.08), 28, 37, "~landmark")]},
-    "Arkham Botanical Gardens": lambda x, y: {"tiers": [(rect(x, y, 0.9, 0.4), 0, 12, "~glass"), (disc(x, y, 0.24), 12, 18, "~glass"),
-                                                        (disc(x, y, 0.13), 18, 21, "~glass")]},
+    "Arkham Mansion": arkham_mansion,
+    "Arkham Botanical Gardens": arkham_gardens,
+    # Places from the lore (2026-10, Brother Eye's chunk 11), built to their own shapes
+    "Gotham Square Garden": arena,
+    "Gotham Natural History Museum": lambda x, y: museum(x, y, -13, 1.0),
+    "Blüdhaven Natural History Museum": lambda x, y: museum(x, y, -8, 0.8),
+    "Burnside Museum": lambda x, y: museum(x, y, 4, 0.75, dome=False),
+    "Martha Wayne Art Gallery": lambda x, y: {"tiers": _tiers(_local(x, y, 28), [
+        (rect(0, 0, 0.9, 0.5), 0, 14, "~glass"), (rect(0.25, 0, 0.36, 0.36), 14, 20, "~glass")])},
+    "Gotham City Post Office": lambda x, y: museum(x, y, -25, 0.85, dome=False),
+    "Wonder Tower": lambda x, y: {"tiers": [(square(x, y, 0.5), 0, 64, "~landmark"), (square(x, y, 0.36), 64, 128, "~landmark"),
+                                            (square(x, y, 0.24), 128, 166, "~landmark"), (disc(x, y, 0.12), 166, 178, "~landmark"),
+                                            (disc(x, y, 0.035), 178, 206, "~works")]},
+    "Novick Building": lambda x, y: {"tiers": [(square(x, y, 0.46), 0, 88, "~old"), (square(x, y, 0.32), 88, 108, "~old"),
+                                               (square(x, y, 0.14), 108, 118, "~landmark")]},
+    "Cobblepot Steel": lambda x, y: {"tiers": _tiers(_local(x, y, -4), [
+        (rect(0, 0, 1.6, 0.5), 0, 22, "~works"), (rect(0.2, 0.55, 0.9, 0.4), 0, 16, "~works")]
+        + [(disc(-0.5 + i * 0.35, -0.42, 0.07), 0, 48, "~stack") for i in range(3)])},
+    "Panessa Studios": lambda x, y: {"tiers": _tiers(_local(x, y, -4), [
+        (rect(-0.55, 0, 0.6, 0.45), 0, 17, "~works"), (rect(0.15, 0, 0.6, 0.45), 0, 17, "~works"),
+        (rect(-0.2, 0.62, 1.1, 0.3), 0, 9, "~works"), (disc(0.62, -0.42, 0.1), 12, 18, "~tank"), (disc(0.62, -0.42, 0.025), 0, 12, "~works")]),
+        "ground": [(_local(x, y, -4)(rect(0, 0.2, 2.0, 1.6)), "lot")]},
+    "The Stadium": lambda x, y: gotham_stadium(x, y),
+    "RABE Memorial Hospital": lambda x, y: hospital(x, y, 12, 44, 0.75),
     "Wayne Mining Building": lambda x, y: {"tiers": _tiers(_local(x, y, 28), [
         (rect(0, 0, 0.55, 0.4), 0, 46, "~old"), (rect(0, 0, 0.45, 0.3), 46, 53, "~copper")])},
     "Wayne Center for Children": lambda x, y: {"tiers": _tiers(_local(x, y, 6), [
@@ -1806,7 +1959,7 @@ def build():
     park_names.append("Wayne Estate")
     # The islands nobody builds on: Arkham's grounds, Paris Island gone to woods,
     # the lawns round the Statue — planted, not bare.
-    for isle in ("Arkham Island", "Paris Island", "Justice Island", "Blackgate Isle"):
+    for isle in ("Paris Island", "Justice Island", "Blackgate Isle"):
         if areas.get(isle) is not None:
             parks.append(areas[isle].buffer(-0.22).difference(water_cut))
             park_names.append("")
@@ -2833,11 +2986,33 @@ def build():
         by_district.setdefault(lot[0], []).append(lot)
     vr = random.Random(1400)
     venue_list = []
+    # The venues stay where they were: the engine, the Codex, Brother Eye and anyone whose home is one know each by
+    # its name, its district and its spot. Drawn afresh, one new landmark anywhere reshuffled them all (46 changed
+    # district the first time Arkham was built as itself). So the last build's stand, each where it was, unless its
+    # spot has been built over or planted since (then the nearest lot in its own district); only a name not yet on
+    # the map is drawn a lot, as before.
+    try:
+        before = {v["name"]: v for v in json.loads(VENUES.read_text())["venues"]}
+    except (OSError, ValueError, KeyError):
+        before = {}
+    covered = shapely.prepared.prep(unary_union([footprints, unary_union(parks), water_cut]))
     for kind, (names, where) in venues_by.items():
         pool = list(names)
         vr.shuffle(pool)
+        placed = {}
+        for b in before.values():
+            if b["kind"] != kind or b["name"] not in names:
+                continue
+            x, y = b["x"], b["y"]
+            if covered.contains(Point(x, y)) and by_district.get(b["area"]):
+                _, c, _, _ = min(by_district[b["area"]], key=lambda lot: lot[1].distance(Point(x, y)))
+                x, y = round(c.x, 2), round(c.y, 2)
+            add(Point(x, y), "venue", n=b["name"], k=kind, a=b["area"])
+            venue_list.append({"name": b["name"], "kind": kind, "area": b["area"], "x": x, "y": y})
+            placed[b["area"]] = placed.get(b["area"], 0) + 1
+            pool.remove(b["name"])
         for district, n in where.items():
-            for _ in range(n):
+            for _ in range(n - placed.get(district, 0)):
                 if not pool or not by_district.get(district):
                     break
                 name, c, h, area = vr.choice(by_district[district])

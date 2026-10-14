@@ -2454,47 +2454,6 @@
    ]
   },
   {
-   "name": "Arkham Grounds",
-   "coast": [
-    [
-     28.6,
-     44.6
-    ],
-    [
-     32.4,
-     41.6
-    ],
-    [
-     37.6,
-     41.2
-    ],
-    [
-     42.0,
-     44.2
-    ],
-    [
-     43.4,
-     48.6
-    ],
-    [
-     42.0,
-     51.0
-    ],
-    [
-     34.0,
-     51.2
-    ],
-    [
-     28.4,
-     50.2
-    ],
-    [
-     27.4,
-     47.6
-    ]
-   ]
-  },
-  {
    "name": "Gotham Cemetery",
    "coast": [
     [
@@ -2666,6 +2625,39 @@
     [
      127.4,
      -11.0
+    ]
+   ]
+  },
+  {
+   "name": "Grant Park",
+   "coast": [
+    [
+     75.99,
+     94.68
+    ],
+    [
+     76.99,
+     94.43
+    ],
+    [
+     78.29,
+     94.73
+    ],
+    [
+     78.44,
+     95.73
+    ],
+    [
+     77.59,
+     96.28
+    ],
+    [
+     76.29,
+     96.18
+    ],
+    [
+     75.84,
+     95.48
     ]
    ]
   }
@@ -4123,6 +4115,24 @@
      11.2
     ]
    ]
+  },
+  {
+   "name": "Arkham Drive",
+   "class": "drive",
+   "line": [
+    [
+     43.2,
+     47.4
+    ],
+    [
+     41.6,
+     47.4
+    ],
+    [
+     38.9,
+     47.42
+    ]
+   ]
   }
  ],
  "bridges": [
@@ -4819,8 +4829,8 @@
   },
   {
    "name": "Arkham Asylum",
-   "x": 36.0,
-   "y": 47.6,
+   "x": 40.4,
+   "y": 47.4,
    "area": "Arkham Island",
    "kind": "landmark",
    "icon": "asylum",
@@ -4992,14 +5002,14 @@
   },
   {
    "name": "Gotham Heights",
-   "x": 20.6,
-   "y": 93.4,
-   "area": "Upper West Side",
+   "x": 26.62,
+   "y": 67.47,
+   "area": "University District",
    "kind": "quarter",
    "match": [
     "gotham heights"
    ],
-   "bio": "The Upper West Side's hilltop quarter: brownstones with stoops and window boxes, the reservoir's walking path, and the kind of quiet money that doesn't need a doorman to prove it."
+   "bio": "The hilltop quarter round Gotham University: brownstones with stoops and window boxes, professors' houses, the reservoir's walking path, and the kind of quiet money that doesn't need a doorman to prove it."
   },
   {
    "name": "Diamond District",
@@ -5044,7 +5054,7 @@
     "theater",
     "matinee"
    ],
-   "bio": "Gotham's Broadway — the Monarch, marquees blazing, stage doors where autograph hunters wait in the cold, and the Joker's old taste for a captive audience."
+   "bio": "Gotham's Broadway — the Opera House and the old picture palaces, marquees blazing, stage doors where autograph hunters wait in the cold, and the Joker's old taste for a captive audience."
   },
   {
    "name": "Gotham Opera House",
@@ -5514,7 +5524,7 @@
     "power station",
     "power plant"
    ],
-   "bio": "The New Town generating station that keeps the north of the island lit."
+   "bio": "The generating station on the Robinsville shore that keeps the north of the island lit, its stacks a landmark from New Town."
   },
   {
    "name": "Gotham Aquarium",
@@ -5581,9 +5591,9 @@
   },
   {
    "name": "Gotham Stock Exchange",
-   "x": 57.4,
-   "y": 101.4,
-   "area": "Old Gotham",
+   "x": 51.78,
+   "y": 101.18,
+   "area": "Diamond District",
    "kind": "landmark",
    "icon": "civic",
    "match": [
@@ -6305,8 +6315,8 @@
   },
   {
    "name": "Arkham Mansion",
-   "x": 31.6,
-   "y": 44.8,
+   "x": 34.2,
+   "y": 49.95,
    "area": "Arkham Island",
    "kind": "landmark",
    "icon": "manor",
@@ -6319,8 +6329,8 @@
   },
   {
    "name": "Arkham Botanical Gardens",
-   "x": 36.2,
-   "y": 43.4,
+   "x": 41.6,
+   "y": 49.7,
    "area": "Arkham Island",
    "kind": "landmark",
    "icon": "garden",
@@ -6336,8 +6346,8 @@
   },
   {
    "name": "Intensive Treatment",
-   "x": 37.8,
-   "y": 48.8,
+   "x": 37.6,
+   "y": 47.42,
    "area": "Arkham Island",
    "kind": "spot",
    "icon": "asylum",
@@ -6351,8 +6361,8 @@
   },
   {
    "name": "Arkham Family Crypt",
-   "x": 30.6,
-   "y": 47.0,
+   "x": 37.4,
+   "y": 49.78,
    "area": "Arkham Island",
    "kind": "spot",
    "icon": "cemetery",
@@ -7038,9 +7048,9 @@
   },
   {
    "name": "Jim's apartment",
-   "x": 51.2,
-   "y": 42.9,
-   "area": "Burnley",
+   "x": 27.22,
+   "y": 120.62,
+   "area": "Tricorner",
    "kind": "spot",
    "icon": "home",
    "match": [
@@ -7049,7 +7059,7 @@
     "gordon's apartment",
     "gordon's place"
    ],
-   "bio": "A two-bedroom in Burnley: a recliner, the scanner on the kitchen counter, and Barbara's photographs on every wall.",
+   "bio": "A two-bedroom in Tricorner, a walk from the 12th Precinct: a recliner, the scanner on the kitchen counter, and Barbara's photographs on every wall.",
    "note": "Jim's. Not a place for the cowl — he's never asked me there, and I've never gone."
   },
   {
@@ -7462,6 +7472,433 @@
     "heights park"
    ],
    "bio": "Up in Avalon Heights: tennis courts, a reservoir path, and the best view of the harbour in Blüdhaven."
+  },
+  {
+   "name": "Arkham Penitentiary",
+   "x": 34.4,
+   "y": 43.6,
+   "area": "Arkham Island",
+   "kind": "landmark",
+   "icon": "prison",
+   "match": [
+    "arkham penitentiary",
+    "the penitentiary",
+    "arkham west"
+   ],
+   "bio": "The island's cell blocks behind a castellated front on the Arkham Channel shore: Cells Access, the Green Mile, Extreme Incarceration, and Latin cut over the doors, Death certain, hour uncertain. Families sign in at the Visitor Center by day and talk through glass; at night the blocks are counted every hour, and the count is never quite right."
+  },
+  {
+   "name": "Arkham Medical Facility",
+   "x": 29.3,
+   "y": 47.0,
+   "area": "Arkham Island",
+   "kind": "spot",
+   "icon": "hospital",
+   "match": [
+    "arkham medical facility",
+    "arkham medical",
+    "the medical facility"
+   ],
+   "bio": "The asylum's newest building, out on the island's rocky western point: wards, X-ray, surgery, the morgue and an experimental wing nobody signs for. Clinical and bright by day, and decaying faster than anything else on the island; at night its boiler room thumps like a heart."
+  },
+  {
+   "name": "Arkham Docks",
+   "x": 31.15,
+   "y": 43.85,
+   "area": "Arkham Island",
+   "kind": "spot",
+   "icon": "dock",
+   "match": [
+    "arkham docks",
+    "the boathouse",
+    "arkham boathouse"
+   ],
+   "bio": "The island's boat landing on the channel shore below the Penitentiary: a dog-legged pier, a roofed guard shack and the boathouse. Supply launches by day, and the GCPD's transfers when the bridge is shut; at night the patrol boat idles here with its lights off."
+  },
+  {
+   "name": "Dead Man's Point",
+   "x": 41.75,
+   "y": 44.35,
+   "area": "Arkham Island",
+   "kind": "spot",
+   "icon": "water",
+   "match": [
+    "dead man's point",
+    "dead mans point"
+   ],
+   "bio": "The cliff on Arkham's north-eastern shore where inmates have been throwing themselves onto the rocks for a hundred years, reached through a tunnel past a chamber lined with skulls. Nobody comes out here by day if they can help it; at night the searchlights cross it and the water below sounds hungry."
+  },
+  {
+   "name": "Gotham Square Garden",
+   "x": 40.62,
+   "y": 98.05,
+   "area": "Diamond District",
+   "kind": "landmark",
+   "icon": "stadium",
+   "match": [
+    "gotham square garden"
+   ],
+   "bio": "The city's great indoor arena, a drum of concrete and glass downtown: Gators basketball, title fights, the big concerts, and the election-night rallies where Gotham's mayors are made. On a big night the crowd spills out for blocks and the cabs give up trying. When the city floods or burns, this is where it goes to shelter."
+  },
+  {
+   "name": "Gotham Natural History Museum",
+   "x": 59.7,
+   "y": 64.6,
+   "area": "Upper East Side",
+   "kind": "landmark",
+   "icon": "museum",
+   "match": [
+    "gotham natural history museum"
+   ],
+   "bio": "One of the largest museums in the city, on Museum Mile: the African halls, the Hall of Exotic Birds with its stuffed dodo, a gem collection, an aquarium in the basement and a botanical garden out back. By day it's schoolchildren and dinosaur bones. At night the guards walk past cases that have been smashed more than once, and down in the basement the zoology department keeps a colony of bats."
+  },
+  {
+   "name": "Wonder Tower",
+   "x": 45.7,
+   "y": 107.4,
+   "area": "Old Gotham",
+   "kind": "landmark",
+   "icon": "tower",
+   "match": [
+    "wonder tower"
+   ],
+   "bio": "A slender art-deco observation tower rising out of Sheldon Park, the tallest thing in the old city. It was raised as a monument to a city of tomorrow that the founders never finished. Tourists ride the lift to the observation deck for the whole skyline; after closing the lift is locked, and the lights on its crown blink over the gargoyles all night."
+  },
+  {
+   "name": "Grant Park",
+   "x": 77.19,
+   "y": 95.38,
+   "area": "City Hall District",
+   "kind": "landmark",
+   "icon": "garden",
+   "match": [
+    "grant park"
+   ],
+   "bio": "A long downtown park split lengthwise by the Commerce Street Highway, with the Fashion District to the north, Old Gotham's spires to the west and City Hall's dome at its southern end. By day there are office lunches on the benches and protest marches mustering on the lawns. After dark the highway's roar covers whatever goes on under the trees."
+  },
+  {
+   "name": "Panessa Studios",
+   "x": 3.52,
+   "y": 85.1,
+   "area": "Ironworks",
+   "kind": "landmark",
+   "icon": "cinema",
+   "match": [
+    "panessa studios"
+   ],
+   "bio": "A film studio that turned out cheap gangster pictures and creature features from the thirties on, with the art-deco Gotham Palace picture house still standing on the lot. There are sound stages, a backlot of fake streets, and a water tower with the studio's name; Basil Karlo made his horror pictures here. The protection rackets drove the productions out of town and the studio into bankruptcy. Wayne Enterprises bought the chained-up lot and says it will rebuild."
+  },
+  {
+   "name": "Finnigan's",
+   "x": 55.5,
+   "y": 102.4,
+   "area": "Old Gotham",
+   "kind": "spot",
+   "icon": "bar",
+   "match": [
+    "finnigan's"
+   ],
+   "bio": "The cops' bar round the corner from Central: a long brass rail, the shift's war stories at the counter and the detectives' at the back tables. Uniforms come here after every funeral and every promotion. Nobody without a badge sits down without being asked."
+  },
+  {
+   "name": "Rags 'n Tatters",
+   "x": 68.9,
+   "y": 53.4,
+   "area": "The Bowery",
+   "kind": "spot",
+   "icon": "shop",
+   "match": [
+    "rags 'n tatters"
+   ],
+   "bio": "Rory Regan's shop, part pawnbroker and part junkyard: racks of old coats, boxes of other people's lives, and a yard of scrap behind. The Regans give small loans to neighbours when the month runs longer than the money. Nobody on the block remembers it ever turning anyone away."
+  },
+  {
+   "name": "Peregrinator's Club",
+   "x": 60.2,
+   "y": 65.88,
+   "area": "Upper East Side",
+   "kind": "spot",
+   "icon": "club",
+   "match": [
+    "peregrinator's club"
+   ],
+   "bio": "An explorers' club gone to old money: leather armchairs, trophy heads on oak panels and maps of places the founders claimed to have discovered. A majordomo runs the house and remembers every member's drink. Gotham's bluebloods come here to be among their own and to make the city's decisions over brandy."
+  },
+  {
+   "name": "Noonan's",
+   "x": 36.63,
+   "y": 115.54,
+   "area": "Tricorner",
+   "kind": "spot",
+   "icon": "bar",
+   "match": [
+    "noonan's"
+   ],
+   "bio": "Sean Noonan's bar on the corner of Peckinpah Street and Saint Avenue, where the city's working hitmen drink between jobs. Bullet holes are patched and unpatched, the back booth is for contracts, and the barman is best not looked at too closely. Gunfights here are practically part of the décor."
+  },
+  {
+   "name": "My Alibi",
+   "x": 41.97,
+   "y": 85.21,
+   "area": "Diamond District",
+   "kind": "spot",
+   "icon": "bar",
+   "match": [
+    "my alibi"
+   ],
+   "bio": "An underworld bar in the middle of downtown, and the name is both the joke and the service: drink here and a dozen regulars will swear you never left your stool. Fences, fixers and off-duty muscle come in after dark. By day the shutters stay down and the payphone keeps ringing."
+  },
+  {
+   "name": "Bat Burger",
+   "x": 53.58,
+   "y": 25.96,
+   "area": "Otisburg",
+   "kind": "spot",
+   "icon": "diner",
+   "match": [
+    "bat burger"
+   ],
+   "bio": "Gotham's Batman-themed burger chain: staff in capes and cowls, a menu named for the Dark Knight's friends and enemies, and the Batburger itself with everything on it. Kids pack it on game days, and the vegan menu is better than it has any right to be."
+  },
+  {
+   "name": "Cobblepot Steel",
+   "x": 3.1,
+   "y": 92.0,
+   "area": "Ironworks",
+   "kind": "landmark",
+   "icon": "industry",
+   "match": [
+    "cobblepot steel"
+   ],
+   "bio": "The Cobblepot family's steelworks on the mainland shore, older and blacker than the Sionis mill down the road, with a rolling mill under a sawtooth roof and the family name in iron letters over the gate. The furnaces have cooled and relit with the family's fortunes more than once. The family has always had other businesses."
+  },
+  {
+   "name": "Martha Wayne Art Gallery",
+   "x": 24.1,
+   "y": 91.4,
+   "area": "Upper West Side",
+   "kind": "landmark",
+   "icon": "museum",
+   "match": [
+    "martha wayne art gallery"
+   ],
+   "bio": "A gallery in Gotham Heights carrying Martha Wayne's name: skylit rooms of Gotham painters, a wing for young artists, and free entry one evening a month. Society comes for the openings and students come for the quiet. The guards have learned which benches the regulars like."
+  },
+  {
+   "name": "Toxic Acres",
+   "x": -0.9,
+   "y": 87.0,
+   "area": "Ironworks",
+   "kind": "spot",
+   "icon": "home",
+   "match": [
+    "toxic acres"
+   ],
+   "bio": "A development of brand-new houses that nobody ever moved into, built downwind of a toxic waste dump. The lawns have gone yellow, the swing sets are furred with rust, and anyone who has to go in wears a gas mask. It is empty by law; some years Poison Ivy and Harley Quinn have made it home, and the gardens grow as if they know it."
+  },
+  {
+   "name": "Novick Building",
+   "x": 44.11,
+   "y": 106.35,
+   "area": "Old Gotham",
+   "kind": "landmark",
+   "icon": "tower",
+   "match": [
+    "novick building"
+   ],
+   "bio": "A tall prewar office block in Old Gotham, limestone gone grey with soot and a copper cornice gone green, with gargoyles at every corner of the roof. Its tenants are small-time lawyers, a bail bondsman, a dentist and a private detective on the ninth floor. The night watchman swears the gargoyles change places."
+  },
+  {
+   "name": "Gotham City Post Office",
+   "x": 27.9,
+   "y": 119.6,
+   "area": "Tricorner",
+   "kind": "landmark",
+   "icon": "civic",
+   "match": [
+    "gotham city post office"
+   ],
+   "bio": "The general post office: a granite hall with a mural of the founding over the counters and a sorting floor that never stops, mail trucks backing in all night. Pensioners queue in the morning and forgers try their luck in the afternoon. The dead-letter room in the basement holds a hundred years of letters that never arrived."
+  },
+  {
+   "name": "Luigi's Finest Pizza",
+   "x": 29.7,
+   "y": 105.2,
+   "area": "Chinatown",
+   "kind": "spot",
+   "icon": "restaurant",
+   "match": [
+    "luigi's finest pizza"
+   ],
+   "bio": "A slice joint whose neon sign has promised FINEST for fifty years: thin crust, a counter in the window and an oven that stays lit until the last shift comes off the docks. Cops, cabbies and kids share the same three stools. Nobody has ever met Luigi."
+  },
+  {
+   "name": "Martha Wayne Foundation",
+   "x": 55.84,
+   "y": 109.39,
+   "area": "Old Gotham",
+   "kind": "spot",
+   "icon": "civic",
+   "match": [
+    "martha wayne foundation"
+   ],
+   "bio": "The Wayne family's charitable foundation in a restored Old Gotham townhouse. Grants go out from here for clinics, shelters and schools, and Martha Wayne's portrait watches the petitioners come and go. The lights in the grants office burn late at the end of every quarter."
+  },
+  {
+   "name": "The Sirens",
+   "x": 39.97,
+   "y": 87.06,
+   "area": "Diamond District",
+   "kind": "spot",
+   "icon": "club",
+   "match": [
+    "the sirens"
+   ],
+   "bio": "A nightclub run by three women who take orders from nobody: velvet, gold leaf, torch singers on a small stage, and an office upstairs where the city's crooks come to ask permission. The doormen are polite and the owners are not."
+  },
+  {
+   "name": "Mooney's",
+   "x": 49.63,
+   "y": 111.65,
+   "area": "Old Gotham",
+   "kind": "spot",
+   "icon": "club",
+   "match": [
+    "mooney's"
+   ],
+   "bio": "Fish Mooney's nightclub: a jazz singer under a red spotlight, a long bar, the boss's booth where she holds court, and a back room the band plays louder to cover. Half the GCPD has drunk here for free, and that is the point."
+  },
+  {
+   "name": "Cherry's",
+   "x": 22.95,
+   "y": 37.88,
+   "area": "The Narrows",
+   "kind": "spot",
+   "icon": "club",
+   "match": [
+    "cherry's"
+   ],
+   "bio": "A fight club in a Narrows warehouse: a ring under one bare bulb, bets shouted down from the balconies, and fighters who heal fast or not at all. The house takes its cut and the house keeps the peace, mostly."
+  },
+  {
+   "name": "St. Joseph Church",
+   "x": 21.7,
+   "y": 93.4,
+   "area": "Upper West Side",
+   "kind": "spot",
+   "icon": "church",
+   "match": [
+    "st. joseph church"
+   ],
+   "bio": "A brownstone parish church in Gotham Heights with broad steps to its doors and a bell that rings the hours for the whole hill. Weddings fill it on Saturdays, the soup line on Wednesdays, and the back pew at midnight has its regulars."
+  },
+  {
+   "name": "Sacred Heart Convalescent Home",
+   "x": 50.58,
+   "y": 100.18,
+   "area": "Diamond District",
+   "kind": "spot",
+   "icon": "hospital",
+   "match": [
+    "sacred heart convalescent home"
+   ],
+   "bio": "A Catholic nursing home in an old convent among the bank towers: nursing sisters, a walled garden for the residents, and a waiting list that runs to years. Visitors sign in at a desk older than the patients. The sisters hear more confessions than the chaplain does."
+  },
+  {
+   "name": "Gotham Children's Museum",
+   "x": 60.3,
+   "y": 61.4,
+   "area": "Upper East Side",
+   "kind": "spot",
+   "icon": "museum",
+   "match": [
+    "gotham children's museum"
+   ],
+   "bio": "The museum children drag their parents to: a climbing frame shaped like the city skyline, a bubble room, a grocery store in miniature and a two-storey dinosaur you can walk inside. School buses fill its loading bay every weekday morning. Friday evenings are for grown-ups with a drink in hand."
+  },
+  {
+   "name": "Burnside Museum",
+   "x": 106.1,
+   "y": 63.4,
+   "area": "Burnside",
+   "kind": "landmark",
+   "icon": "museum",
+   "match": [
+    "burnside museum"
+   ],
+   "bio": "Burnside's own museum in one of the old mill buildings: the borough's weaving and sugar history downstairs, the college's art students' shows upstairs, and a Friday late opening that doubles as Burnside's favourite first date. The café is better than the permanent collection, and everybody knows it."
+  },
+  {
+   "name": "The Stadium",
+   "x": 135.38,
+   "y": -3.82,
+   "area": "Blüdhaven",
+   "kind": "landmark",
+   "icon": "stadium",
+   "match": [
+    "the stadium"
+   ],
+   "bio": "Blüdhaven's ballpark and football ground by the water: home of the Brawlers in the autumn and the Bloodhounds in the summer, both of whom lose with conviction. The concrete bowl is stained by the sea air, and the parking-lot tailgates outlast most of the games."
+  },
+  {
+   "name": "Byke Beach",
+   "x": 111.48,
+   "y": -8.0,
+   "area": "Blüdhaven",
+   "kind": "landmark",
+   "icon": "beach",
+   "match": [
+    "byke beach"
+   ],
+   "bio": "Blüdhaven's beach, a strip of coarse sand below the seawall where the bay opens to the Atlantic: lifeguard chairs, a shuttered snack stand, and tankers waiting their turn for the harbour on the horizon. On summer evenings it is the one place in town where nobody is working an angle."
+  },
+  {
+   "name": "RABE Memorial Hospital",
+   "x": 120.5,
+   "y": -6.4,
+   "area": "Blüdhaven",
+   "kind": "landmark",
+   "icon": "hospital",
+   "match": [
+    "rabe memorial hospital"
+   ],
+   "bio": "Blüdhaven's main hospital, a tired brick block downtown whose emergency room sees the city's knife and gunshot cases first. The night shift knows the detectives by first name. Some of the surgeons have stitched up a vigilante or two and wrote nothing down."
+  },
+  {
+   "name": "Blüdhaven Natural History Museum",
+   "x": 130.3,
+   "y": -12.1,
+   "area": "Blüdhaven",
+   "kind": "landmark",
+   "icon": "museum",
+   "match": [
+    "blüdhaven natural history museum"
+   ],
+   "bio": "The whaling city's museum on the hill: a right whale's skeleton hung the length of the great hall, scrimshaw and harpoons from the first fortune, and dioramas of the marshes the city was built on. School trips by day, wedding receptions under the whale by night."
+  },
+  {
+   "name": "Thrawn Park",
+   "x": 128.8,
+   "y": -0.5,
+   "area": "Blüdhaven",
+   "kind": "landmark",
+   "icon": "garden",
+   "match": [
+    "thrawn park"
+   ],
+   "bio": "Blüdhaven's biggest park, out where the Red Line's elevated trains turn round at Thrawn Terminal: ballfields, a pond, the old band shell and long paths under the trees. Joggers and Little League by day; after sunset the paths empty fast, and the trains rattle over an empty park."
+  },
+  {
+   "name": "Melville Park",
+   "x": 118.7,
+   "y": 1.0,
+   "area": "Blüdhaven",
+   "kind": "spot",
+   "icon": "garden",
+   "match": [
+    "melville park"
+   ],
+   "bio": "A small green square in the Melville Section near the docks: plane trees, a whalers' memorial gone green, and benches where the longshoremen eat lunch facing the cranes. After dark it is dealers and pigeons."
   }
  ],
  "regions": [
@@ -8376,17 +8813,17 @@
   "Cherry Hills": "Century-old brownstones on the island's high north-west corner where the Kane Bridge comes in — a mixed, working neighbourhood of stoops, corner churches and basement jazz, being bought up one renovated house at a time while the Sixty-Eight Kings sell from the courts down the hill. Quieter at night than its reputation: the observatory dome lit on the heights, the trouble kept below.",
   "Otisburg": "Glass towers and construction cranes on the north shore, the city's newest money: S.T.A.R. Labs behind its fences, the Wayne Foundation's children's centre, and the Knightsdome, which fills for Knights baseball in summer and Rogues football in autumn. Lanyards and food trucks by day, a roar on game nights, and after midnight the towers stand empty and lit like display cases.",
   "Amusement Mile": "Gotham's faded seaside on the north shore — boardwalk, grey beach, big wheel, wooden coaster and the ferry pier to Blüdhaven — busy for three hot months and rusting for nine. Families and fishermen by day; after dark the arcades shutter, the funhouse goes quiet in the wrong way, and the Mile belongs to whoever's been squatting in the rides.",
-  "New Town": "Mid-century office blocks and newer glass along Kane Avenue, built to be the modern Gotham and now its middle-aged one: the GBC tower, the interstate bus terminal, the power station's stacks on the shore. Busy and anonymous by day; at night it's the terminal's fluorescent glow, the late buses, and the people waiting to meet them.",
+  "New Town": "Mid-century office blocks and newer glass along Kane Avenue, built to be the modern Gotham and now its middle-aged one: the GBC tower, the interstate bus terminal, the power station's stacks down the shore in Robinsville. Busy and anonymous by day; at night it's the terminal's fluorescent glow, the late buses, and the people waiting to meet them.",
   "Burnley": "Brick walk-ups and public housing between Otisburg and the Arkham Channel, a working district where the Burnley Town Massive have run the corners for a generation and the Kane Line comes up into Burnley Square. Grandmothers, schoolkids and corner boys share the same blocks by day; after dark the corners decide who walks where.",
   "Crime Alley": "Park Row, once the city's theatre row and now its worst street: boarded-up movie palaces, pawnshops, a night court, Leslie Thompkins's clinic and the alley the whole city knows by its nickname. Nobody walks it at night who has a choice.",
   "The Bowery": "Gotham's last stop since the 1800s: flophouses, missions, saloons and the busiest firehouse in the city, south of Park Row along the Sprang. Breakfast lines and church bells by day; at night the doorways fill up and the fires start.",
   "Robinsville": "A long, low spit on the Atlantic side — clapboard and brick, a Coast Line halt, the Burnside Bridge ramps and the Cape Carmine light at its tip — home to fishermen, rail workers and old families who've never crossed the bridge. At night the money arrives by limousine for the Iceberg Lounge at the spit's end, and the locals keep their curtains drawn.",
   "Arkham Island": "A walled island of lawns, Victorian brick and razor wire where the Arkham Channel meets the Sprang, given over entirely to the asylum, its staff and its dead. Visitors come by daylight over the guarded bridge; at night the searchlights sweep the water and the island hums like it's thinking.",
   "Coventry": "Middle-class Coventry, south of the Sprang: rowhouses, small shops and a market hall, Gotham Academy's gothic stone on the riverbank and the Coventry docks to the west, with Arkham always in view across the water. Commuters and schoolkids in blazers by day; after dark the Granton blocks are where the district keeps its bad memories.",
-  "University District": "Gotham University's quads, Gotham General's ambulance bays and the bars, bookshops and cheap sublets in between, full of students, residents and professors who never left. It never fully sleeps — the ER sees to that — and at 3 a.m. the crowd is the same three tribes, much more tired.",
+  "University District": "Gotham University's quads, the brownstones of Gotham Heights on its hill, Gotham General's ambulance bays and the bars, bookshops and cheap sublets in between, full of students, residents and professors who never left. It never fully sleeps — the ER sees to that — and at 3 a.m. the crowd is the same three tribes, much more tired.",
   "Upper East Side": "Museum Mile, Fifth Avenue, doormen and townhouses: the island's old money, its galleries, the Sionis family's cosmetics house and a private hospital, on streets where the loudest thing at night is a car alarm. The quiet is expensive, and the burglars here tend to have been at the same party.",
-  "Upper West Side": "The bookish side of the island: prewar apartment blocks along West End Avenue, Gotham Heights' old mansions, the city's oldest congregation and a riverside esplanade facing the mainland. Strollers and string quartets by day; at night the esplanade empties and the side streets get dark fast.",
-  "Diamond District": "Downtown Gotham's skyline — Wayne Tower, the Stock Exchange, the theatres, the grand hotels and GCPD Central with the Signal on its roof — where money is made and spent all day. After the last curtain the pavements thin out fast; the towers are lit from inside and the alleys behind them aren't lit at all.",
+  "Upper West Side": "The bookish side of the island: prewar apartment blocks along West End Avenue, old mansions along the river, the city's oldest congregation and a riverside esplanade facing the mainland. Strollers and string quartets by day; at night the esplanade empties and the side streets get dark fast.",
+  "Diamond District": "Downtown Gotham's skyline — Wayne Tower, the Stock Exchange, the theatres and the grand hotels, with the Signal over them from GCPD Central next door — where money is made and spent all day. After the last curtain the pavements thin out fast; the towers are lit from inside and the alleys behind them aren't lit at all.",
   "Fashion District": "Showrooms, Lacey's, the Gazette's presses, the public library and the zoo, crammed around Fashion Avenue, with models, garment workers, reporters and tourists on the same crowded pavements. The shop windows stay lit long after the last buyer has gone home, which is when Gotham's better thieves do their window shopping.",
   "City Hall District": "The civic heart of the island — City Hall's dome, the courts, Mercy General and the old newspaper row — with the East End's docks, freight yards and tenements crowding its eastern edge. Lawyers, clerks and protesters by day; at night the marble empties and the East End fills up.",
   "Chinatown": "Dense and old, from under the Chinatown Expressway down to the marina: grocers and bakeries, family associations, a temple in an old movie house and walk-ups with fire escapes stacked like ladders. Busy until late and busy again by five; in between, the side streets go quiet and the expressway hums overhead.",

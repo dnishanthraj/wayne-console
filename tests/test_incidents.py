@@ -56,7 +56,8 @@ def test_the_locked_up_are_somewhere_and_the_loose_are_nowhere():
 
 
 def test_the_worst_of_it_comes_after_dark(clock):
-    night, day = _reports([23, 1, 2]), _reports([10, 12, 14])
+    # a month of nights and days: six days' daytime is forty-odd calls, few enough for chance to outweigh the hour
+    night, day = _reports([23, 1, 2], days=30), _reports([10, 12, 14], days=30)
     assert len(night) > len(day)
 
     def share(rs):
