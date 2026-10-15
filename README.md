@@ -5,7 +5,7 @@
 **Gotham, running on your Mac.**
 Call Alfred. Text Dick. Get left on read by Jason. Watch the city move on a live holographic map, and work the cases off the police scanner.
 
-![version](https://img.shields.io/badge/version-1.8.1-4fa8e0?style=flat-square)
+![version](https://img.shields.io/badge/version-1.8.2-4fa8e0?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-0b1520?style=flat-square&logo=apple)
 ![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-0b1520?style=flat-square&logo=python&logoColor=white)
 ![model](https://img.shields.io/badge/LLM-local%20via%20Ollama-0b1520?style=flat-square)

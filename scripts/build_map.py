@@ -977,9 +977,14 @@ def arkham_island(x, y):
     lawn = rim.buffer(-0.12).difference(unary_union([forecourt.buffer(0.1), court.buffer(0.1), pen.buffer(0.32), built]))
     ground += [(g, "campus") for g in polys_of(lawn) if g.area > 0.08]
     ground.append((LineString([(42.3, 47.4), (38.95, 47.4)]), "path"))
-    ground.append((LineString([(39.2, 46.15), (37.0, 45.1), (35.7, 44.75)]), "path"))
     ground.append((LineString([(39.2, 48.7), (37.6, 49.25), (35.4, 49.35)]), "path"))
-    ground.append((LineString([(33.4, 46.3), (31.8, 44.4), (31.15, 44.0)]), "path"))
+    # the drives the vans take (roads, on the network): from the end of Arkham Drive past the gate tower to the
+    # Penitentiary's Visitor Center, on through the West's courtyard to the docks, and across it to the Medical Facility
+    # (each eased round its bends; they meet end to end, at the Visitor Center and in the courtyard)
+    for drive in ([(39.2, 47.42), (39.38, 47.05), (39.38, 45.6), (37.6, 45.3), (35.95, 45.12)],
+                  [(35.95, 45.12), (35.3, 45.85), (33.6, 46.25)],
+                  [(33.6, 46.25), (32.0, 44.75), (31.3, 44.3)], [(33.6, 46.25), (31.6, 46.05), (30.3, 46.5)]):
+        ground.append((LineString(chaikin(drive, 2, closed=False)), "drive"))
     return {"tiers": tiers, "ground": ground}
 
 
@@ -4401,6 +4406,15 @@ def build():
              if not roofs.query(Point(t_[0] / 100, t_[1] / 100).buffer(t_[3] / 100 + 0.02), predicate="intersects").size]
     print(f"{len(trees) - len(clear)} trees cleared off roofs")
     trees = clear
+    # A complex's own drives (Arkham's: from the end of its drive to the Penitentiary, the docks and the Medical
+    # Facility), roads on the map and on the network. Added last, so nothing drawn before them moves (every street,
+    # block and tree is placed by dice thrown in turn); only the trees standing on them come out.
+    inner_drives = [p for g, layer in grounds if layer == "drive" for p in lines_of(g)]
+    for line in inner_drives:
+        add(line, "road", c="drive")
+    if inner_drives:
+        drive_room = shapely.prepared.prep(unary_union([ln.buffer(0.06) for ln in inner_drives]))
+        trees = [t_ for t_ in trees if not drive_room.intersects(Point(t_[0] / 100, t_[1] / 100).buffer(t_[3] / 100))]
 
     # Water that catches the light.
     import numpy as np
@@ -4443,7 +4457,8 @@ def build():
     # The network for getting about: every road but the railways, the bridges, the ferries.
     graph = road_graph([(ln, c) for ln, c, _ in named if c != "rail"] + [(s_, "secondary") for s_ in secondary]
                        + [(s_, c) for s_, c in streets] + [(s_, "lane") for s_ in lanes]
-                       + [(ln, "bridge") for ln, _ in bridges],             # (the joins are streets now: in `streets`)
+                       + [(ln, "bridge") for ln, _ in bridges]             # (the joins are streets now: in `streets`)
+                       + [(ln, "drive") for ln in inner_drives],
                        [(f["name"], f.get("stops") or [f["line"][0], f["line"][-1]]) for f in src.get("ferries", [])],
                        src["places"], land)
     ROADS.write_text(json.dumps(graph, ensure_ascii=False, separators=(",", ":")))

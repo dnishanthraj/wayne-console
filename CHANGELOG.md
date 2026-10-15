@@ -7,6 +7,16 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-15
+
+### Fixed
+
+- **Arkham's Penitentiary, docks and Medical Facility are on the roads now**: drives inside the asylum's walls, eased
+  round their bends, from the end of Arkham Drive past the gate tower to the Penitentiary's Visitor Center, on through
+  the West courtyard to the docks, and across it to the Medical Facility. Getting there is a drive, not a guess. The
+  rest of the map is untouched: the drives are laid last, so no street, block or tree moves (bar the five that stood
+  where the drives now run).
+
 ## [1.8.1] - 2026-10-15
 
 ### Fixed
