@@ -506,7 +506,7 @@
 "y": 26.71
 },
 {
-"name": "New Town High",
+"name": "Burnley High",
 "kind": "school",
 "area": "Burnley",
 "x": 58.44,
@@ -520,35 +520,35 @@
 "y": 96.8
 },
 {
-"name": "Narrows Community School",
+"name": "Tricorner Community School",
 "kind": "school",
 "area": "Tricorner",
 "x": 22.56,
 "y": 122.62
 },
 {
-"name": "Chinatown Elementary",
+"name": "Narrows Elementary",
 "kind": "school",
 "area": "The Narrows",
 "x": 19.38,
 "y": 39.51
 },
 {
-"name": "Burnley Middle School",
+"name": "Burnside Middle School",
 "kind": "school",
 "area": "Burnside",
 "x": 103.11,
 "y": 78.56
 },
 {
-"name": "Tricorner High",
+"name": "New Town High",
 "kind": "school",
 "area": "New Town",
 "x": 70.81,
 "y": 36.37
 },
 {
-"name": "Burnside Academy of the Arts",
+"name": "Park Row Academy of the Arts",
 "kind": "school",
 "area": "Crime Alley",
 "x": 69.56,
@@ -1066,7 +1066,7 @@
 "y": 94.11
 },
 {
-"name": "Chinatown Library",
+"name": "Burnley Library",
 "kind": "library",
 "area": "Burnley",
 "x": 49.24,
@@ -1080,7 +1080,7 @@
 "y": 58.44
 },
 {
-"name": "Tricorner Library",
+"name": "Chinatown Library",
 "kind": "library",
 "area": "Chinatown",
 "x": 24.82,
@@ -1094,7 +1094,7 @@
 "y": 50.84
 },
 {
-"name": "Burnley Branch Library",
+"name": "Tricorner Branch Library",
 "kind": "library",
 "area": "Tricorner",
 "x": 34.11,
@@ -1255,7 +1255,7 @@
 "y": 58.06
 },
 {
-"name": "Ironworks Truck Stop",
+"name": "New Town Gas & Go",
 "kind": "fuel",
 "area": "New Town",
 "x": 57.92,
@@ -1269,7 +1269,7 @@
 "y": 32.93
 },
 {
-"name": "Bristol Service Station",
+"name": "Burnside Service Station",
 "kind": "fuel",
 "area": "Burnside",
 "x": 100.43,
@@ -1311,7 +1311,7 @@
 "y": 73.55
 },
 {
-"name": "Burnside Savings Bank",
+"name": "New Town Savings Bank",
 "kind": "bank",
 "area": "New Town",
 "x": 61.89,
@@ -1395,21 +1395,21 @@
 "y": 95.91
 },
 {
-"name": "Burnside Post Office",
+"name": "Burnley Post Office",
 "kind": "post",
 "area": "Burnley",
 "x": 54.25,
 "y": 36.59
 },
 {
-"name": "Burnley Post Office",
+"name": "Old Gotham Post Office",
 "kind": "post",
 "area": "Old Gotham",
 "x": 57.23,
 "y": 105.07
 },
 {
-"name": "Old Gotham Station Post Office",
+"name": "Burnside Post Office",
 "kind": "post",
 "area": "Burnside",
 "x": 103.55,

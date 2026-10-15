@@ -3845,7 +3845,7 @@ def build():
             q = next(put, None)
             if q is not None:
                 building(q.buffer(0.026, 2), h + 2, "~dish", base=h + 1)        # (heights are whole: above the roof's cap)
-        if name in ("Upper East Side", "Upper West Side", "Burnside", "Diamond District", "University District") and area > 0.1 and rr.random() < 0.1:
+        if name in ("Upper East Side", "Upper West Side", "Burnside", "Diamond District", "University District") and area > 0.1 and rr.random() < 0.05:
             green = roof.buffer(-0.05)
             if not green.is_empty and green.area > 0.03:
                 building(green, h + 2, "~garden", base=h + 1)
@@ -3961,8 +3961,8 @@ def build():
                  {"Old Gotham": 1, "New Town": 1, "Upper West Side": 1, "Robinsville": 1, "Burnside": 1, "Burnley": 1,
                   "Crime Alley": 1, "Chinatown": 1, "Coventry": 1, "Tricorner": 1, "Cherry Hills": 1}),
         "school": (["Gotham Heights High", "Robinson High", "PS 117", "St. Mary's School", "Cherry Hills Prep", "PS 41",
-                    "Burnley Middle School", "Chinatown Elementary", "Tricorner High", "Narrows Community School",
-                    "Burnside Academy of the Arts", "New Town High"],
+                    "Burnside Middle School", "Narrows Elementary", "New Town High", "Tricorner Community School",
+                    "Park Row Academy of the Arts", "Burnley High"],
                    {"Upper West Side": 1, "Coventry": 1, "Cherry Hills": 1, "Kane Heights": 1, "Bristol": 1, "Burnley": 1,
                     "Chinatown": 1, "Tricorner": 1, "The Narrows": 1, "Burnside": 1, "New Town": 1, "Crime Alley": 1}),
         # And how people live between the work and the night: coffee, the gym,
@@ -4001,8 +4001,8 @@ def build():
                     "GCPD 17th Precinct", "GCPD 21st Precinct", "GCPD 24th Precinct"],
                    {"Burnley": 1, "Crime Alley": 1, "Chinatown": 1, "Coventry": 1, "Upper West Side": 1, "New Town": 1,
                     "Burnside": 1, "City Hall District": 1}),
-        "library": (["Burnley Branch Library", "Coventry Library", "Chinatown Library", "Burnside Public Library",
-                     "Tricorner Library"], {"Burnley": 1, "Coventry": 1, "Chinatown": 1, "Burnside": 1, "Tricorner": 1}),
+        "library": (["Tricorner Branch Library", "Coventry Library", "Burnley Library", "Burnside Public Library",
+                     "Chinatown Library"], {"Burnley": 1, "Coventry": 1, "Chinatown": 1, "Burnside": 1, "Tricorner": 1}),
         "market": (["Corrigan's Market", "Hollis Foods", "Greenway Grocers", "Delancey Foods", "City Fresh",
                     "Bodner's Supermarket", "Harbor Foods", "Kovac Bros. Grocery", "Good Neighbor Market", "Valu-Mart"],
                    {"Burnley": 1, "Coventry": 1, "The Bowery": 1, "Tricorner": 1, "Upper West Side": 1, "New Town": 1,
@@ -4011,18 +4011,18 @@ def build():
                       "Lindqvist Drugs", "Corner Rx", "Apothecary 1902"],
                      {"Crime Alley": 1, "Burnley": 1, "Chinatown": 1, "Upper West Side": 1, "Fashion District": 1,
                       "University District": 1, "Burnside": 1, "Coventry": 1}),
-        "fuel": (["Pyramid Gas", "Kane Fuel", "Harbor Gas & Go", "24/7 Fuel Stop", "Comet Gas", "Bristol Service Station",
-                  "Ironworks Truck Stop"],
+        "fuel": (["Pyramid Gas", "Kane Fuel", "Harbor Gas & Go", "24/7 Fuel Stop", "Comet Gas", "Burnside Service Station",
+                  "New Town Gas & Go"],
                  {"Ironworks": 2, "Kane Heights": 1, "Robinsville": 1, "New Town": 1, "Bristol": 1, "Burnside": 1}),
         "bank": (["First Gotham Savings", "Cobblepot Trust", "Gotham Federal Credit Union", "Mercantile Bank of Gotham",
-                  "Burnside Savings Bank", "Union Trust"],
+                  "New Town Savings Bank", "Union Trust"],
                  {"Diamond District": 2, "Upper East Side": 1, "Fashion District": 1, "Burnside": 1, "New Town": 1}),
         "laundromat": (["Suds City", "Spin Cycle", "Clean Getaway", "Wash & Fold 24", "Bubbles Laundromat"],
                        {"The Narrows": 1, "The Bowery": 1, "Burnley": 1, "Chinatown": 1, "Robinsville": 1}),
         "mall": (["Gotham Center Mall", "Otisburg Galleria", "Harbor Point Mall"],
                  {"New Town": 1, "Otisburg": 1, "Central Business District": 1}),
         "theatre": (["The Lyceum", "The Palace Theatre", "The Orpheum"], {"Diamond District": 2, "Fashion District": 1}),
-        "post": (["Burnley Post Office", "Old Gotham Station Post Office", "Burnside Post Office"],
+        "post": (["Old Gotham Post Office", "Burnside Post Office", "Burnley Post Office"],
                  {"Burnley": 1, "Old Gotham": 1, "Burnside": 1}),
     }
     by_district = {}

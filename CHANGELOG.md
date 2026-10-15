@@ -7,6 +7,15 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-15
+
+### Fixed
+
+- **Fifteen venues named for the wrong district** now fit where they stand, each on its own spot with a line to match:
+  Burnley High, the Park Row Academy of the Arts in Crime Alley, Chinatown's library, Burnside's post office and
+  service station, New Town's high school, gas station and savings bank, and the rest.
+- Roof gardens half as common, so a district's roofs read as roofs, not a patchwork.
+
 ## [1.8.0] - 2026-10-15
 
 ### Added
