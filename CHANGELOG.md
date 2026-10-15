@@ -7,6 +7,23 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-15
+
+### Added
+
+- **Rooftops worth crossing.** Stair and lift housings on the flat roofs, plant on the offices, water towers on the
+  walk-ups (more in the Narrows, Tricorner and the Bowery), dishes on the flats, roof gardens on the Upper East and West
+  Sides, Burnside and the Diamond District, a few pools up on the money districts' towers, masts with red lights on
+  the tallest, lit signs over the nightlife districts' low roofs, pagoda caps in Chinatown, shacks in the Narrows and
+  chimneys in Burnside.
+- **Helipads on the towers**, each as big as its roof's top will hold, with its H and its ring (before, none fitted).
+
+### Changed
+
+- **Building sites as building sites**, and fewer: at most a dozen, spread out (no more four cranes over Coventry),
+  each behind its hoarding with its cabins and what's going up (a concrete core, sometimes the frame of the floors),
+  and a tower crane only where there's room to swing it. Half a dozen towers going up downtown instead of twelve.
+
 ## [1.7.0] - 2026-10-15
 
 ### Changed

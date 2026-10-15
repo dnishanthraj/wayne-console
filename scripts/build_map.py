@@ -3510,11 +3510,13 @@ def build():
                     # Some windows lit, some dark: the city at night — and each
                     # quarter's own stuff: stone, glass, steel.
                     h = round(max(4, min(260, h)))
-                    if name in GROWING and piece.area > 0.22 and len(building_sites) < 26 and r.random() < 0.035:
+                    # (a few, spread out: a city has a site or two in a district, not a crane on every block)
+                    if (name in GROWING and piece.area > 0.22 and len(building_sites) < 12 and r.random() < 0.03
+                            and all(piece.centroid.distance(o.centroid) > 3.0 for o in building_sites)):
                         building_sites.append(piece)          # cleared for something new: a site, not a building
                         continue
-                    if (name in TOWERS_RISING and h >= 60 and len(rising) < 12 and r.random() < 0.06
-                            and piece.area > 0.12):
+                    if (name in TOWERS_RISING and h >= 60 and len(rising) < 6 and r.random() < 0.06
+                            and piece.area > 0.12 and all(piece.centroid.distance(o[0].centroid) > 4.0 for o in rising)):
                         # A tower half built: the frame up so far, a crane on its roof lifting the next floor.
                         frame = round(h * r.uniform(0.45, 0.75))
                         building(piece.simplify(0.04), frame, "~frame")
@@ -3680,17 +3682,110 @@ def build():
     wooded = 0 if wood is None else round(wood.area)
     print(f"countryside: {farms} fields, {farmsteads} farmsteads, {wooded} sq units of woods")
 
-    # On the roofs: water towers on the mid-rises, helipads on the tallest.
+    # On the roofs, as on any city's, so a rooftop chase has something to vault: a helipad on the very tallest (its H
+    # and its ring, as a pilot sees it), masts with their red lights on the next, stair and lift housings on the flat
+    # roofs, plant on the offices, water towers on the walk-ups, dishes on the flats, gardens and the odd pool up on
+    # the money districts' towers, lit signs over the nightlife districts' low roofs; and each quarter's own: red caps
+    # on Chinatown's, shacks and more tanks in the Narrows, chimneys in Burnside.
     rr = random.Random(1300)
-    for _d, c, h, area in lots:
-        if 14 <= h <= 70 and area > 0.08 and rr.random() < 0.07:
-            tank = disc(c.x + rr.uniform(-0.05, 0.05), c.y + rr.uniform(-0.05, 0.05), 0.055)
-            if roofs[id(c)].buffer(-0.01).contains(tank):         # on the roof, not over its edge
-                building(tank, h + 7, "~tank", base=h)
-    for _d, c, h, area in sorted(lots, key=lambda lot: -lot[2])[:36]:
-        pad = disc(c.x, c.y, 0.17)
-        if area > 0.12 and roofs[id(c)].buffer(-0.01).contains(pad):
-            building(pad, h + 0.8, "~pad", base=h)
+    tall_first = sorted(lots, key=lambda lot: -lot[2])
+    landed = set()
+    for _d, c, h, _area in tall_first[:36]:
+        # as big a pad as the roof's top will hold, where it's widest
+        roof = roofs[id(c)]
+        mid = shapely.ops.polylabel(roof, 0.005)
+        r_ = min(0.17, roof.exterior.distance(mid) - 0.015)
+        if r_ < 0.09:
+            continue
+        building(disc(mid.x, mid.y, r_), h + 1, "~pad", base=h)
+        k_ = r_ / 0.17                                     # the H and the ring, to the pad's size
+        for mark in (rect(mid.x - 0.045 * k_, mid.y, 0.024 * k_, 0.13 * k_), rect(mid.x + 0.045 * k_, mid.y, 0.024 * k_, 0.13 * k_),
+                     rect(mid.x, mid.y, 0.07 * k_, 0.024 * k_), disc(mid.x, mid.y, 0.15 * k_).difference(disc(mid.x, mid.y, 0.128 * k_))):
+            building(mark, h + 2, "~mark", base=h + 1)
+        landed.add(id(c))
+    masts = 0
+    for _d, c, h, _area in tall_first[:80]:
+        q = roofs[id(c)].buffer(-0.04).representative_point() if not roofs[id(c)].buffer(-0.04).is_empty else None
+        if masts >= 10 or h < 80 or id(c) in landed or q is None:
+            continue
+        tall = rr.randint(18, 34)
+        building(q.buffer(0.012, 2), h + tall, "~frame", base=h)
+        building(q.buffer(0.022, 2), h + tall + 1.5, "~beacon", base=h + tall)
+        landed.add(id(c))
+        masts += 1
+
+    def spots_on(roof, n):
+        """Up to `n` places well inside a roof for what stands on it, apart from each other."""
+        inner = roof.buffer(-0.05)
+        if inner.is_empty:
+            return []
+        c_ = inner.representative_point()
+        corners_ = list(roof.minimum_rotated_rectangle.exterior.coords)[:4]
+        out_ = [c_]
+        for cx_, cy_ in sorted(corners_, key=lambda _q: rr.random()):
+            q_ = Point(c_.x + (cx_ - c_.x) * 0.45, c_.y + (cy_ - c_.y) * 0.45)
+            if inner.contains(q_) and all(q_.distance(o) > 0.12 for o in out_):
+                out_.append(q_)
+        return out_[:n]
+    neon = {"Amusement Mile", "Fashion District", "Chinatown", "Burnside", "Crime Alley", "The Bowery"}
+    pools = 0
+    for name, c, h, area in lots:
+        roof = roofs[id(c)]
+        if id(c) in landed or h < 8:
+            continue
+        here = spots_on(roof, 3)
+        if not here:
+            continue
+        put = iter(here)
+        walkup = name in OLD_QUARTERS and h <= 40
+        if (14 <= h <= 70 and area > 0.08 and rr.random() < (0.22 if name in ("The Narrows", "Tricorner", "The Bowery", "Crime Alley") else 0.07)):
+            q = next(put, None)
+            if q is not None and roof.buffer(-0.01).contains(q.buffer(0.055)):
+                building(q.buffer(0.055, 3), h + 7, "~tank", base=h)
+        if h >= 12 and rr.random() < 0.3:
+            q = next(put, None)
+            if q is not None:
+                w_, d_ = rr.uniform(0.1, 0.16), rr.uniform(0.08, 0.12)
+                building(affinity.rotate(rect(q.x, q.y, w_, d_), rr.choice((0, 90)), origin=q), h + rr.uniform(2.5, 4.5), "~concrete", base=h)
+        if h >= 20 and name in GLASS and rr.random() < 0.25:
+            q = next(put, None)
+            if q is not None:
+                for k in range(rr.randint(2, 4)):
+                    building(square(q.x + (k % 2) * 0.06, q.y + (k // 2) * 0.06, 0.04), h + 2, "~plant", base=h)
+        if walkup and rr.random() < 0.14:
+            q = next(put, None)
+            if q is not None:
+                building(q.buffer(0.026, 2), h + 2, "~dish", base=h + 1)        # (heights are whole: above the roof's cap)
+        if name in ("Upper East Side", "Upper West Side", "Burnside", "Diamond District", "University District") and area > 0.1 and rr.random() < 0.1:
+            green = roof.buffer(-0.05)
+            if not green.is_empty and green.area > 0.03:
+                building(green, h + 2, "~garden", base=h + 1)
+                continue                                    # a garden's roof has nothing else on it
+        if name in ("Diamond District", "Upper East Side", "Fashion District") and h >= 50 and pools < 10 and rr.random() < 0.1:
+            q = next(put, None)
+            if q is not None and roof.buffer(-0.02).contains(rect(q.x, q.y, 0.15, 0.07)):
+                building(rect(q.x, q.y, 0.15, 0.07), h + 2, "~pool", base=h + 1)
+                pools += 1
+        if name in neon and h <= 30 and rr.random() < 0.12:
+            q = next(put, None)
+            if q is not None:
+                building(affinity.rotate(rect(q.x, q.y, 0.2, 0.025), rr.choice((0, 90)), origin=q), h + 4, "~sign", base=h + 1)
+        if name == "Chinatown" and h <= 30 and rr.random() < 0.12:
+            # a pagoda's roof in two tiers, the upper narrower
+            cap, crown = roof.buffer(-0.05), roof.buffer(-0.13)
+            if not cap.is_empty and cap.area > 0.03:
+                building(cap.simplify(0.02), h + 1, "~stall-red", base=h)
+                if not crown.is_empty and crown.area > 0.01:
+                    building(crown.simplify(0.02), h + 3, "~stall-red", base=h + 1)
+        elif name == "The Narrows" and h <= 25 and rr.random() < 0.2:
+            q = next(put, None)
+            if q is not None:
+                building(rect(q.x, q.y, 0.09, 0.07), h + 2.2, "~works", base=h)
+        elif name == "Burnside" and h <= 30 and rr.random() < 0.3:
+            q = next(put, None)
+            if q is not None:
+                for dx_ in (-0.05, 0.05):
+                    building(square(q.x + dx_, q.y, 0.035), h + 3.5, "~stack", base=h)
     # Building sites with their cranes, where the city is still growing: each on
     # its own cleared lot, its jib swung where it passes over nothing at all.
     footprints_now = shapely.STRtree(built)
@@ -3712,8 +3807,29 @@ def build():
         building(square(c.x, c.y, 0.05), top, "~crane", base=frame)
         building(jib, top - 2, "~crane", base=top - 5)
     for site in building_sites:
+        # A real site: the hoarding round it, the cabins inside the gate, what's going up (its core first, the
+        # frame of the floors on some), and its one tower crane where there's room to swing the jib.
         add(site, "site")
+        building(site.exterior.buffer(0.012, quad_segs=1).intersection(site.buffer(0.012)), 2.4, "~wall")
         c = site.representative_point()
+        inner = site.buffer(-0.1)
+        if not inner.is_empty:
+            edge = list(inner.minimum_rotated_rectangle.exterior.coords)
+            for k in range(rr.randint(2, 3)):
+                q = Point(edge[0][0] + (edge[1][0] - edge[0][0]) * (0.2 + 0.25 * k), edge[0][1] + (edge[1][1] - edge[0][1]) * (0.2 + 0.25 * k))
+                cabin = affinity.rotate(rect(q.x, q.y, 0.1, 0.04), math.degrees(math.atan2(edge[1][1] - edge[0][1], edge[1][0] - edge[0][0])), origin=q)
+                if inner.contains(cabin):
+                    building(cabin, 3 + 3 * (k % 2), "~container")
+            if site.area > 0.3:
+                core = square(c.x, c.y, 0.16)
+                if inner.contains(core):
+                    building(core, rr.randint(10, 28), "~concrete")
+                if rr.random() < 0.5:
+                    floors = inner.buffer(-0.06).simplify(0.03)
+                    if not floors.is_empty and floors.area > 0.05:
+                        building(floors, rr.randint(6, 16), "~frame")
+        if site.area < 0.3:
+            continue
         mast = rr.randint(55, 90)
         clear_jib = None
         for reach in (0.95, 0.7, 0.45):
@@ -3726,7 +3842,8 @@ def build():
                 break
         if clear_jib is None:
             continue
-        building(square(c.x, c.y, 0.06), mast, "~crane")
+        building(square(c.x + 0.25, c.y + 0.25, 0.06) if site.buffer(-0.05).contains(Point(c.x + 0.25, c.y + 0.25)) else square(c.x, c.y, 0.06),
+                 mast, "~crane")
         building(clear_jib, mast - 2, "~crane", base=mast - 5)
 
     # The life of the place: clubs and bars where the night is, diners

@@ -796,8 +796,8 @@
 "name": "The Grand Gotham Steakhouse",
 "kind": "restaurant",
 "area": "Upper East Side",
-"x": 54.52,
-"y": 75.84
+"x": 54.61,
+"y": 75.99
 },
 {
 "name": "Casa Verde",
@@ -1293,8 +1293,8 @@
 "name": "Gotham Federal Credit Union",
 "kind": "bank",
 "area": "Upper East Side",
-"x": 59.04,
-"y": 58.71
+"x": 59.0,
+"y": 58.98
 },
 {
 "name": "Mercantile Bank of Gotham",
