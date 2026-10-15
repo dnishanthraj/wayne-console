@@ -7,6 +7,13 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-15
+
+### Added
+
+- **GCPD Central's roof**: the Signal's lamp on its stand at the roof's edge, the department's helipad with its H, and
+  the plant housing, so the Signal has somewhere to shine from.
+
 ## [1.7.1] - 2026-10-15
 
 ### Added

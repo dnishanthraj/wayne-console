@@ -427,8 +427,6 @@ def landmark_shapes(name, x, y):
         return [(rect(x, y, 1.45, 0.42), 0, 30), (rect(x + 0.25, y, 0.42, 1.05), 0, 30),
                 (square(x - 0.62, y - 0.16, 0.22), 0, 66), (square(x - 0.62, y + 0.16, 0.22), 0, 66),
                 (square(x + 0.25, y, 0.13), 30, 80)]
-    if name == "GCPD Central":
-        return [(rect(x, y, 0.95, 0.72), 0, 58), (square(x + 0.2, y - 0.1, 0.3), 58, 67)]
     if name == "City Hall":
         return [(rect(x, y, 1.15, 0.72), 0, 22), (disc(x, y, 0.3), 22, 30), (disc(x, y, 0.26), 30, 35),
                 (disc(x, y, 0.19), 35, 39), (disc(x, y, 0.1), 39, 43), (disc(x, y, 0.03), 43, 50)]
@@ -780,6 +778,20 @@ def gcn_studios(x, y):
     return {"tiers": _tiers(at, [(rect(0, 0, 0.82, 0.56), 0, 26, "~glass"), (rect(0.12, 0.05, 0.4, 0.3), 26, 34, "~glass"),
                                  (disc(-0.27, -0.13, 0.06), 26, 28.5, "~works"), (disc(-0.1, -0.17, 0.05), 26, 28, "~works"),
                                  (disc(0.24, 0.1, 0.012), 34, 64, "~works")])}
+
+
+def gcpd_central(x, y):
+    """GCPD Central: the old headquarters block, its plant on the roof, the pad the department's helicopter sets down
+    on, and the Signal: the searchlight on its stand at the roof's edge, lit when Gotham needs him."""
+    tiers = [(rect(x, y, 0.95, 0.72), 0, 58, "~landmark"), (square(x + 0.2, y - 0.1, 0.3), 58, 67, "~concrete"),
+             (square(x - 0.28, y + 0.16, 0.06), 58, 61, "~frame"), (disc(x - 0.28, y + 0.16, 0.075), 61, 64, "~signal"),
+             (disc(x + 0.24, y + 0.2, 0.12), 58, 59, "~pad")]
+    k = 0.12 / 0.17
+    tiers += [(g, 59, 60, "~mark") for g in (rect(x + 0.24 - 0.045 * k, y + 0.2, 0.024 * k, 0.13 * k),
+                                              rect(x + 0.24 + 0.045 * k, y + 0.2, 0.024 * k, 0.13 * k),
+                                              rect(x + 0.24, y + 0.2, 0.07 * k, 0.024 * k),
+                                              disc(x + 0.24, y + 0.2, 0.15 * k).difference(disc(x + 0.24, y + 0.2, 0.128 * k)))]
+    return {"tiers": tiers}
 
 
 def gbs_tower(x, y):
@@ -1528,6 +1540,7 @@ COMPLEXES = {
     "Blackgate Penitentiary": blackgate,
     "GCN Studios": gcn_studios,
     "GBS Tower": gbs_tower,
+    "GCPD Central": gcpd_central,
     "Gotham Convention Center": convention_center,
     "Dixon Docks": dixon_docks,
     "Gotham County Fairground": county_fair,
