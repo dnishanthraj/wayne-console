@@ -12,8 +12,8 @@
 "name": "Midnight Mass",
 "kind": "club",
 "area": "Crime Alley",
-"x": 71.75,
-"y": 39.78
+"x": 71.96,
+"y": 39.84
 },
 {
 "name": "The Blue Mask",
@@ -26,8 +26,8 @@
 "name": "Velvet Hour",
 "kind": "club",
 "area": "The Bowery",
-"x": 64.03,
-"y": 56.75
+"x": 64.66,
+"y": 56.79
 },
 {
 "name": "The Rookery",
@@ -54,8 +54,8 @@
 "name": "The Gutter",
 "kind": "club",
 "area": "Amusement Mile",
-"x": 60.54,
-"y": 25.39
+"x": 60.91,
+"y": 25.15
 },
 {
 "name": "The Pit",
@@ -68,22 +68,22 @@
 "name": "Ace of Clubs",
 "kind": "club",
 "area": "Fashion District",
-"x": 57.7,
-"y": 87.86
+"x": 57.4,
+"y": 87.72
 },
 {
 "name": "Low Tide",
 "kind": "club",
 "area": "Fashion District",
-"x": 63.19,
-"y": 97.76
+"x": 63.51,
+"y": 97.82
 },
 {
 "name": "Grin",
 "kind": "club",
 "area": "Diamond District",
-"x": 38.87,
-"y": 87.06
+"x": 39.12,
+"y": 87.33
 },
 {
 "name": "The Stacked Deck",
@@ -96,15 +96,15 @@
 "name": "The Gilded Cage",
 "kind": "club",
 "area": "Old Gotham",
-"x": 48.53,
-"y": 111.65
+"x": 48.44,
+"y": 111.37
 },
 {
 "name": "The Aviary",
 "kind": "club",
 "area": "Old Gotham",
-"x": 48.55,
-"y": 113.87
+"x": 48.91,
+"y": 113.54
 },
 {
 "name": "Smoke & Mirrors",
@@ -117,8 +117,8 @@
 "name": "The Laughing Fish",
 "kind": "club",
 "area": "Burnside",
-"x": 112.87,
-"y": 70.95
+"x": 112.77,
+"y": 71.24
 },
 {
 "name": "Neon Saint",
@@ -131,15 +131,15 @@
 "name": "Club Noir",
 "kind": "club",
 "area": "Central Business District",
-"x": 117.28,
-"y": -7.33
+"x": 117.53,
+"y": -7.84
 },
 {
 "name": "Sixth Sin",
 "kind": "club",
 "area": "Central Business District",
-"x": 123.1,
-"y": -13.08
+"x": 123.39,
+"y": -13.12
 },
 {
 "name": "Saint Mike's",
@@ -166,22 +166,22 @@
 "name": "O'Malley's",
 "kind": "bar",
 "area": "The Bowery",
-"x": 73.01,
-"y": 56.32
+"x": 73.12,
+"y": 56.67
 },
 {
 "name": "The Drowned Man",
 "kind": "bar",
 "area": "Tricorner",
-"x": 36.42,
-"y": 117.93
+"x": 36.19,
+"y": 118.22
 },
 {
 "name": "Shamrock",
 "kind": "bar",
 "area": "Tricorner",
-"x": 35.53,
-"y": 115.54
+"x": 35.55,
+"y": 115.71
 },
 {
 "name": "The Iron Stool",
@@ -208,8 +208,8 @@
 "name": "The Crooked Mile",
 "kind": "bar",
 "area": "Burnley",
-"x": 55.09,
-"y": 39.58
+"x": 55.25,
+"y": 39.88
 },
 {
 "name": "The Hollow",
@@ -229,8 +229,8 @@
 "name": "The Wet Rat",
 "kind": "bar",
 "area": "Robinsville",
-"x": 83.83,
-"y": 62.0
+"x": 84.08,
+"y": 61.92
 },
 {
 "name": "The Rusty Anchor",
@@ -278,15 +278,15 @@
 "name": "The Blue Plate",
 "kind": "diner",
 "area": "Crime Alley",
-"x": 71.86,
-"y": 40.13
+"x": 71.37,
+"y": 39.96
 },
 {
 "name": "Ma Gunn's",
 "kind": "diner",
 "area": "Upper West Side",
-"x": 21.07,
-"y": 81.53
+"x": 21.4,
+"y": 81.31
 },
 {
 "name": "Rosie's",
@@ -299,15 +299,15 @@
 "name": "The Midnight Diner",
 "kind": "diner",
 "area": "Chinatown",
-"x": 30.37,
-"y": 109.46
+"x": 30.1,
+"y": 109.7
 },
 {
 "name": "Jackie's",
 "kind": "diner",
 "area": "Burnley",
-"x": 41.92,
-"y": 38.78
+"x": 42.36,
+"y": 38.83
 },
 {
 "name": "Lucky Seven",
@@ -334,22 +334,22 @@
 "name": "Sal's All-Night",
 "kind": "diner",
 "area": "Halyard Square",
-"x": 124.06,
-"y": -4.38
+"x": 124.11,
+"y": -4.61
 },
 {
 "name": "Nite Owl",
 "kind": "diner",
 "area": "Kane Heights",
-"x": 0.35,
-"y": 50.45
+"x": 0.42,
+"y": 50.13
 },
 {
 "name": "Dixon's",
 "kind": "diner",
 "area": "University District",
-"x": 25.2,
-"y": 76.48
+"x": 25.23,
+"y": 76.75
 },
 {
 "name": "St. Swithin's",
@@ -495,8 +495,8 @@
 "name": "St. Mary's School",
 "kind": "school",
 "area": "Kane Heights",
-"x": 2.24,
-"y": 65.57
+"x": 1.83,
+"y": 65.07
 },
 {
 "name": "PS 117",
@@ -509,15 +509,15 @@
 "name": "New Town High",
 "kind": "school",
 "area": "Burnley",
-"x": 58.75,
-"y": 44.39
+"x": 58.44,
+"y": 43.98
 },
 {
 "name": "PS 41",
 "kind": "school",
 "area": "Chinatown",
-"x": 33.56,
-"y": 97.04
+"x": 33.5,
+"y": 96.8
 },
 {
 "name": "Narrows Community School",
@@ -579,43 +579,43 @@
 "name": "The Daily Grind",
 "kind": "cafe",
 "area": "University District",
-"x": 26.76,
-"y": 78.4
+"x": 26.59,
+"y": 78.56
 },
 {
 "name": "Cup of Joe's",
 "kind": "cafe",
 "area": "University District",
-"x": 35.28,
-"y": 72.91
+"x": 34.97,
+"y": 72.73
 },
 {
 "name": "Common Grounds",
 "kind": "cafe",
 "area": "Old Gotham",
-"x": 52.02,
-"y": 102.22
+"x": 52.16,
+"y": 102.37
 },
 {
 "name": "Grindhouse Coffee",
 "kind": "cafe",
 "area": "Upper West Side",
-"x": 22.63,
-"y": 86.1
+"x": 22.74,
+"y": 86.27
 },
 {
 "name": "The Roastery",
 "kind": "cafe",
 "area": "Fashion District",
-"x": 67.75,
-"y": 92.77
+"x": 67.7,
+"y": 93.0
 },
 {
 "name": "Perk",
 "kind": "cafe",
 "area": "Diamond District",
-"x": 50.42,
-"y": 91.88
+"x": 50.2,
+"y": 91.36
 },
 {
 "name": "Kettle & Crow",
@@ -656,15 +656,15 @@
 "name": "Crossfire",
 "kind": "gym",
 "area": "New Town",
-"x": 62.93,
-"y": 30.43
+"x": 63.19,
+"y": 30.69
 },
 {
 "name": "Peak Fitness",
 "kind": "gym",
 "area": "Upper East Side",
-"x": 51.84,
-"y": 61.54
+"x": 52.04,
+"y": 61.0
 },
 {
 "name": "Wildcat Gym",
@@ -691,8 +691,8 @@
 "name": "The Paramount",
 "kind": "cinema",
 "area": "Diamond District",
-"x": 36.56,
-"y": 90.7
+"x": 36.23,
+"y": 90.48
 },
 {
 "name": "The Rex",
@@ -705,8 +705,8 @@
 "name": "Starlite Drive-In",
 "kind": "cinema",
 "area": "Burnside",
-"x": 98.68,
-"y": 62.86
+"x": 99.0,
+"y": 62.56
 },
 {
 "name": "Odeon Gotham",
@@ -726,8 +726,8 @@
 "name": "The Bijou",
 "kind": "cinema",
 "area": "Kane Heights",
-"x": -4.65,
-"y": 38.59
+"x": -4.96,
+"y": 38.7
 },
 {
 "name": "Majestic",
@@ -754,15 +754,15 @@
 "name": "The Ashcroft",
 "kind": "hotel",
 "area": "Fashion District",
-"x": 62.41,
-"y": 88.91
+"x": 62.66,
+"y": 89.11
 },
 {
 "name": "Harbor Inn",
 "kind": "hotel",
 "area": "Upper East Side",
-"x": 65.24,
-"y": 78.38
+"x": 65.03,
+"y": 78.0
 },
 {
 "name": "The Excelsior",
@@ -782,15 +782,15 @@
 "name": "Night & Day Motel",
 "kind": "hotel",
 "area": "Central Business District",
-"x": 118.9,
-"y": -15.94
+"x": 118.5,
+"y": -15.72
 },
 {
 "name": "The Belvedere",
 "kind": "hotel",
 "area": "New Town",
-"x": 62.14,
-"y": 38.34
+"x": 62.32,
+"y": 38.7
 },
 {
 "name": "The Grand Gotham Steakhouse",
@@ -817,8 +817,8 @@
 "name": "Antonio's",
 "kind": "restaurant",
 "area": "Old Gotham",
-"x": 40.83,
-"y": 114.58
+"x": 40.72,
+"y": 114.79
 },
 {
 "name": "Harbor House",
@@ -845,15 +845,15 @@
 "name": "Miranda's",
 "kind": "restaurant",
 "area": "Fashion District",
-"x": 64.77,
-"y": 90.29
+"x": 64.65,
+"y": 90.61
 },
 {
 "name": "Marrow",
 "kind": "restaurant",
 "area": "Tricorner",
-"x": 24.61,
-"y": 117.37
+"x": 24.88,
+"y": 117.59
 },
 {
 "name": "Kaito",
@@ -866,8 +866,8 @@
 "name": "Pho Haven",
 "kind": "restaurant",
 "area": "Upper West Side",
-"x": 22.52,
-"y": 79.75
+"x": 22.94,
+"y": 79.62
 },
 {
 "name": "Maison Bleu",
@@ -880,8 +880,8 @@
 "name": "Le Bistro de la Rue",
 "kind": "restaurant",
 "area": "Bristol",
-"x": -1.65,
-"y": 32.84
+"x": -0.66,
+"y": 32.89
 },
 {
 "name": "The Oyster Bar",
@@ -901,8 +901,8 @@
 "name": "Delmonico's",
 "kind": "restaurant",
 "area": "Central Business District",
-"x": 126.71,
-"y": -8.96
+"x": 126.61,
+"y": -9.46
 },
 {
 "name": "Hart & Sons Tailors",
@@ -915,15 +915,15 @@
 "name": "Ellison's Jewelers",
 "kind": "shop",
 "area": "Fashion District",
-"x": 63.77,
-"y": 91.81
+"x": 63.95,
+"y": 91.67
 },
 {
 "name": "Gotham Books",
 "kind": "shop",
 "area": "Fashion District",
-"x": 61.31,
-"y": 94.31
+"x": 61.53,
+"y": 94.34
 },
 {
 "name": "Vintage Vault",
@@ -950,8 +950,8 @@
 "name": "Second Story Books",
 "kind": "shop",
 "area": "Upper East Side",
-"x": 61.69,
-"y": 67.45
+"x": 61.33,
+"y": 67.28
 },
 {
 "name": "Madame Lacroix",
@@ -1048,8 +1048,8 @@
 "name": "GCPD 2nd Precinct",
 "kind": "police",
 "area": "New Town",
-"x": 63.43,
-"y": 34.0
+"x": 63.29,
+"y": 33.72
 },
 {
 "name": "GCPD 5th Precinct",
@@ -1062,8 +1062,8 @@
 "name": "GCPD 24th Precinct",
 "kind": "police",
 "area": "City Hall District",
-"x": 82.04,
-"y": 94.37
+"x": 81.73,
+"y": 94.11
 },
 {
 "name": "Chinatown Library",
@@ -1097,8 +1097,8 @@
 "name": "Burnley Branch Library",
 "kind": "library",
 "area": "Tricorner",
-"x": 33.85,
-"y": 115.78
+"x": 34.11,
+"y": 115.95
 },
 {
 "name": "Hollis Foods",
@@ -1118,22 +1118,22 @@
 "name": "Corrigan's Market",
 "kind": "market",
 "area": "The Bowery",
-"x": 65.7,
-"y": 47.57
+"x": 65.25,
+"y": 47.46
 },
 {
 "name": "City Fresh",
 "kind": "market",
 "area": "Tricorner",
-"x": 33.19,
-"y": 116.1
+"x": 32.85,
+"y": 115.98
 },
 {
 "name": "Harbor Foods",
 "kind": "market",
 "area": "Upper West Side",
-"x": 35.14,
-"y": 89.36
+"x": 35.33,
+"y": 89.08
 },
 {
 "name": "Delancey Foods",
@@ -1146,8 +1146,8 @@
 "name": "Greenway Grocers",
 "kind": "market",
 "area": "Robinsville",
-"x": 85.51,
-"y": 36.33
+"x": 85.28,
+"y": 36.6
 },
 {
 "name": "Valu-Mart",
@@ -1167,15 +1167,15 @@
 "name": "Bodner's Supermarket",
 "kind": "market",
 "area": "Cherry Hills",
-"x": 43.52,
-"y": 24.4
+"x": 43.21,
+"y": 24.16
 },
 {
 "name": "Kessler's Chemist",
 "kind": "pharmacy",
 "area": "Crime Alley",
-"x": 71.01,
-"y": 43.54
+"x": 70.72,
+"y": 43.3
 },
 {
 "name": "Doane's Drugs",
@@ -1216,8 +1216,8 @@
 "name": "Night Owl Pharmacy",
 "kind": "pharmacy",
 "area": "Burnside",
-"x": 112.35,
-"y": 58.36
+"x": 112.05,
+"y": 58.35
 },
 {
 "name": "Corner Rx",
@@ -1244,8 +1244,8 @@
 "name": "Kane Fuel",
 "kind": "fuel",
 "area": "Kane Heights",
-"x": 6.86,
-"y": 58.97
+"x": 7.76,
+"y": 59.32
 },
 {
 "name": "Pyramid Gas",
@@ -1265,8 +1265,8 @@
 "name": "Comet Gas",
 "kind": "fuel",
 "area": "Bristol",
-"x": 9.94,
-"y": 33.03
+"x": 9.54,
+"y": 32.93
 },
 {
 "name": "Bristol Service Station",
@@ -1286,8 +1286,8 @@
 "name": "First Gotham Savings",
 "kind": "bank",
 "area": "Diamond District",
-"x": 43.21,
-"y": 86.83
+"x": 42.74,
+"y": 87.03
 },
 {
 "name": "Gotham Federal Credit Union",
@@ -1356,36 +1356,36 @@
 "name": "Gotham Center Mall",
 "kind": "mall",
 "area": "New Town",
-"x": 62.86,
-"y": 32.58
+"x": 62.77,
+"y": 32.19
 },
 {
 "name": "Otisburg Galleria",
 "kind": "mall",
 "area": "Otisburg",
-"x": 50.63,
-"y": 23.18
+"x": 50.38,
+"y": 22.8
 },
 {
 "name": "Harbor Point Mall",
 "kind": "mall",
 "area": "Central Business District",
-"x": 119.02,
-"y": -15.92
+"x": 119.26,
+"y": -15.55
 },
 {
 "name": "The Lyceum",
 "kind": "theatre",
 "area": "Diamond District",
-"x": 39.41,
-"y": 101.64
+"x": 39.73,
+"y": 101.87
 },
 {
 "name": "The Palace Theatre",
 "kind": "theatre",
 "area": "Diamond District",
-"x": 46.19,
-"y": 96.86
+"x": 46.39,
+"y": 96.69
 },
 {
 "name": "The Orpheum",
@@ -1398,8 +1398,8 @@
 "name": "Burnside Post Office",
 "kind": "post",
 "area": "Burnley",
-"x": 53.92,
-"y": 36.89
+"x": 54.25,
+"y": 36.59
 },
 {
 "name": "Burnley Post Office",

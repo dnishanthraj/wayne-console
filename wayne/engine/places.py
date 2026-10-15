@@ -250,7 +250,7 @@ def around(x, y, but="", most=3, within=1.6):
     near = sorted((math.dist((p["x"], p["y"]), (x, y)), p["name"]) for p in data["places"]
                   if p.get("kind") in ("landmark", "spot") and p["name"] != but)
     places = [name for d, name in near if d <= within][:most]
-    spots = sorted((math.dist((v["x"], v["y"]), (x, y)), v) for v in venues())
+    spots = sorted(((math.dist((v["x"], v["y"]), (x, y)), v) for v in venues()), key=lambda t: t[0])
     places += [f"{v['name']} ({_KIND.get(v['kind'], v['kind'])})" for d, v in spots if d <= within * 0.8][:2]
     return places
 

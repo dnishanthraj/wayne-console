@@ -7,6 +7,31 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-15
+
+### Changed
+
+- **The roads redrawn the way a city's are.**
+  - Traffic circles aren't perfect circles any more: ovals laid along their avenue, eggs, squares with eased corners,
+    each turned to its roads. Each takes the three to five roads that make it; the rest of the grid stops at the
+    corner a block out, its blocks facing the circle, instead of a dozen straight spokes.
+  - A street that stops short of the road ahead runs on along its own line to meet it, as a street does, not a stub
+    drawn at an angle to the nearest kerb. Named avenues the sketch left short run on to the next road, and a
+    bridge's approach carries on along the bridge's own line into the city.
+  - Cross streets that don't run through stop at a corner (a T), never in the middle of a block, and the streets of
+    the older and leafier districts curve together, the way streets laid along a shore or a hill do.
+  - A street that runs past its last corner by a few yards, or into a landmark's forecourt or a park's railings,
+    stops at the corner instead; a street crossing an avenue at right angles is no longer cut back from it.
+  - No road runs through a building: a landmark that stood on its avenue (GCN Studios, Gotham Square Garden, the
+    docks) steps back off it, and a market stall or a stack of containers in a road's way gives way.
+
+### Fixed
+
+- Arkham Asylum is on the road network again by its bridge, and the network has half as many stray pieces; a place
+  joins the network proper wherever it can over land.
+- A venue a new street ran through moves to the nearest free lot in its district, and never shares a lot.
+- Places near two venues at exactly the same distance no longer break the list of what's nearby.
+
 ## [1.6.0] - 2026-10-15
 
 ### Added

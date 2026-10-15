@@ -2695,6 +2695,7 @@
    "angle": -6,
    "block": 1.3,
    "tall": 10,
+   "warp": 0.35,
    "crime": 0.75
   },
   {
@@ -2717,6 +2718,7 @@
    "angle": 12,
    "block": 1.05,
    "tall": 18,
+   "warp": 0.4,
    "crime": 0.7
   },
   {
@@ -2728,7 +2730,7 @@
    "angle": -14,
    "block": 0.85,
    "tall": 15,
-   "warp": 0.35,
+   "warp": 0.4,
    "crime": 0.97
   },
   {
@@ -2740,6 +2742,7 @@
    "angle": -14,
    "block": 0.9,
    "tall": 14,
+   "warp": 0.35,
    "crime": 0.85
   },
   {
@@ -2751,6 +2754,7 @@
    "angle": 30,
    "block": 1.2,
    "tall": 16,
+   "warp": 0.5,
    "crime": 0.6
   },
   {
@@ -2773,6 +2777,7 @@
    "angle": 0,
    "block": 1.1,
    "tall": 18,
+   "warp": 0.45,
    "crime": 0.42
   },
   {
@@ -2784,6 +2789,7 @@
    "angle": 25,
    "block": 1.15,
    "tall": 20,
+   "warp": 0.45,
    "crime": 0.25
   },
   {
@@ -2806,6 +2812,7 @@
    "angle": 28,
    "block": 1.0,
    "tall": 24,
+   "warp": 0.38,
    "crime": 0.3
   },
   {
@@ -2851,6 +2858,7 @@
    "angle": 35,
    "block": 0.75,
    "tall": 22,
+   "warp": 0.45,
    "crime": 0.55
   },
   {
@@ -2874,6 +2882,7 @@
    "angle": -25,
    "block": 1.1,
    "tall": 15,
+   "warp": 0.55,
    "crime": 0.62
   },
   {
@@ -2943,6 +2952,7 @@
    "angle": 4,
    "block": 1.0,
    "tall": 20,
+   "warp": 0.5,
    "limit": [
     [
      97.4,
@@ -3032,6 +3042,7 @@
    "angle": 12,
    "block": 1.2,
    "tall": 12,
+   "warp": 0.3,
    "city": "Blüdhaven",
    "crime": 0.88
   },
@@ -3044,6 +3055,7 @@
    "angle": -8,
    "block": 1.2,
    "tall": 18,
+   "warp": 0.5,
    "city": "Blüdhaven",
    "crime": 0.4
   },
@@ -3056,6 +3068,7 @@
    "angle": 12,
    "block": 0.95,
    "tall": 26,
+   "warp": 0.3,
    "city": "Blüdhaven",
    "crime": 0.55
   },
@@ -3068,6 +3081,7 @@
    "angle": 20,
    "block": 1.2,
    "tall": 14,
+   "warp": 0.45,
    "city": "Blüdhaven",
    "crime": 0.72
   },
@@ -3080,6 +3094,7 @@
    "angle": 0,
    "block": 1.3,
    "tall": 12,
+   "warp": 0.4,
    "city": "Blüdhaven",
    "crime": 0.6
   },
@@ -3150,6 +3165,7 @@
    "angle": -4,
    "block": 1.7,
    "tall": 9,
+   "warp": 0.3,
    "industrial": true,
    "crime": 0.7,
    "limit": [
@@ -4129,7 +4145,7 @@
      47.4
     ],
     [
-     38.9,
+     39.2,
      47.42
     ]
    ]

@@ -219,6 +219,70 @@ def polys_of(geom):
     return []
 
 
+def points_of(geom):
+    """The points where two roads meet: a crossing's point, or each end of a stretch they share."""
+    if geom.is_empty:
+        return []
+    if geom.geom_type == "Point":
+        return [geom]
+    if geom.geom_type == "LineString":
+        return [Point(geom.coords[0]), Point(geom.coords[-1])]
+    if hasattr(geom, "geoms"):
+        return [g for part in geom.geoms for g in points_of(part)]
+    return []
+
+
+def heading(line, at):
+    """Which way a road runs where it passes nearest `at`: degrees, either way along it the same (0–180)."""
+    d = line.project(at)
+    a, b = line.interpolate(max(0.0, d - 0.25)), line.interpolate(min(line.length, d + 0.25))
+    return math.degrees(math.atan2(b.y - a.y, b.x - a.x)) % 180
+
+
+def apart(a, b):
+    """How far apart two headings are, in degrees (0–90)."""
+    d = abs(a - b) % 180
+    return min(d, 180 - d)
+
+
+def corners(pieces, others, loose):
+    """
+    Streets cut back to their last corner: wherever `loose(end, stub)` says one of `pieces` runs on past its
+    last junction to nowhere (`stub` long), it ends at that junction instead; one that meets nothing at all
+    goes. `pieces` are (line, class); `others` are the roads they meet, and keep. A crossing two pieces share
+    stays on both, so cutting one back never leaves another ending at a corner that's gone.
+    """
+    every = [p for p, _c in pieces] + list(others)
+    tree = shapely.STRtree(every)
+    out = []
+    for k, (p, cls) in enumerate(pieces):
+        at = []
+        for idx in tree.query(p.buffer(0.006)):
+            q = every[int(idx)]
+            if int(idx) == k:
+                continue
+            at += [p.project(pt) for pt in points_of(p.intersection(q))]
+            # a road that stops on this one (or this one on it) meets it there, crossing or not
+            at += [p.project(Point(e)) for e in (q.coords[0], q.coords[-1]) if p.distance(Point(e)) < 0.006]
+            at += [d for d, e in ((0.0, p.coords[0]), (p.length, p.coords[-1])) if q.distance(Point(e)) < 0.006]
+        at.sort()
+        a, b = 0.0, p.length
+        if not at:
+            if loose(Point(p.coords[0]), b) or loose(Point(p.coords[-1]), b):
+                continue
+        else:
+            # (cut a hair past the corner, so it truly crosses the road it meets there and joins it)
+            if at[0] > 0.03 and loose(Point(p.coords[0]), at[0]):
+                a = at[0] - 0.02
+            if b - at[-1] > 0.03 and loose(Point(p.coords[-1]), b - at[-1]):
+                b = at[-1] + 0.02
+        if (a, b) == (0.0, p.length):
+            out.append((p, cls))                    # untouched, however short (a join's step to the road beside it)
+        elif b - a > 0.2:
+            out.append((substring(p, a, b), cls))
+    return out
+
+
 # --- streets ----------------------------------------------------------------------
 
 def street_grid(area, angle, block, warp, seed):
@@ -230,37 +294,46 @@ def street_grid(area, angle, block, warp, seed):
     minx, miny, maxx, maxy = area.bounds
     cx, cy = (minx + maxx) / 2, (miny + maxy) / 2
     reach = math.hypot(maxx - minx, maxy - miny) / 2 + 2
-    warp = max(warp, 0.16)      # nowhere is ruler-straight
+    warp = max(warp, 0.22)      # nowhere is ruler-straight
     raw = []      # (line, class)
+    firsts = []   # the long streets, which the cross streets stop at
     for family, (deg, spacing, staggered) in enumerate((
             (angle, block, False), (angle + 90, block * r.uniform(1.45, 1.85), True))):
         a = math.radians(deg)
         ux, uy = math.cos(a), math.sin(a)
         vx, vy = -uy, ux
         t, n = -reach, 0
+        # The family bends together, as streets laid along a shore or a hill do, each a touch off the next
+        # (so they never close up); in an old quarter each line wanders on its own as well.
+        sway, wave, drift = warp * r.uniform(0.8, 1.25), r.uniform(2.6, 3.6), r.uniform(0, 6.3)
+        own = warp * 0.5 if warp >= 0.6 else min(warp, 0.12)
         while t < reach:
             n += 1
             cls = "avenue" if family == 0 and n % 4 == 0 else "street"
-            steps = max(2, int(2 * reach / 0.7))
-            bend, phase = warp * r.uniform(0.5, 1.6), r.uniform(0, 6.3)
-            kink = r.uniform(-0.05, 0.05)           # a line a few degrees off the grid
+            steps = max(2, int(2 * reach / 0.5))
+            bend, phase, length = own * r.uniform(0.5, 1.6), r.uniform(0, 6.3), r.uniform(2.4, 3.2)
+            kink = r.uniform(-0.04, 0.04)           # a line a few degrees off the grid
             pts = []
             for k in range(steps + 1):
                 s = -reach + 2 * reach * k / steps
                 x, y = cx + vx * t + ux * s, cy + vy * t + uy * s
-                off = bend * math.sin(s / r.uniform(2.4, 3.2) + t * 0.41 + family * 1.7 + phase) + kink * s
+                off = (sway * math.sin(s / wave + t * 0.3 + family * 1.7 + drift)
+                       + bend * math.sin(s / length + phase) + kink * s)
                 x, y = x + vx * off, y + vy * off
                 pts.append((x, y))
             line = LineString(pts)
             if staggered:
-                pos, length = 0.0, line.length
-                while pos < length:
-                    seg = r.uniform(2.6, 7.5)
-                    if r.random() > 0.17:
-                        raw.append((substring(line, pos, min(length, pos + seg)), cls))
-                    pos += seg
+                # Cut at the long streets it crosses, so a cross street that doesn't run through stops at a
+                # corner (a T), never in the middle of a block: a few blocks on, now and then a block's gap.
+                stops = sorted({0.0, line.length} | {line.project(pt) for f in firsts for pt in points_of(line.intersection(f))})
+                i = 0
+                while i < len(stops) - 1:
+                    j = min(len(stops) - 1, i + r.randint(2, 6))
+                    raw.append((substring(line, stops[i], stops[j]), cls))
+                    i = j + (1 if r.random() < 0.3 else 0)
             else:
                 raw.append((line, cls))
+                firsts.append(line)
             t += spacing * r.uniform(0.84, 1.16)
     streets = []
     for line, cls in raw:
@@ -314,14 +387,22 @@ def disc(cx, cy, r):
 
 
 def junction(rb, scale):
-    """A roundabout's footprint at a scale: ring, oval, rounded square or star."""
+    """
+    A roundabout's footprint at a scale. A real one is seldom a true circle: an oval laid along the avenue it
+    carries, an egg, a square with its corners eased, a ring a little out of round, each turned to its roads.
+    """
     x, y, r = rb["at"][0], rb["at"][1], rb["r"] * scale
     shape = rb.get("shape", "ring")
     if shape == "oval":
-        return affinity.rotate(affinity.scale(Point(x, y).buffer(1, 24), r * 1.5, r * 0.8), 25)
-    if shape == "square":
-        return box(x - r * 0.8, y - r * 0.8, x + r * 0.8, y + r * 0.8).buffer(r * 0.25, quad_segs=6)
-    return Point(x, y).buffer(r, 28)
+        g = affinity.scale(Point(0, 0).buffer(1, 24), r * 1.45, r * 0.78)
+    elif shape == "egg":
+        g = Polygon([(r * math.cos(t) * (1.08 + 0.22 * math.cos(t)), r * 0.86 * math.sin(t))
+                     for t in (k * math.pi / 24 for k in range(48))])
+    elif shape == "square":
+        g = box(-r * 0.8, -r * 0.8, r * 0.8, r * 0.8).buffer(r * 0.25, quad_segs=6)
+    else:
+        g = affinity.scale(Point(0, 0).buffer(1, 28), r * 1.08, r * 0.93)
+    return affinity.translate(affinity.rotate(g, rb.get("turn", 0), origin=(0, 0)), x, y)
 
 
 def footprint_at(p):
@@ -1978,15 +2059,17 @@ def _pieces(lines):
     return nodes, groups
 
 
-def connections(lines, land, islands, blocked):
+def connections(lines, land, islands, blocked, stops=None, pieces_only=False):
     """
     The joins that make the roads one network: every dead end that stops just
-    short of a road meets it; every piece cut off from the rest — a town's
-    grid that never reaches the highway, a bridge that lands beside a street —
-    gets the shortest spur over dry land to the nearest other piece, until
-    they're one; and an island with no streets of its own gets a drive from its
-    landing to each building on it. Returns [(line, class)] to draw and build
-    round like any other road.
+    short of a road runs on along its own line to meet it (bent a little if it
+    must, never across a plaza, a park or a building: `stops`), as a street
+    does; every piece cut off from the rest — a town's grid that never reaches
+    the highway, a bridge that lands beside a street — gets the shortest spur
+    over dry land to the nearest other piece, until they're one; and an island
+    with no streets of its own gets a drive from its landing to each building
+    on it. Returns [(line, class)] to draw and build round like any other road.
+    `pieces_only`: just the last of those, for a network already joined up.
     """
     import numpy as np
     out, made = [], set()
@@ -1997,7 +2080,7 @@ def connections(lines, land, islands, blocked):
             made.add(key)
             out.append((LineString([a, b]), cls))
     dry = land.buffer(0.05)
-    for landing, targets in islands:
+    for landing, targets in ([] if pieces_only else islands):
         # Each building's door: the edge of its footprint nearest the landing.
         doors = [shapely.ops.nearest_points(Point(landing), foot.buffer(0.18).boundary)[1] for foot in targets]
         reached = [Point(landing)]
@@ -2031,24 +2114,44 @@ def connections(lines, land, islands, blocked):
     noded = list(_noded(shapely.MultiLineString([list(ln.coords) for ln in every + [ln for ln, _ in out]])).geoms)
     ends = {}
     for seg in noded:
-        for pt in (seg.coords[0], seg.coords[-1]):
-            key = (round(pt[0], 2), round(pt[1], 2))
-            ends[key] = ends.get(key, 0) + 1
+        for at, before in ((seg.coords[0], seg.coords[1]), (seg.coords[-1], seg.coords[-2])):
+            ends.setdefault((round(at[0], 2), round(at[1], 2)), []).append((at, before))
     tree = shapely.STRtree(noded)
-    for (x, y), degree in ends.items():
-        if degree != 1:
+    walls = shapely.prepared.prep(blocked if stops is None else blocked.union(stops))
+    for arrivals in ([] if pieces_only else ends.values()):
+        if len(arrivals) != 1:
             continue
+        (x, y), (bx, by) = arrivals[0]
         here = Point(x, y)
-        best = None
-        for idx in tree.query(here.buffer(0.7)):
-            seg = noded[int(idx)]
-            d = seg.distance(here)
-            if d > 0.02 and d < 0.7 and (best is None or d < best[0]):
-                best = (d, seg)
-        if best:
-            q = shapely.ops.nearest_points(here, best[1])[1]
-            if dry.contains(LineString([here, q])) and not LineString([here, q]).intersects(blocked):
-                join((x, y), reaching((x, y), (q.x, q.y)).coords[-1], "street")
+        n = math.hypot(x - bx, y - by) or 1
+        ux, uy = (x - bx) / n, (y - by) / n
+        met = None
+        # Straight on first; bent a little only if that finds nothing, and then not so far.
+        for turns, reach in (((0,), 1.2), ((12, -12), 0.6), ((24, -24), 0.4)):
+            for turn in turns:
+                c_, s_ = math.cos(math.radians(turn)), math.sin(math.radians(turn))
+                dx, dy = ux * c_ - uy * s_, ux * s_ + uy * c_
+                ray = LineString([(x + dx * 0.005, y + dy * 0.005), (x + dx * reach, y + dy * reach)])
+                for idx in tree.query(ray, predicate="intersects"):
+                    for pt in points_of(ray.intersection(noded[int(idx)])):
+                        d = pt.distance(here)
+                        leg = LineString([(x, y), (pt.x, pt.y)])
+                        if (met is None or d < met[0]) and dry.contains(leg) and not walls.intersects(leg):
+                            met = (d, (pt.x, pt.y))
+            if met:
+                break
+        if met is None:
+            # A hair short of the road beside it, not ahead: met where it's nearest (never back the way it came).
+            for idx in tree.query(here.buffer(0.15)):
+                seg = noded[int(idx)]
+                d = seg.distance(here)
+                if 0.004 < d < 0.15 and (met is None or d < met[0]):
+                    q = shapely.ops.nearest_points(here, seg)[1]
+                    if ((q.x - x) * ux + (q.y - y) * uy > -0.2 * d and (d < 0.2 or dry.contains(LineString([here, q])))
+                            and not LineString([here, q]).intersects(blocked)):
+                        met = (d, (q.x, q.y))
+        if met:
+            join((x, y), reaching((x, y), met[1]).coords[-1], "street")
     # Whatever's still in pieces: each joined to its nearest neighbour over dry land.
     for _ in range(14):
         nodes, groups = _pieces(every + [ln for ln, _ in out])
@@ -2069,7 +2172,8 @@ def connections(lines, land, islands, blocked):
                     if d[o] > 6.0:
                         break
                     spur = LineString([(x, y), tuple(xy[others[o]])])
-                    if (best is None or d[o] < best[0]) and dry.contains(spur) and not spur.intersects(blocked):
+                    # (a bridge's landing a stride off the quay still meets the road ashore)
+                    if (best is None or d[o] < best[0]) and (d[o] < 0.2 or dry.contains(spur)) and not spur.intersects(blocked):
                         best = (d[o], (x, y), tuple(xy[others[o]]))
                         break
             if best:
@@ -2110,15 +2214,32 @@ def road_graph(lines, ferries, places, land):
             edges.append([a, b, cls] + ([[[round(x, 2), round(y, 2)] for x, y in coords[1:-1]]] if len(coords) > 2 else []))
     xy = np.array(nodes)
     wet_free = land.buffer(0.08)
+    # The network proper: its biggest piece. A place joins it where it can over dry land, rather than the
+    # nearer stray stretch of a drive inside some grounds that leads nowhere.
+    parent = list(range(len(nodes)))
+
+    def root(k):
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+    for a, b, *_ in edges:
+        parent[root(a)] = root(b)
+    sizes = {}
+    for k in range(len(nodes)):
+        sizes[root(k)] = sizes.get(root(k), 0) + 1
+    main = max(sizes, key=sizes.get) if sizes else None
+    on_main = np.array([root(k) == main for k in range(len(nodes))], dtype=bool)
 
     def reach(x, y, most=4.0):
-        order = np.argsort((xy[:, 0] - x) ** 2 + (xy[:, 1] - y) ** 2)[:40]
-        for k in order:
-            nx_, ny_ = xy[k]
-            if math.hypot(nx_ - x, ny_ - y) > most:
-                break
-            if wet_free.contains(LineString([(x, y), (nx_, ny_)])):
-                return int(k)
+        order = np.argsort((xy[:, 0] - x) ** 2 + (xy[:, 1] - y) ** 2)
+        for pool in (order[on_main[order]][:40], order[:40]):
+            for k in pool:
+                nx_, ny_ = xy[k]
+                if math.hypot(nx_ - x, ny_ - y) > most:
+                    break
+                if wet_free.contains(LineString([(x, y), (nx_, ny_)])):
+                    return int(k)
         return int(order[0])
     links = []
     for name, stops in ferries:
@@ -2469,9 +2590,17 @@ def build():
             continue
         parks.append(shore.intersection(area))
         park_names.append("")
-    shapes = ["ring", "star", "oval", "square", "star"]
+    shapes = ["oval", "ring", "egg", "square", "oval", "ring", "oval", "egg", "square"]
     for i, rb in enumerate(src.get("roundabouts", [])):
         rb.setdefault("shape", shapes[i % len(shapes)])
+        if "turn" not in rb:
+            # Laid along the road it carries: the named road nearest its middle, a few degrees off true.
+            mid = Point(rb["at"])
+            main = min((curve(rd["line"]) for rd in src["roads"] if rd["class"] in ("primary", "secondary")),
+                       key=lambda ln: ln.distance(mid))
+            d_ = main.project(mid)
+            a_, b_ = main.interpolate(max(0.0, d_ - 0.4)), main.interpolate(min(main.length, d_ + 0.4))
+            rb["turn"] = math.degrees(math.atan2(b_.y - a_.y, b_.x - a_.x)) + (7 if i % 2 else -7)
         parks.append(junction(rb, 0.7))
         park_names.append("")
     plazas = []
@@ -2499,6 +2628,48 @@ def build():
         if areas.get(isle) is not None:
             parks.append(areas[isle].buffer(-0.22).difference(water_cut))
             park_names.append("")
+    # The borders between districts are avenues; the coast isn't.
+    borders = unary_union([a.boundary for n, a in areas.items() if n in island_names
+                           or grid_of.get(n, {}).get("city")])
+    borders = borders.difference(land.boundary.buffer(0.55)).difference(water_cut.buffer(0.2))
+    # Softened a little, so district borders read as avenues that bend, not ruled lines.
+    secondary = [LineString(chaikin(roughen(list(s.coords), 50 + i, amp=0.22, closed=False), 2, closed=False))
+                 .simplify(0.03) for i, s in enumerate(lines_of(shapely.line_merge(borders))) if s.length > 0.6]
+    # A landmark stands beside its avenue, not on it: one whose ground floor a named road or a border avenue
+    # ran through (GCN on Grand Avenue, the Garden on Broadway) steps back off it, the least way that clears it,
+    # onto dry land. The big complexes (the docks, Arkham) keep their ground: their sheds give way instead.
+    avenue_beds = unary_union([curve(rd["line"]).buffer(0.26 if rd["class"] == "highway" else 0.22)
+                               for rd in src["roads"] if rd["class"] != "rail" and not rd.get("elevated")]
+                              + [s_.buffer(0.17) for s_ in secondary]
+                              + [junction(rb, 1.0).exterior.buffer(0.22) for rb in src.get("roundabouts", [])]
+                              + [LineString(chaikin(list(island.buffer(-1.15).exterior.coords), 2, closed=False)).buffer(0.22)])
+    beds_prep = shapely.prepared.prep(avenue_beds)
+    dry_ = land.difference(water_cut).buffer(-0.05)
+    grounds_of = {pl["name"]: unary_union([t[0] for t in landmark_shapes(pl["name"], *footprint_at(pl)) if t[1] < 4]
+                                          or [Point(0, 0).buffer(0)]) for pl in src["places"] if pl["kind"] != "district"}
+    stepped, stuck = [], []
+    for pl in src["places"]:
+        ground_ = grounds_of.get(pl["name"])
+        if ground_ is None or ground_.is_empty or ground_.area > 3.5 or not beds_prep.intersects(ground_):
+            continue
+        x0, y0 = footprint_at(pl)
+        footing = ground_.intersection(dry_).area             # a boathouse keeps its pier in the water, and its feet on the quay
+        neighbours = shapely.prepared.prep(unary_union([g_ for n_, g_ in grounds_of.items() if n_ != pl["name"]
+                                                        and g_.distance(ground_) < 1.5] or [Point(0, 0).buffer(0)]).buffer(0.1))
+        for step in (0.1, 0.2, 0.3, 0.45, 0.6, 0.8, 1.0, 1.2):
+            ways = [(step * math.cos(math.radians(a)), step * math.sin(math.radians(a))) for a in range(0, 360, 15)]
+            ways = [(dx, dy) for dx, dy in ways if not beds_prep.intersects(m := affinity.translate(ground_, dx, dy))
+                    and m.intersection(dry_).area >= 0.9 * footing and not neighbours.intersects(m)]
+            if ways:
+                dx, dy = max(ways, key=lambda w: affinity.translate(ground_, *w).distance(avenue_beds.boundary))
+                pl["at"] = [round(x0 + dx, 2), round(y0 + dy, 2)]
+                grounds_of[pl["name"]] = affinity.translate(ground_, dx, dy)
+                stepped.append(pl["name"])
+                break
+        else:
+            stuck.append(pl["name"])
+    print(f"{len(stepped)} landmarks stepped back off the avenue they stood on ({', '.join(stepped)})"
+          + (f"; no room to for {', '.join(stuck)}" if stuck else ""))
     # The big complexes' own ground — a campus's lawns are parkland, a plant's
     # yard, a stadium's car parks and plaza keep the streets and blocks off.
     grounds = [(g, layer) for pl in src["places"] for g, layer in landmark_grounds(pl["name"], *footprint_at(pl))]
@@ -2555,13 +2726,6 @@ def build():
         streets += street_grid(open_ground, g["angle"], g["block"], g.get("warp", 0), 100 + i)
     streets = [(s.simplify(0.02), c) for s, c in streets]
 
-    # The borders between districts are avenues; the coast isn't.
-    borders = unary_union([a.boundary for n, a in areas.items() if n in island_names
-                           or grid_of.get(n, {}).get("city")])
-    borders = borders.difference(land.boundary.buffer(0.55)).difference(water_cut.buffer(0.2))
-    # Softened a little, so district borders read as avenues that bend, not ruled lines.
-    secondary = [LineString(chaikin(roughen(list(s.coords), 50 + i, amp=0.22, closed=False), 2, closed=False))
-                 .simplify(0.03) for i, s in enumerate(lines_of(shapely.line_merge(borders))) if s.length > 0.6]
 
     named, elevated = [], []
     for road in src["roads"]:
@@ -2582,24 +2746,28 @@ def build():
     named.append((LineString(park_drive.coords), "secondary", "Park Drive"))
     for rb in src.get("roundabouts", []):
         named.append((LineString(junction(rb, 1.0).exterior.coords), "primary", rb["name"]))
-        if rb["shape"] == "star":
-            # A star: avenues leaving the circle like spokes.
-            for k in range(7):
-                a = k * 2 * math.pi / 7 + 0.3
-                x0, y0 = rb["at"][0] + math.cos(a) * rb["r"], rb["at"][1] + math.sin(a) * rb["r"]
-                spoke = LineString([(x0, y0), (rb["at"][0] + math.cos(a) * rb["r"] * 3.4,
-                                               rb["at"][1] + math.sin(a) * rb["r"] * 3.4)])
-                named.append((spoke.intersection(land), "secondary", ""))
     # Rail runs under the big parks, not across them.
     named = [(p, c, n) for ln, c, n in named
              for p in (lines_of(ln.difference(big_parks)) if c == "rail" else [ln]) if p.length > 0.2]
     # A grid street that would run alongside an avenue for a stretch gives way
     # to it: two roads drawn on top of each other read as a mess, not a city.
-    avenues = unary_union([ln for ln, c, _ in named if c in ("primary", "highway")] + secondary).buffer(0.32)
-    kept = []
+    avenue_lines = [ln for ln, c, _ in named if c in ("primary", "highway")] + secondary
+    avenues = unary_union(avenue_lines).buffer(0.32)
+    avenue_tree = shapely.STRtree(avenue_lines)
+
+    def along(p):
+        """A stretch of street inside an avenue's verge that runs with it, not across it."""
+        if p.length <= 0.55:
+            return False
+        m = p.interpolate(0.5, normalized=True)
+        near = [avenue_lines[int(k)] for k in avenue_tree.query(m.buffer(0.4))]
+        return any(apart(heading(p, m), heading(a, m)) < 30 for a in near if a.distance(m) < 0.4)
+    kept, gave_way = [], []
     for s_, c in streets:
         inside = s_.intersection(avenues)
-        alongside = unary_union([p.buffer(0.05) for p in lines_of(inside) if p.length > 0.55])
+        alongside = unary_union([p.buffer(0.05) for p in lines_of(inside) if along(p)])
+        if not alongside.is_empty:
+            gave_way.append(alongside)
         for p in lines_of(s_.difference(alongside) if not alongside.is_empty else s_):
             if p.length > 0.25:
                 kept.append((p, c))
@@ -2611,18 +2779,56 @@ def build():
         frame = Polygon(fun["beach"])
         sand = island_land.difference(island_land.buffer(-fun["depth"])).intersection(frame)
         sand = sand.buffer(0.15).buffer(-0.15)
-    # Nothing drives straight across a roundabout: everything meets the ring.
-    holes = unary_union([junction(rb, 0.97) for rb in src.get("roundabouts", [])] + [sand.buffer(0.05)])
+    # A roundabout takes the few roads that make it: the named roads and border avenues through it and, where
+    # that's fewer than four arms, the grid's own street running nearest its middle. The rest of the grid stops
+    # at the corner a block out, its blocks facing the circle, as round any real one (Columbus Circle has four
+    # roads into it, not a dozen spokes). Nothing drives straight across one: its arms meet the ring.
+    rbs = src.get("roundabouts", [])
+    ring_names = {rb["name"] for rb in rbs}
+    arms, clear = set(), []
+    for rb in rbs:
+        ring = junction(rb, 1.0)
+        mid = Point(rb["at"])
+        through = ([ln for ln, c, n in named if c in ("primary", "secondary", "drive") and n not in ring_names
+                    and ln.intersects(ring)] + [s_ for s_ in secondary if s_.intersects(ring)])
+        mouths = sum(len(points_of(ln.intersection(ring.exterior))) for ln in through)
+        headings = [heading(ln, mid) for ln in through]
+        for k in sorted((k for k, (s_, _c) in enumerate(streets) if s_.intersects(ring)),
+                        key=lambda k: streets[k][0].distance(mid)):
+            s_ = streets[k][0]
+            if mouths >= 4 or s_.distance(mid) > rb["r"] * 0.55:
+                break
+            if all(apart(heading(s_, mid), o) > 35 for o in headings):
+                arms.add(k)
+                headings.append(heading(s_, mid))
+                mouths += len(points_of(s_.intersection(ring.exterior)))
+        clear.append(ring.buffer(0.75))
+    clear = unary_union(clear or [Point(0, 0).buffer(0)])
+    holes = unary_union([junction(rb, 0.97) for rb in rbs] + [sand.buffer(0.05)])
     # And the city's streets give way to its landmarks: a grid street that ran
     # through Wayne Tower now stops at the plaza round it.
     plazas_round = footprints.buffer(0.22).union(ground_block.buffer(0.08))
-    streets = [(p, c) for s, c in streets
-               for p in lines_of(s.difference(holes).difference(plaza_union).difference(plazas_round))
+    streets = [(p, c, k in arms) for k, (s, c) in enumerate(streets)
+               for p in lines_of(s.difference(holes).difference(plaza_union).difference(plazas_round)
+                                 .difference(Point(0, 0).buffer(0) if k in arms else clear))
                if p.length > 0.2]
     secondary = [p for s in secondary for p in lines_of(s.difference(holes).difference(plazas_round)) if p.length > 0.2]
+    # (an expressway passes over a roundabout, or under it: it isn't one of its arms)
     named = [(p, c, n) for ln, c, n in named
-             for p in (lines_of(ln.difference(holes)) if n not in [rb["name"] for rb in src.get("roundabouts", [])]
-                       else [ln]) if p.length > 0.15]
+             for p in (lines_of(ln.difference(holes)) if n not in ring_names and c != "highway" else [ln])
+             if p.length > 0.15]
+    # (and a street that gave way to the avenue beside it stops at its last corner too, not a few yards on; so does
+    # one that ran up to a landmark's forecourt within a block of it, or to a park's edge within half of one: the
+    # landmark stands in its own block, the park behind its railings, as in any city)
+    rim = shapely.prepared.prep(unary_union([clear.boundary] + [z.boundary for z in gave_way]).buffer(0.01))
+    forecourts = shapely.prepared.prep(unary_union([q.boundary for q in polys_of(plaza_union) + polys_of(plazas_round)])
+                                       .buffer(0.02))
+    railings = shapely.prepared.prep(unary_union([q.boundary for q in polys_of(park_union)]).buffer(0.05))
+    streets = [(p, c) for p, c, arm in streets if arm] + corners(
+        [(p, c) for p, c, arm in streets if not arm],
+        [p for p, _c, arm in streets if arm] + secondary + [ln for ln, c, _ in named if c != "rail"],
+        lambda end, stub: rim.contains(end) or (stub < 1.2 and forecourts.contains(end))
+        or (stub < 0.6 and railings.contains(end)))
     bridges = [(span(curve(b["line"], 2), land), b["name"]) for b in src["bridges"]]
     bridges = [(line, name) for line, name in bridges if line is not None]
     # A road that runs into water carries on over it: wherever one crosses a river
@@ -2685,12 +2891,45 @@ def build():
     lanes = [s_ for s_ in (ashore(s_) for s_ in lanes) if s_ is not None]
     named = [(ln, c, n) if c == "rail" else (ashore(ln), c, n) for ln, c, n in named]
     named = [(ln, c, n) for ln, c, n in named if ln is not None]
-    # Each bridge's ends run on to the nearest road, so nothing dead-ends at a bank.
+    # A named avenue the sketch stopped short of the road ahead runs on to meet it, up to a couple of blocks, as
+    # avenues do (never across a park or a forecourt): none simply ends in the middle of town.
+    every_ = [ln for ln, c, _ in named if c != "rail"] + secondary + [s_ for s_, _ in streets]
+    tree_ = shapely.STRtree(every_)
+    lawns_ = shapely.prepared.prep(unary_union([plaza_union, park_union, plazas_round]).buffer(-0.06))
+    for k_, (ln, c, n) in enumerate(named):
+        if c not in ("primary", "secondary", "highway") or ln.is_ring or ln.length < 0.5:
+            continue
+        pts = list(ln.coords)
+        for last in (False, True):
+            e, b = (pts[-1], pts[-2]) if last else (pts[0], pts[1])
+            here = Point(e)
+            if any(every_[int(i)] is not ln and every_[int(i)].distance(here) < 0.04 for i in tree_.query(here.buffer(0.04))):
+                continue                                    # it meets a road already
+            d_ = math.dist(e, b) or 1
+            ux, uy = (e[0] - b[0]) / d_, (e[1] - b[1]) / d_
+            ray = LineString([(e[0] + ux * 0.02, e[1] + uy * 0.02), (e[0] + ux * 2.5, e[1] + uy * 2.5)])
+            ahead = sorted((pt for i in tree_.query(ray) if every_[int(i)] is not ln
+                            for pt in points_of(ray.intersection(every_[int(i)]))), key=here.distance)
+            if ahead and land.contains(LineString([e, (ahead[0].x, ahead[0].y)])) and not lawns_.intersects(LineString([e, (ahead[0].x, ahead[0].y)])):
+                on = (ahead[0].x + ux * 0.03, ahead[0].y + uy * 0.03)
+                pts = pts + [on] if last else [on] + pts
+        named[k_] = (LineString(pts), c, n)
+    # Each bridge's ends run on into the city along the bridge's own line, to the first road they meet (only
+    # failing that, to the nearest), so nothing dead-ends at a bank, and no approach cuts across the blocks.
     network = unary_union([ln for ln, c, _ in named if c != "rail"] + secondary + [s for s, _ in streets])
+    ashore_ = land.buffer(0.08)
+    standing_ = footprints.buffer(0.08)
     for line, _name in list(bridges):
-        for end in (Point(line.coords[0]), Point(line.coords[-1])):
-            near = shapely.ops.nearest_points(end, network)[1] if not network.is_empty else None
-            if near is not None and 0.15 < end.distance(near) < 6.0 and land.buffer(0.08).contains(LineString([end, near])):
+        for end, before in ((Point(line.coords[0]), Point(line.coords[1])), (Point(line.coords[-1]), Point(line.coords[-2]))):
+            if network.is_empty or end.distance(network) <= 0.15:
+                continue
+            n = end.distance(before) or 1
+            ux, uy = (end.x - before.x) / n, (end.y - before.y) / n
+            ray = LineString([(end.x + ux * 0.02, end.y + uy * 0.02), (end.x + ux * 3.0, end.y + uy * 3.0)])
+            ahead = sorted(points_of(ray.intersection(network)), key=end.distance)
+            near = ahead[0] if ahead else shapely.ops.nearest_points(end, network)[1]
+            leg = LineString([end, near])
+            if 0.15 < leg.length < 6.0 and ashore_.contains(leg) and not leg.intersects(standing_):
                 named.append((reaching((end.x, end.y), (near.x, near.y)), "primary", ""))
     # And then the whole network joined up: dead ends to the road beside them,
     # stranded pieces to the rest, the bare islands' drives from their landings.
@@ -2706,6 +2945,10 @@ def build():
                 if area not in landings and areas.get(area) is not None and areas[area].buffer(1.2).contains(Point(stop)):
                     q = shapely.ops.nearest_points(Point(stop), areas[area].buffer(-0.3))[1]
                     landings[area] = (q.x, q.y)
+    # A street that ran a few yards past the avenue it crossed (the border's line and the district's grid never
+    # quite agree) stops at the avenue: whiskers off first, so a join never ties one back to the road it crossed.
+    streets = corners(streets, [ln for ln, c, _ in named if c != "rail"] + secondary + lanes + [ln for ln, _ in bridges],
+                      lambda _end, stub: 0.05 < stub < 0.3)
     islands = []
     for area in landings:
         feet = [unary_union([t[0] for t in landmark_shapes(pl["name"], *footprint_at(pl))])
@@ -2713,7 +2956,9 @@ def build():
         islands.append((landings[area], [f for f in feet if not f.is_empty]))
     joins = connections([(ln, c) for ln, c, _ in named if c != "rail"] + [(s_, "secondary") for s_ in secondary]
                         + [(s_, c) for s_, c in streets] + [(s_, "lane") for s_ in lanes]
-                        + [(ln, "bridge") for ln, _ in bridges], land, islands, footprints.buffer(0.08))
+                        + [(ln, "bridge") for ln, _ in bridges], land, islands, footprints.buffer(0.08),
+                        stops=unary_union([plaza_union.buffer(-0.04), plazas_round.buffer(-0.04), park_union.buffer(-0.06),
+                                           clear.buffer(-0.02)]))
     # The spurs and the island drives are roads to draw; a dead end's step to the
     # road beside it is too short to see — it joins the network, not the map.
     named += [(ln, c, "") for ln, c in joins if c in ("drive", "street") and ln.length > 1.2 or c == "drive"]
@@ -2721,6 +2966,15 @@ def build():
     # level (the blocks are cut round them like any street's, below).
     streets += [(ln, "street") for ln, c in joins if not (c in ("drive", "street") and ln.length > 1.2 or c == "drive")]
     print(f"{len(joins)} joins in the road network, all drawn")
+    # And a dead end that ran a few yards past its last corner, a whisker on the map, goes back to it (a join's
+    # hair past the road it meets stays: that's what joins them).
+    streets = corners(streets, [ln for ln, c, _ in named if c != "rail"] + secondary + lanes + [ln for ln, _ in bridges],
+                      lambda _end, stub: 0.05 < stub < 0.3)
+    # (and anything that left in pieces is joined back on)
+    streets += [(ln, "street") for ln, _c in connections(
+        [(ln, c) for ln, c, _ in named if c != "rail"] + [(s_, "secondary") for s_ in secondary] + streets
+        + [(s_, "lane") for s_ in lanes] + [(ln, "bridge") for ln, _ in bridges], land, [], footprints.buffer(0.08),
+        pieces_only=True)]
     for s, c in streets:
         add(s, "road", c=c)
     for s in lanes:
@@ -3011,8 +3265,8 @@ def build():
             add(lot, "lot")
             for row in bays(lot, angle):
                 add(row, "bay")
-        for gx, gy, heading in air["gates"]:
-            add(Point(gx, gy), "gate", r=heading)
+        for gx, gy, facing in air["gates"]:
+            add(Point(gx, gy), "gate", r=facing)
 
     # Container yards at the docks: their own ground, boxes stacked in rows.
     yards = []
@@ -3042,11 +3296,15 @@ def build():
     places_by = {p["name"]: p for p in src["places"]}
     reserved = []
     compounds = []      # walled grounds levelled whole for the terrain
+    # (a shed, a stack of boxes or a stall that a road ran through gives way to it)
+    give_way = shapely.prepared.prep(roadbed.buffer(-0.04))
     for name in places_by:
         p = places_by[name]
         tiers = landmark_shapes(name, *footprint_at(p))
         kinds = landmark_kinds(name, *footprint_at(p)) or ["~landmark"] * len(tiers)
         for (shape, base, top), kind in zip(tiers, kinds, strict=True):
+            if base < 4 and kind in ("~container", "~works", "~stall", "~stall-red", "~stall-gold", "~tank") and give_way.intersects(shape):
+                continue
             building(shape, top, kind, base=base)
         if tiers:
             reserved.append(unary_union([t[0] for t in tiers]).buffer(0.4 if name not in COMPLEXES else 0.18))
@@ -3576,6 +3834,13 @@ def build():
     except (OSError, ValueError, KeyError):
         before = {}
     covered = shapely.prepared.prep(unary_union([footprints, unary_union(parks), water_cut]))
+    # (and one whose spot a street now runs through moves too: a bar stands on a lot, not in the road)
+    standing = shapely.STRtree([roofs[id(lot[1])] for lot in lots])
+
+    def on_a_lot(x, y):
+        return len(standing.query(Point(x, y).buffer(0.08), predicate="intersects")) > 0
+    # (one venue to a lot: a bar that has to move takes the nearest lot nobody's on)
+    taken = {(b["x"], b["y"]) for b in before.values()}
     for kind, (names, where) in venues_by.items():
         pool = list(names)
         vr.shuffle(pool)
@@ -3584,9 +3849,12 @@ def build():
             if b["kind"] != kind or b["name"] not in names:
                 continue
             x, y = b["x"], b["y"]
-            if covered.contains(Point(x, y)) and by_district.get(b["area"]):
-                _, c, _, _ = min(by_district[b["area"]], key=lambda lot: lot[1].distance(Point(x, y)))
+            if (covered.contains(Point(x, y)) or not on_a_lot(x, y)) and by_district.get(b["area"]):
+                free = [lot for lot in by_district[b["area"]] if (round(lot[1].x, 2), round(lot[1].y, 2)) not in taken]
+                _, c, _, _ = min(free or by_district[b["area"]], key=lambda lot: lot[1].distance(Point(x, y)))
+                taken.discard((x, y))
                 x, y = round(c.x, 2), round(c.y, 2)
+                taken.add((x, y))
             add(Point(x, y), "venue", n=b["name"], k=kind, a=b["area"])
             venue_list.append({"name": b["name"], "kind": kind, "area": b["area"], "x": x, "y": y})
             placed[b["area"]] = placed.get(b["area"], 0) + 1
@@ -3951,8 +4219,8 @@ def build():
     for g in polys_of(land.buffer(2.4).buffer(-2.4).difference(land)):
         if g.area < 1.2 or g.intersection(water_cut).area > 0.4 * g.area:
             continue                                      # a river's reach, not the sea's
-        corners = list(g.minimum_rotated_rectangle.exterior.coords)
-        sides = sorted(math.dist(corners[i], corners[i + 1]) for i in range(2))
+        rim_ = list(g.minimum_rotated_rectangle.exterior.coords)
+        sides = sorted(math.dist(rim_[i], rim_[i + 1]) for i in range(2))
         if sides[1] > 5 * max(sides[0], 0.1):
             continue                                      # a channel, not a bay
         at = shapely.ops.polylabel(g, 0.05)
