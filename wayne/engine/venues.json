@@ -75,8 +75,8 @@
 "name": "Low Tide",
 "kind": "club",
 "area": "Fashion District",
-"x": 63.51,
-"y": 97.82
+"x": 63.33,
+"y": 98.03
 },
 {
 "name": "Grin",
@@ -89,8 +89,8 @@
 "name": "The Stacked Deck",
 "kind": "club",
 "area": "Diamond District",
-"x": 40.87,
-"y": 85.21
+"x": 41.05,
+"y": 85.37
 },
 {
 "name": "The Gilded Cage",
@@ -341,8 +341,8 @@
 "name": "Nite Owl",
 "kind": "diner",
 "area": "Kane Heights",
-"x": 0.42,
-"y": 50.13
+"x": -0.03,
+"y": 50.06
 },
 {
 "name": "Dixon's",
@@ -495,8 +495,8 @@
 "name": "St. Mary's School",
 "kind": "school",
 "area": "Kane Heights",
-"x": 1.83,
-"y": 65.07
+"x": 1.77,
+"y": 65.38
 },
 {
 "name": "PS 117",
@@ -544,8 +544,8 @@
 "name": "Tricorner High",
 "kind": "school",
 "area": "New Town",
-"x": 70.49,
-"y": 36.43
+"x": 70.81,
+"y": 36.37
 },
 {
 "name": "Burnside Academy of the Arts",
@@ -719,8 +719,8 @@
 "name": "Cineplex 12",
 "kind": "cinema",
 "area": "Old Gotham",
-"x": 40.26,
-"y": 103.44
+"x": 40.08,
+"y": 103.47
 },
 {
 "name": "The Bijou",
@@ -901,8 +901,8 @@
 "name": "Delmonico's",
 "kind": "restaurant",
 "area": "Central Business District",
-"x": 126.61,
-"y": -9.46
+"x": 126.75,
+"y": -9.41
 },
 {
 "name": "Hart & Sons Tailors",
@@ -915,8 +915,8 @@
 "name": "Ellison's Jewelers",
 "kind": "shop",
 "area": "Fashion District",
-"x": 63.95,
-"y": 91.67
+"x": 64.08,
+"y": 91.41
 },
 {
 "name": "Gotham Books",
@@ -1139,8 +1139,8 @@
 "name": "Delancey Foods",
 "kind": "market",
 "area": "New Town",
-"x": 67.29,
-"y": 37.59
+"x": 66.74,
+"y": 37.9
 },
 {
 "name": "Greenway Grocers",

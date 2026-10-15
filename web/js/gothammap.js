@@ -63,13 +63,13 @@
     // The day's own colours: coffee, the gym, the pictures, shopping, home.
     cafe: '#d9a06b', gym: '#7fd1a8', cinema: '#e07fb0', shop: '#e8c86a', market: '#e0a43a', library: '#9fd8ff',
     restaurant: '#f0b27a',
-    heliport: '#9fd8ff', home: C.lit
+    heliport: '#9fd8ff', home: C.lit, pool: '#6cd7e3', raceway: '#d1affa'
   };
   var ICON_KINDS = ['tower', 'manor', 'police', 'hospital', 'asylum', 'prison', 'church', 'theatre', 'university',
                     'museum', 'industry', 'station', 'stadium', 'lab', 'nightlife', 'civic', 'news', 'zoo', 'marina',
                     'naval', 'dock', 'clock', 'garden', 'water', 'cemetery', 'circus', 'statue', 'lighthouse',
                     'airport', 'observatory', 'hotel', 'club', 'bar', 'diner', 'fire', 'school', 'beach',
-                    'market', 'library', 'heliport', 'gym', 'home', 'cafe', 'cinema', 'shop', 'restaurant'];
+                    'market', 'library', 'heliport', 'gym', 'home', 'cafe', 'cinema', 'shop', 'restaurant', 'pool', 'raceway'];
 
   function glyph(kind) {
     var p = new Path2D();
@@ -87,6 +87,8 @@
       case 'industry': p.moveTo(-9, 8); p.lineTo(-9, -1); p.lineTo(-4, 2); p.lineTo(-4, -1); p.lineTo(1, 2); p.lineTo(1, -9); p.lineTo(5, -9); p.lineTo(5, 2); p.lineTo(9, 2); p.lineTo(9, 8); p.closePath(); break;
       case 'station': p.moveTo(-4, -9); p.lineTo(4, -9); p.quadraticCurveTo(7, -9, 7, -6); p.lineTo(7, 2); p.quadraticCurveTo(7, 5, 4, 5); p.lineTo(-4, 5); p.quadraticCurveTo(-7, 5, -7, 2); p.lineTo(-7, -6); p.quadraticCurveTo(-7, -9, -4, -9); p.moveTo(-7, -2); p.lineTo(7, -2); p.moveTo(-4, 5); p.lineTo(-7, 10); p.moveTo(4, 5); p.lineTo(7, 10); break;
       case 'stadium': p.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2); p.moveTo(6, 0); p.ellipse(0, 0, 6, 3, 0, 0, Math.PI * 2); break;
+      case 'pool': p.moveTo(-4, 3); p.lineTo(-4, -6); p.quadraticCurveTo(-4, -9, -1, -9); p.moveTo(4, 3); p.lineTo(4, -6); p.quadraticCurveTo(4, -9, 7, -9); p.moveTo(-4, -2); p.lineTo(4, -2); p.moveTo(-9, 7); p.quadraticCurveTo(-4.5, 4, 0, 7); p.quadraticCurveTo(4.5, 10, 9, 7); break;
+      case 'raceway': p.moveTo(-8, 9); p.lineTo(-8, -9); p.lineTo(8, -9); p.lineTo(8, 2); p.lineTo(-8, 2); p.moveTo(0, -9); p.lineTo(0, 2); p.moveTo(-8, -3.5); p.lineTo(8, -3.5); break;
       case 'lab': p.moveTo(-3, -9); p.lineTo(-3, -2); p.lineTo(-8, 8); p.lineTo(8, 8); p.lineTo(3, -2); p.lineTo(3, -9); p.moveTo(-5, -9); p.lineTo(5, -9); p.moveTo(-5, 3); p.lineTo(5, 3); break;
       case 'nightlife': p.moveTo(-8, -8); p.lineTo(8, -8); p.lineTo(0, 1); p.closePath(); p.moveTo(0, 1); p.lineTo(0, 8); p.moveTo(-5, 8); p.lineTo(5, 8); break;
       case 'civic': p.moveTo(-8, 2); p.arc(0, 2, 8, Math.PI, 0); p.moveTo(-10, 2); p.lineTo(10, 2); p.moveTo(-10, 8); p.lineTo(10, 8); [-6, 0, 6].forEach(function (x) { p.moveTo(x, 2); p.lineTo(x, 8); }); break;

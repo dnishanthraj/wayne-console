@@ -7,6 +7,18 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-15
+
+### Added
+
+- **Gotham International Raceway**, out in the county off the Gotham County Highway: a road circuit of long straights, a
+  hairpin, the esses and a chicane, red-and-white kerbs at the bends, the pit lane and pit building with its garages,
+  the control tower over the line, grandstands along the start-finish straight, the paddock, its grass infield, and
+  Raceway Drive to the highway.
+- **Robinson Park Lido**, the open-air pool at the top of the park (its lanes, the children's pool, the deck and its
+  umbrellas, the changing rooms and the kiosk), and **Burnley Rec Center**, the indoor pool under its glass roof with
+  the gym and courts' hall, the court outside and the car park.
+
 ## [1.7.2] - 2026-10-15
 
 ### Added

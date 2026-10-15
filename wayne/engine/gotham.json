@@ -4149,6 +4149,24 @@
      47.42
     ]
    ]
+  },
+  {
+   "name": "Raceway Drive",
+   "class": "secondary",
+   "line": [
+    [
+     -18.45,
+     13.18
+    ],
+    [
+     -17.7,
+     11.7
+    ],
+    [
+     -16.6,
+     10.35
+    ]
+   ]
   }
  ],
  "bridges": [
@@ -7915,6 +7933,61 @@
     "melville park"
    ],
    "bio": "A small green square in the Melville Section near the docks: plane trees, a whalers' memorial gone green, and benches where the longshoremen eat lunch facing the cranes. After dark it is dealers and pigeons."
+  },
+  {
+   "name": "Robinson Park Lido",
+   "x": 44.6,
+   "y": 63.4,
+   "area": "Robinson Park",
+   "kind": "spot",
+   "icon": "pool",
+   "match": [
+    "robinson park lido",
+    "the lido",
+    "lido",
+    "swimming pool",
+    "outdoor pool",
+    "the pool"
+   ],
+   "bio": "The open-air pool at the top of the park, built in 1936 and saved twice by petitions: fifty metres of lanes, a children's pool, a deck of striped umbrellas, and a kiosk that sells the city's worst hot dogs. Packed from Memorial Day to Labor Day; after hours, the fence is no obstacle to anyone who wants a swim under the skyline."
+  },
+  {
+   "name": "Burnley Rec Center",
+   "x": 50.6,
+   "y": 43.6,
+   "area": "Burnley",
+   "kind": "spot",
+   "icon": "pool",
+   "match": [
+    "burnley rec center",
+    "rec center",
+    "recreation center",
+    "leisure centre",
+    "leisure center",
+    "sports centre",
+    "indoor pool",
+    "the y"
+   ],
+   "bio": "A neighbourhood rec center under a curved glass roof: the indoor pool, a gym that smells of chlorine and old rope, basketball courts, and a boxing room in the basement where half of Burnley learned to take a punch. Open till ten, and the night janitor lets the regulars stay later."
+  },
+  {
+   "name": "Gotham International Raceway",
+   "x": -16.5,
+   "y": 7.3,
+   "area": "Gotham County",
+   "kind": "landmark",
+   "icon": "raceway",
+   "match": [
+    "gotham international raceway",
+    "the raceway",
+    "raceway",
+    "race track",
+    "racetrack",
+    "circuit",
+    "grand prix",
+    "the track"
+   ],
+   "bio": "Out in the county where the fields run flat: a road circuit of long straights, a hairpin, the esses and a chicane, with grandstands along the start-finish straight and a paddock full of sponsors. The Gotham Grand Prix fills it every summer; on other weekends it's club races, track days, and rich men's sons learning what a hundred and ninety feels like."
   }
  ],
  "regions": [

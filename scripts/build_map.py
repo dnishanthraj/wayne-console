@@ -780,6 +780,48 @@ def gcn_studios(x, y):
                                  (disc(0.24, 0.1, 0.012), 34, 64, "~works")])}
 
 
+def lido(x, y, angle=0):
+    """An open-air lido in the park: the long pool with its lanes and the children's beside it, the changing rooms'
+    low block, the kiosk, and the deck round them with its umbrellas."""
+    at = _local(x, y, angle)
+    tiers = [(rect(0, 0.42, 1.05, 0.15), 0, 5, "~concrete"), (rect(0.66, -0.34, 0.16, 0.13), 0, 4, "~stall")]
+    tiers += [(disc(-0.5 + 0.2 * i, -0.4, 0.045), 2, 3, ("~stall-red", "~stall-gold")[i % 2]) for i in range(5)]
+    ground = [(at(rect(0, 0.0, 1.3, 0.66)), "plaza"), (at(rect(-0.1, 0.0, 0.86, 0.36)), "swim"), (at(rect(0.5, 0.02, 0.2, 0.18)), "swim")]
+    ground += [(at(rect(-0.1, -0.14 + k * 0.07, 0.8, 0.006)), "pitch:line") for k in range(5)]        # the lane ropes
+    return {"tiers": _tiers(at, tiers), "ground": ground}
+
+
+def rec_center(x, y, angle=0):
+    """A neighbourhood rec center: the pool hall under its curved glass roof, the gym and the courts' hall beside it,
+    the outdoor court and the car park."""
+    at = _local(x, y, angle)
+    tiers = [(rect(-0.3, 0, 0.72, 0.5), 0, 8, "~glass"), (rect(-0.3, 0, 0.58, 0.38), 8, 10, "~glass"),
+             (rect(-0.3, 0, 0.4, 0.22), 10, 11, "~glass"), (rect(0.44, 0.03, 0.62, 0.44), 0, 10, "~concrete")]
+    ground = [(at(rect(0.1, 0.52, 1.5, 0.36)), "lot"), (at(rect(0.98, -0.42, 0.42, 0.26)), "pitch:court")]
+    return {"tiers": _tiers(at, tiers), "ground": ground}
+
+
+# Gotham International Raceway's circuit, in units across a 9 by 6 box from its north-west corner (east, south): the
+# start-finish straight along the south, the hairpin at its end, the sweepers up the east side, the back straight,
+# the chicane, the esses down the west and the last bends onto the straight.
+RACEWAY = [(1.5, 4.9), (7.5, 4.9), (8.4, 4.6), (8.6, 3.9), (8.2, 3.4), (7.0, 3.5), (6.3, 3.1), (6.8, 2.2), (7.9, 1.6),
+           (8.3, 0.8), (7.8, 0.3), (6.0, 0.4), (4.6, 0.7), (4.2, 1.2), (3.8, 0.9), (3.3, 1.3), (2.4, 1.0), (1.4, 0.7),
+           (0.7, 1.3), (0.6, 2.3), (1.3, 2.9), (2.6, 2.7), (3.2, 3.3), (2.6, 4.0), (1.2, 4.1), (0.7, 4.5)]
+
+
+def raceway(x, y):
+    """The raceway's buildings, about the box's middle: the pit building along the pit lane with its garages, the
+    control tower over the line, the grandstands facing the start-finish straight, the paddock behind the pits."""
+    ox, oy = x - 4.5, y - 3.0
+    tiers = [(box(ox + 2.3, oy + 5.32, ox + 6.7, oy + 5.55), 0, 7, "~glass"), (square(ox + 4.5, oy + 5.45, 0.24), 0, 26, "~glass")]
+    tiers += [(box(ox + 2.6 + 0.6 * i, oy + 5.56, ox + 3.1 + 0.6 * i, oy + 5.66), 0, 4, "~works") for i in range(7)]
+    for d0, top in ((0.0, 5), (0.12, 9), (0.24, 13)):                               # the stand's rake, stepping back
+        tiers.append((box(ox + 2.8, oy + 4.38 - d0 - 0.12, ox + 6.2, oy + 4.38 - d0), 0, top, "~concrete"))
+    tiers.append((box(ox + 2.8, oy + 4.0, ox + 6.2, oy + 4.06), 15, 16, "~frame"))       # its roof
+    infield = LineString(chaikin([(ox + u, oy + v) for u, v in RACEWAY], 3, closed=True)).convex_hull.buffer(0.6)
+    return {"tiers": tiers, "ground": [(infield, "campus"), (box(ox + 2.0, oy + 5.7, ox + 7.0, oy + 6.15), "lot")]}      # (its grass)
+
+
 def gcpd_central(x, y):
     """GCPD Central: the old headquarters block, its plant on the roof, the pad the department's helicopter sets down
     on, and the Signal: the searchlight on its stand at the roof's edge, lit when Gotham needs him."""
@@ -1541,6 +1583,9 @@ COMPLEXES = {
     "GCN Studios": gcn_studios,
     "GBS Tower": gbs_tower,
     "GCPD Central": gcpd_central,
+    "Robinson Park Lido": lido,
+    "Burnley Rec Center": rec_center,
+    "Gotham International Raceway": raceway,
     "Gotham Convention Center": convention_center,
     "Dixon Docks": dixon_docks,
     "Gotham County Fairground": county_fair,
@@ -3331,6 +3376,35 @@ def build():
         for line in (COMPLEXES[name](*footprint_at(p)).get("lanterns", []) if name in COMPLEXES else []):
             add(line, "lantern")
     reserved.append(ground_block.buffer(0.05))
+    # The raceway's circuit: the track, the pit lane, the kerbs where it turns hardest, the start-finish line; the
+    # country keeps off all of it (and the track is what the cars lap on race days: the "circuit" line, whole).
+    race = places_by.get("Gotham International Raceway")
+    if race:
+        ox, oy = footprint_at(race)[0] - 4.5, footprint_at(race)[1] - 3.0
+        lap = LineString(chaikin([(ox + u, oy + v) for u, v in RACEWAY], 3, closed=True))
+        lap = LineString(list(lap.coords) + [lap.coords[0]])
+        add(lap, "circuit", n=race["name"])
+        add(LineString([(ox + 1.7, oy + 4.9), (ox + 2.3, oy + 5.2), (ox + 6.7, oy + 5.2), (ox + 7.3, oy + 4.9)]), "circuit", k="pit")
+        add(LineString([(ox + 4.5, oy + 4.84), (ox + 4.5, oy + 4.96)]), "grid")
+        pts = list(lap.coords)
+        bends, run = [], []
+        for i in range(1, len(pts) - 1):
+            a1 = math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0])
+            a2 = math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0])
+            turn = abs((a2 - a1 + math.pi) % (2 * math.pi) - math.pi) / max(1e-6, math.dist(pts[i - 1], pts[i + 1]) / 2)
+            if turn > 1.6:
+                run.append(pts[i])
+            elif len(run) > 1:
+                bends.append(run)
+                run = []
+            else:
+                run = []
+        for bend in bends:
+            for side in ("left", "right"):
+                kerb = LineString(bend).parallel_offset(0.052, side)
+                if not kerb.is_empty:
+                    add(kerb, "kerb")
+        reserved.append(lap.convex_hull.buffer(0.4))
     # Arkham behind its wall, a gate where the drive comes in; Blackgate's outer fence.
     for pl in src["places"]:
         if pl["name"] not in ():          # (Arkham's and Blackgate's walls and gates are their complexes' own now)
@@ -3420,6 +3494,8 @@ def build():
             add(g, {"plaza": "plaza", "works": "works", "grounds": "plaza", "marsh": "marsh"}[layer])
         elif layer == "pool":
             add(g, "water", n="")
+        elif layer == "swim":
+            add(g, "swim")
         elif layer == "pier":
             add(g, "pier")
         elif layer == "lot":
