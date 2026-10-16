@@ -138,8 +138,8 @@
 "name": "Sixth Sin",
 "kind": "club",
 "area": "Central Business District",
-"x": 123.39,
-"y": -13.12
+"x": 123.53,
+"y": -13.1
 },
 {
 "name": "Saint Mike's",
@@ -187,8 +187,8 @@
 "name": "The Iron Stool",
 "kind": "bar",
 "area": "Old Gotham",
-"x": 50.23,
-"y": 107.11
+"x": 50.0,
+"y": 107.2
 },
 {
 "name": "Bleak House",
@@ -341,8 +341,8 @@
 "name": "Nite Owl",
 "kind": "diner",
 "area": "Kane Heights",
-"x": -0.03,
-"y": 50.06
+"x": -0.57,
+"y": 49.94
 },
 {
 "name": "Dixon's",
@@ -390,8 +390,8 @@
 "name": "St. Aidan's",
 "kind": "church",
 "area": "Bristol",
-"x": 8.04,
-"y": 28.77
+"x": 8.33,
+"y": 28.72
 },
 {
 "name": "Engine 41",
@@ -446,8 +446,8 @@
 "name": "Ladder 21",
 "kind": "fire",
 "area": "Chinatown",
-"x": 27.87,
-"y": 96.77
+"x": 27.69,
+"y": 96.72
 },
 {
 "name": "Engine 30",
@@ -656,8 +656,8 @@
 "name": "Crossfire",
 "kind": "gym",
 "area": "New Town",
-"x": 63.19,
-"y": 30.69
+"x": 63.0,
+"y": 30.77
 },
 {
 "name": "Peak Fitness",
@@ -712,8 +712,8 @@
 "name": "Odeon Gotham",
 "kind": "cinema",
 "area": "Fashion District",
-"x": 58.4,
-"y": 83.04
+"x": 58.74,
+"y": 82.89
 },
 {
 "name": "Cineplex 12",
@@ -803,8 +803,8 @@
 "name": "Casa Verde",
 "kind": "restaurant",
 "area": "Upper East Side",
-"x": 60.39,
-"y": 74.26
+"x": 60.08,
+"y": 74.32
 },
 {
 "name": "Sorrento's",
@@ -831,8 +831,8 @@
 "name": "Golden Dragon",
 "kind": "restaurant",
 "area": "Diamond District",
-"x": 51.76,
-"y": 90.87
+"x": 51.44,
+"y": 90.65
 },
 {
 "name": "The Lantern Room",
@@ -880,8 +880,8 @@
 "name": "Le Bistro de la Rue",
 "kind": "restaurant",
 "area": "Bristol",
-"x": -0.66,
-"y": 32.89
+"x": 0.1,
+"y": 33.38
 },
 {
 "name": "The Oyster Bar",
@@ -915,8 +915,8 @@
 "name": "Ellison's Jewelers",
 "kind": "shop",
 "area": "Fashion District",
-"x": 64.08,
-"y": 91.41
+"x": 63.95,
+"y": 91.67
 },
 {
 "name": "Gotham Books",
@@ -1048,8 +1048,8 @@
 "name": "GCPD 2nd Precinct",
 "kind": "police",
 "area": "New Town",
-"x": 63.29,
-"y": 33.72
+"x": 63.48,
+"y": 33.62
 },
 {
 "name": "GCPD 5th Precinct",
@@ -1153,8 +1153,8 @@
 "name": "Valu-Mart",
 "kind": "market",
 "area": "Burnside",
-"x": 109.11,
-"y": 71.24
+"x": 108.91,
+"y": 70.94
 },
 {
 "name": "Kovac Bros. Grocery",
@@ -1244,8 +1244,8 @@
 "name": "Kane Fuel",
 "kind": "fuel",
 "area": "Kane Heights",
-"x": 7.76,
-"y": 59.32
+"x": 8.02,
+"y": 59.4
 },
 {
 "name": "Pyramid Gas",

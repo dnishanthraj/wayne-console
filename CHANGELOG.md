@@ -7,6 +7,27 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-10-16
+
+### Fixed
+
+- **The map, cleaned up.** No more stray lines that go nowhere: a scrap of street that meets no road at either end,
+  or crosses one and stops short of everything both sides, goes; a street that runs on a few yards past its last
+  crossing into the middle of a block is cut back to it (one that stops at the water, a park, a plaza, a landmark or
+  a roundabout stops somewhere, and stays). Arkham Island's roads are its own drives, with no grid in the strip outside
+  the asylum's wall.
+- **The square round Arkham Island is gone**: a walled compound is levelled for the terrain on its own land only, and
+  no building's pad ever raises the water, so the hillshade no longer draws the island's bounding box on the river.
+- **Blackgate's exercise track** stands in its own yard, clear of the cell blocks it ran under.
+- **Justice Island's ferry pier** runs out into the harbour from the north-west shore (turned the other way, it ran
+  inland into the fort); the Statue Ferry calls at its end; Fort Dumas is marked on its fort, not out on the shore;
+  the path from the Statue leads to the pier.
+- **Blüdhaven's stadium** stands on its own ground: Bayside Park, drawn round it, gives back the bowl and its car parks
+  (its edge ran through them, and the lawn showed between them), and wraps round its west side; the field is marked
+  out to fill the turf; the park's and the district's names sit clear of the bowl.
+- **The docks' containers** keep off the sheds and cranes standing on the yards (32 stacks ran through warehouses), and
+  the Trigate Night Market's stalls stand on the Narrows, not in the river.
+
 ## [1.8.2] - 2026-10-15
 
 ### Fixed

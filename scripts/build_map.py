@@ -766,8 +766,8 @@ def gotham_stadium(x, y):
     tiers += [(square(sx * 1.08, sy * 0.86, 0.045), 0, 58, "~works") for sx in (-1, 1) for sy in (-1, 1)]
     ring = affinity.scale(Point(0, 0).buffer(1.0), 2.0, 1.6).difference(bowl.buffer(0.12))
     lots = [g for g in polys_of(ring.difference(unary_union([rect(0, 0, 4.4, 0.2), rect(0, 0, 0.2, 3.6)]))) if g.area > 0.2]
-    ground = [(at(field.buffer(-0.04)), "pitch:turf")] + [(at(g), "pitch:line") for g, k in pitch("football", 0, 0, 0)
-                                                           if k == "line"]
+    ground = [(at(field.buffer(-0.04)), "pitch:turf")] + [(at(affinity.scale(g, 1.5, 1.5, origin=(0, 0))), "pitch:line")
+                                                           for g, k in pitch("football", 0, 0, 0) if k == "line"]
     ground += [(at(g), "lot") for g in lots]
     return {"tiers": _tiers(at, tiers), "ground": ground}
 
@@ -1390,7 +1390,7 @@ def blackgate(x, y):
     t(rect(71.5, 124.5, 0.8, 0.45), 0, 13, "~works")                                    # the power house
     t(disc(71.95, 124.75, 0.06), 0, 42, "~stack")
     t(rect(70.3, 121.0, 0.5, 0.3), 0, 11, "~old")                                       # the chapel
-    ground += [(g, "pitch:" + k) for g, k in pitch("track", 66.9, 122.8, 90)]
+    ground += [(g, "pitch:" + k) for g, k in pitch("track", 66.8, 123.6, 0)]          # (its own yard, clear of the wings)
     ground.append((inner.buffer(-0.06), "works"))
     # outside the walls: the staff's row of houses by the landing, the water tower, the helipad
     for i in range(6):
@@ -1408,7 +1408,7 @@ def blackgate(x, y):
 def justice_grounds(x, y):
     """Justice Island's grounds round the Statue: the paved circle at her feet, the paths out to the shore."""
     plaza = Point(x, y).buffer(0.55).difference(Point(x, y).buffer(0.33))
-    paths = [LineString([(x, y), (x + dx, y + dy)]) for dx, dy in ((-1.1, -0.8), (1.0, -1.0), (-1.4, 0.9), (0.9, 1.2))]
+    paths = [LineString([(x, y), (x + dx, y + dy)]) for dx, dy in ((-1.4, -1.1), (1.0, -1.0), (-1.4, 0.9), (0.9, 1.2))]
     tiers = [(square(x, y, 0.62), 0, 8, "~old"), (square(x, y, 0.36), 8, 22, "~old"), (disc(x, y, 0.13), 22, 30, "~landmark"),
              (disc(x, y, 0.1), 30, 38, "~landmark"), (rect(x, y, 0.2, 0.09), 38, 41, "~landmark"), (disc(x, y, 0.045), 41, 45, "~landmark"),
              (rect(x + 0.1, y, 0.035, 0.035), 36, 52, "~landmark"), (rect(x + 0.1, y, 0.12, 0.03), 52, 53.5, "~landmark"),
@@ -1551,7 +1551,7 @@ COMPLEXES = {
     "Burnside Square": lambda x, y: clock_square(x, y, 4),
     "Burnside Flea": lambda x, y: refinery_flea(x, y, 4),
     "Justice Island Armory": lambda x, y: armory(x, y, 0),
-    "Justice Island Ferry Pier": lambda x, y: pier_works(x, y, 135, length=0.9, sheds=((0.2, 0.12, 4),)),
+    "Justice Island Ferry Pier": lambda x, y: pier_works(x, y, -45, length=0.9, sheds=((0.2, 0.12, 4),)),
     "Ironworks Rail Yard": lambda x, y: {"tiers": _tiers(_local(x, y, -4), [(rect(0, 0, 0.9, 0.3), 0, 11, "~works"),
                                                                             (square(0.6, -0.3, 0.1), 0, 9, "~old")])},
     "Old Koul Brau Brewery": lambda x, y: brewery(x, y, -4),
@@ -2461,6 +2461,7 @@ def terrain_tiles(land, built=(), lakes=(), compounds=()):
                     hv = h.ravel()
                     w = np.clip((0.32 - gap) / (0.32 - 0.1), 0, 1)
                     w = w * w * (3 - 2 * w)
+                    w = w * shapely.contains_xy(land, X.ravel()[pairs[0]], Y.ravel()[pairs[0]])    # (never the water)
                     hv[pairs[0]] = hv[pairs[0]] * (1 - w) + pad_height[pairs[1]] * w
                     h = hv.reshape(h.shape)
                 v = np.round((h + 10000) * 10).astype(np.int64)
@@ -2751,6 +2752,14 @@ def build():
         golf = Polygon(chaikin(roughen(src["golf"]["coast"], 77, amp=0.4), 3)).buffer(0).difference(water_cut)
         parks.append(golf)
         park_names.append(src["golf"]["name"])
+    # A stadium's bowl and car parks are never parkland: a park drawn round one gives the whole of it back (its edge
+    # ran through Blüdhaven's car parks, and the lawn showed between them).
+    for pl in src["places"]:
+        own = landmark_grounds(pl["name"], *footprint_at(pl))
+        if any(layer == "lot" for _g, layer in own):
+            whole = unary_union([g for g, _l in own] + [t[0] for t in landmark_shapes(pl["name"], *footprint_at(pl))])
+            whole = whole.convex_hull.buffer(0.08)
+            parks = [p.difference(whole) if p.intersects(whole) else p for p in parks]
     park_union = unary_union(parks)
     # The big parks — the railway goes under these, and through the strips by the water.
     big_parks = unary_union([p for p, nm in zip(parks, park_names, strict=True) if nm and p.area > 20]
@@ -2784,6 +2793,8 @@ def build():
     # street meets the avenue at its edge.
     streets = []
     for i, (name, area) in enumerate(areas.items()):
+        if name == "Arkham Island":                 # (the asylum's island: its own drives are its roads, no grid in the
+            continue                                # strip outside its wall: an L of street ran off to the shore there)
         g = grid_of[name]
         open_ground = area.buffer(0.05).intersection(land).difference(park_union).difference(water_cut)
         streets += street_grid(open_ground, g["angle"], g["block"], g.get("warp", 0), 100 + i)
@@ -3038,6 +3049,62 @@ def build():
         [(ln, c) for ln, c, _ in named if c != "rail"] + [(s_, "secondary") for s_ in secondary] + streets
         + [(s_, "lane") for s_ in lanes] + [(ln, "bridge") for ln, _ in bridges], land, [], footprints.buffer(0.08),
         pieces_only=True)]
+    # What still goes nowhere goes (the owner: "stray lines that go nowhere"). An end that stops by the water, a park,
+    # a plaza, a landmark or a roundabout stops somewhere; one that stops in the middle of a block goes nowhere. A
+    # scrap of street that goes nowhere at both ends and crosses at most one road is a stray line on the map, not a
+    # street anyone would take: it goes; an end that goes nowhere a few yards past its last crossing is cut back to it
+    # (what lies between the crossings is a street; what overhangs, a stray). (Passes till none goes: a stub gone can
+    # leave the step that joined it hanging.)
+    somewhere = shapely.prepared.prep(unary_union([land.boundary.buffer(0.3), water_cut.buffer(0.3), park_union.buffer(0.15),
+                                                   plaza_union.buffer(0.12), plazas_round.buffer(0.12), footprints.buffer(0.3),
+                                                   clear.buffer(0.05)]))
+    # (and no street stands in the water: a join off Arkham's shore had drawn an L of street in the river)
+    dry_ = dry_land.buffer(0.05)
+    dry_prep = shapely.prepared.prep(dry_)
+    for _pass in range(4):
+        every_ = ([ln for ln, c, _ in named if c != "rail"] + secondary + lanes + [ln for ln, _ in bridges]
+                  + [s_ for s_, _ in streets])
+        tree_ = shapely.STRtree(every_)
+
+        def tidy(line, every_=every_, tree_=tree_):
+            """The line as it should stand: itself, cut back to its outermost crossings, or None (a stray)."""
+            if line.geom_type != "LineString":
+                return line
+            orig = line
+            if not dry_prep.contains(line):
+                parts_ = sorted(lines_of(line.intersection(dry_)), key=lambda q: -q.length)
+                if not parts_ or parts_[0].length < 0.2:
+                    return None
+                line = parts_[0]
+            others = [every_[int(i)] for i in tree_.query(line.buffer(0.03)) if every_[int(i)] is not orig]
+            ends = (Point(line.coords[0]), Point(line.coords[-1]))
+            nowhere = [not any(o.distance(e) < 0.03 for o in others) and not somewhere.contains(e) for e in ends]
+            if not (nowhere[0] or nowhere[1]):
+                return line
+            crossing = [o for o in others if o.intersects(line)]
+            if nowhere[0] and nowhere[1] and len(crossing) <= 1 and line.length < 2.0:
+                return None
+            at = sorted(line.project(p) for o in crossing for p in points_of(line.intersection(o)))
+            a, b = 0.0, line.length
+            if nowhere[0] and at and at[0] < 0.6:
+                a = at[0]
+            if nowhere[1] and at and line.length - at[-1] < 0.6:
+                b = at[-1]
+            if b - a < 0.15:
+                return None
+            if a == 0.0 and b == line.length:
+                return line
+            cut = substring(line, a, b)
+            return cut if cut.geom_type == "LineString" else line
+        before_ = (len(streets), len(lanes), len(secondary), sum(s_.length for s_, _ in streets))
+        streets = [(t_, c) for t_, c in ((tidy(s_), c) for s_, c in streets) if t_ is not None]
+        lanes = [t_ for t_ in (tidy(s_) for s_ in lanes) if t_ is not None]
+        secondary = [t_ for t_ in (tidy(s_) for s_ in secondary) if t_ is not None]
+        after_ = (len(streets), len(lanes), len(secondary), sum(s_.length for s_, _ in streets))
+        if before_ == after_:
+            break
+        print(f"strays: {before_[0] - after_[0]} streets, {before_[1] - after_[1]} lanes, {before_[2] - after_[2]} avenues gone, "
+              f"{before_[3] - after_[3]:.1f} units of street off")
     for s, c in streets:
         add(s, "road", c=c)
     for s in lanes:
@@ -3331,8 +3398,11 @@ def build():
         for gx, gy, facing in air["gates"]:
             add(Point(gx, gy), "gate", r=facing)
 
-    # Container yards at the docks: their own ground, boxes stacked in rows.
+    # Container yards at the docks: their own ground, boxes stacked in rows (round the docks' own sheds and cranes,
+    # which stand on the yards too: a stack of boxes ran through a warehouse).
     yards = []
+    docked = shapely.prepared.prep(unary_union([t[0] for pl in src["places"] for t in landmark_shapes(pl["name"], *footprint_at(pl))
+                                                if t[1] < 4] or [Point(0, 0)]).buffer(0.06))
     roadbed = unary_union([s_.buffer(0.12 if c == "avenue" else 0.09) for s_, c in streets]
                           + [s_.buffer(0.15) for s_ in secondary]
                           + [ln.buffer(0.24 if c == "highway" else 0.2 if c == "primary" else 0.15) for ln, c, _ in named])
@@ -3350,7 +3420,7 @@ def build():
             x = minx + 0.2
             while x < maxx:
                 box_ = box(x, y, x + 0.34, y + 0.11)
-                if ground.buffer(-0.08).contains(box_) and yr.random() < 0.8:
+                if ground.buffer(-0.08).contains(box_) and not docked.intersects(box_) and yr.random() < 0.8:
                     building(box_, yr.choice((3, 3, 6, 6, 9)), "~container")
                 x += 0.4
             y += 0.2 + (0.35 if yr.random() < 0.18 else 0)       # the odd lane between rows
@@ -3376,7 +3446,9 @@ def build():
             whole = unary_union([t[0] for t in tiers])
             walled = any(g.geom_type == "Polygon" and g.interiors for g, _b, _t in tiers)
             if walled and whole.envelope.area > 2.0:
-                compounds.append(whole.envelope.buffer(0.08))
+                yard_ = whole.envelope.buffer(0.08).intersection(land)
+                if not yard_.is_empty:
+                    compounds.append(yard_)
         # Strings of lanterns over a market's aisles, lit after dark.
         for line in (COMPLEXES[name](*footprint_at(p)).get("lanterns", []) if name in COMPLEXES else []):
             add(line, "lantern")
