@@ -7,6 +7,24 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-16
+
+### Added
+
+- **The thin districts filled out**: 82 new places where the map had too few, each fitting where it stands. The Upper
+  East Side gets a private academy, a marble library, a jeweller by appointment, a department store, a gourmet market
+  and its precinct; the Upper West Side a professors' bar, a bookshop and a revival cinema; Robinsville a family diner,
+  an elementary school, a library, a parish church, a karate dojo and a precinct; the Narrows a mission, a free-clinic
+  pharmacy, a boxing gym, a pawn shop, a firehouse and a precinct; and Kane Heights, Bristol, Cherry Hills, Otisburg,
+  the University District, Coventry, the Ironworks and the Amusement Mile theirs. Each with its line, for the Codex and
+  anyone who knows the city.
+
+### Changed
+
+- **A new venue can be placed in its own district**: the map builder takes a list of venues each pinned to a district,
+  and puts each on a free lot there (a new name used to go wherever the draw sent it). Every venue already on the map
+  stays where it was.
+
 ## [1.9.0] - 2026-10-16
 
 ### Added

@@ -4104,6 +4104,100 @@ def build():
         "post": (["Old Gotham Post Office", "Burnside Post Office", "Burnley Post Office"],
                  {"Burnley": 1, "Old Gotham": 1, "Burnside": 1}),
     }
+    # More of what each district would have (1.10.0): the thin ones (the Upper East and West Sides, Robinsville, Kane
+    # Heights, the Narrows, Bristol, Cherry Hills, Otisburg, the University District, Coventry, the Ironworks, the
+    # Amusement Mile) given their schools, libraries, churches, diners, bars, shops and precincts; each pinned to its own
+    # district (a new name otherwise goes wherever the draw sends it), each with its line in venue_notes.json.
+    more = [
+        ("cafe", "Café Margaux", "Upper East Side"),
+        ("church", "St. Bartholomew's", "Upper East Side"),
+        ("school", "Hawthorne Academy", "Upper East Side"),
+        ("library", "Astor Library", "Upper East Side"),
+        ("pharmacy", "Whitcombe Apothecary", "Upper East Side"),
+        ("shop", "Maison Verrier", "Upper East Side"),
+        ("shop", "Ashford & Lane", "Upper East Side"),
+        ("police", "GCPD 19th Precinct", "Upper East Side"),
+        ("market", "Delacroix Market", "Upper East Side"),
+        ("bar", "The Owl's Rest", "Upper West Side"),
+        ("cafe", "Brownstone Coffee", "Upper West Side"),
+        ("library", "Westside Branch Library", "Upper West Side"),
+        ("church", "Riverside Chapel", "Upper West Side"),
+        ("shop", "Folio & Spine", "Upper West Side"),
+        ("cinema", "The Rialto", "Upper West Side"),
+        ("diner", "Mel's Family Diner", "Robinsville"),
+        ("school", "Robinsville Elementary", "Robinsville"),
+        ("library", "Robinsville Library", "Robinsville"),
+        ("church", "St. Brendan's", "Robinsville"),
+        ("pharmacy", "Robinsville Pharmacy", "Robinsville"),
+        ("cafe", "The Daily Bread", "Robinsville"),
+        ("gym", "Champions Karate", "Robinsville"),
+        ("police", "GCPD 26th Precinct", "Robinsville"),
+        ("bar", "The Summit", "Kane Heights"),
+        ("cafe", "Hillside Coffee", "Kane Heights"),
+        ("market", "Kane Heights Market", "Kane Heights"),
+        ("pharmacy", "Heights Pharmacy", "Kane Heights"),
+        ("library", "Kane Heights Library", "Kane Heights"),
+        ("church", "Church of the Ascension", "Kane Heights"),
+        ("laundromat", "Hilltop Wash", "Kane Heights"),
+        ("diner", "The Greasy Spoon", "The Narrows"),
+        ("church", "St. Dismas Mission", "The Narrows"),
+        ("pharmacy", "Narrows Free Clinic Pharmacy", "The Narrows"),
+        ("gym", "Bricktown Boxing", "The Narrows"),
+        ("shop", "Lucky Seven Pawn", "The Narrows"),
+        ("fire", "Engine 66", "The Narrows"),
+        ("police", "GCPD 3rd Precinct", "The Narrows"),
+        ("cafe", "The Orangery", "Bristol"),
+        ("market", "Pemberton's Provisions", "Bristol"),
+        ("pharmacy", "Bristol Chemist", "Bristol"),
+        ("bank", "Bristol Trust Company", "Bristol"),
+        ("hotel", "The Bristol Arms", "Bristol"),
+        ("shop", "Hargreaves Antiques", "Bristol"),
+        ("library", "Bristol Free Library", "Bristol"),
+        ("police", "GCPD 30th Precinct", "Bristol"),
+        ("bar", "The Vineyard", "Cherry Hills"),
+        ("pharmacy", "Cherry Hills Pharmacy", "Cherry Hills"),
+        ("church", "St. Catherine's", "Cherry Hills"),
+        ("bank", "Hillcrest Savings", "Cherry Hills"),
+        ("shop", "Willow & Thread", "Cherry Hills"),
+        ("gym", "Cherry Hills Racquet Club", "Cherry Hills"),
+        ("post", "Cherry Hills Post Office", "Cherry Hills"),
+        ("cafe", "Byte Café", "Otisburg"),
+        ("cafe", "Foundry Coffee", "Otisburg"),
+        ("bar", "The Server Room", "Otisburg"),
+        ("diner", "Gearbox Diner", "Otisburg"),
+        ("gym", "Circuit Fitness", "Otisburg"),
+        ("restaurant", "Smokestack BBQ", "Otisburg"),
+        ("hotel", "The Otis", "Otisburg"),
+        ("bar", "The Scholar's Pint", "University District"),
+        ("bar", "Thesis", "University District"),
+        ("shop", "Campus Books", "University District"),
+        ("cinema", "The Varsity", "University District"),
+        ("restaurant", "Noodle Bar 88", "University District"),
+        ("gym", "Varsity Athletic Club", "University District"),
+        ("laundromat", "Spin & Study", "University District"),
+        ("post", "University Post Office", "University District"),
+        ("bar", "The Coventry Arms", "Coventry"),
+        ("laundromat", "Coventry Coin Wash", "Coventry"),
+        ("shop", "Patel's Corner Store", "Coventry"),
+        ("gym", "Coventry Boxing Club", "Coventry"),
+        ("post", "Coventry Post Office", "Coventry"),
+        ("diner", "Truck Stop 9", "Ironworks"),
+        ("bar", "The Rivet", "Ironworks"),
+        ("gym", "Anvil Gym", "Ironworks"),
+        ("market", "Ironworks Discount Foods", "Ironworks"),
+        ("church", "St. Joseph the Worker", "Ironworks"),
+        ("fire", "Engine 72", "Ironworks"),
+        ("diner", "The Coffee Cup", "Amusement Mile"),
+        ("bar", "The Carny", "Amusement Mile"),
+        ("shop", "Curios & Oddities", "Amusement Mile"),
+        ("hotel", "Neon Moon Motel", "Amusement Mile"),
+    ]
+    pinned = {}
+    for kind, name, district in more:
+        names, where = venues_by[kind]
+        names.append(name)
+        where[district] = where.get(district, 0) + 1
+        pinned[name] = district
     by_district = {}
     for lot in lots:
         by_district.setdefault(lot[0], []).append(lot)
@@ -4146,10 +4240,17 @@ def build():
             pool.remove(b["name"])
         for district, n in where.items():
             for _ in range(n - placed.get(district, 0)):
-                if not pool or not by_district.get(district):
+                mine = [x for x in pool if pinned.get(x) == district]
+                called = mine[0] if mine else next((x for x in reversed(pool) if x not in pinned), None)
+                if called is None or not by_district.get(district):
                     break
-                name, c, h, area = vr.choice(by_district[district])
-                called = pool.pop()
+                if mine:                                     # (a pinned one takes a lot nobody's on, where there is one)
+                    free = [lot for lot in by_district[district] if (round(lot[1].x, 2), round(lot[1].y, 2)) not in taken]
+                    name, c, h, area = vr.choice(free or by_district[district])
+                    taken.add((round(c.x, 2), round(c.y, 2)))
+                else:
+                    name, c, h, area = vr.choice(by_district[district])
+                pool.remove(called)
                 add(Point(round(c.x, 2), round(c.y, 2)), "venue", n=called, k=kind, a=district)
                 venue_list.append({"name": called, "kind": kind, "area": district,
                                    "x": round(c.x, 2), "y": round(c.y, 2)})
