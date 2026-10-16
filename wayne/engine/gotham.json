@@ -5775,6 +5775,24 @@
    "canon": "invented"
   },
   {
+   "name": "The Undercroft",
+   "x": 60.28,
+   "y": 50.1,
+   "area": "The Bowery",
+   "kind": "spot",
+   "icon": "gym",
+   "match": [
+    "the undercroft",
+    "fight club",
+    "underground fights",
+    "bare-knuckle",
+    "under the laundromat"
+   ],
+   "bio": "A cellar under Wash & Fold 24 on the Bowery: bare-knuckle fights most nights after midnight in a ring of chalk on wet concrete, a bookie on the stairs, a cash box, and one rule, that nobody's name leaves the room.",
+   "note": "Matches Malone has a standing invitation. He's never lost, and nobody's ever asked him where he learned.",
+   "canon": "invented"
+  },
+  {
    "name": "Burnley Square",
    "x": 52.4,
    "y": 40.2,

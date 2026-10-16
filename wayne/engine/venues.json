@@ -142,6 +142,27 @@
 "y": -13.1
 },
 {
+"name": "Tilt",
+"kind": "club",
+"area": "Amusement Mile",
+"x": 61.12,
+"y": 24.32
+},
+{
+"name": "Hall of Mirrors",
+"kind": "club",
+"area": "Amusement Mile",
+"x": 63.21,
+"y": 28.83
+},
+{
+"name": "Last Ride",
+"kind": "club",
+"area": "New Town",
+"x": 72.42,
+"y": 33.41
+},
+{
 "name": "Saint Mike's",
 "kind": "bar",
 "area": "Crime Alley",
@@ -1008,6 +1029,13 @@
 "area": "Tricorner",
 "x": 22.61,
 "y": 124.3
+},
+{
+"name": "Spin City Records",
+"kind": "shop",
+"area": "Otisburg",
+"x": 49.39,
+"y": 31.65
 },
 {
 "name": "GCPD 14th Precinct",

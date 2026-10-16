@@ -7,6 +7,16 @@ major version. Before 1.0, breaking changes could land in a minor bump.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-16
+
+### Added
+
+- **New places to go**: the Undercroft, an underground fight club in a cellar under a Bowery laundromat (bare knuckles
+  after midnight, a bookie on the stairs, no names); two more clubs on the Amusement Mile, Tilt in a shuttered pinball
+  arcade and the Hall of Mirrors in the old funhouse; Last Ride in New Town, in a disused tram depot; and Spin City
+  Records in Otisburg. Each with its line, for the Codex and anyone who knows the city. (The rest of the map is
+  untouched: the new venues take free lots, and every other venue stays where it was.)
+
 ## [1.8.3] - 2026-10-16
 
 ### Fixed
